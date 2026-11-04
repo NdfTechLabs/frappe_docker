@@ -2,6 +2,8 @@ name: NDF / Build and Validate Product Images
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "images/ndf/**"
       - "images/layered/Containerfile"
@@ -65,7 +67,7 @@ jobs:
               ;;
           esac
 
-          MATRIX_JSON=$(printf '%s\n' "${PRODUCTS[@]}" | python -c '
+          MATRIX_JSON=$(printf '%s\\n' "${PRODUCTS[@]}" | python -c '
           import json
           import sys
           images = [line.strip() for line in sys.stdin if line.strip()]
@@ -109,13 +111,13 @@ jobs:
           set -euo pipefail
           mkdir -p "$BUILD_OUTPUT"
 
-          python images/ndf/scripts/build_image.py \
-            --image "${{ matrix.image }}" \
-            --tag "$IMAGE_TAG" \
-            --platform linux/amd64 \
-            --output-dir "$BUILD_OUTPUT" \
-            --cache-from "type=gha,scope=ndf-${{ matrix.image }}" \
-            --cache-to "type=gha,mode=max,scope=ndf-${{ matrix.image }}" \
+          python images/ndf/scripts/build_image.py \\
+            --image "${{ matrix.image }}" \\
+            --tag "$IMAGE_TAG" \\
+            --platform linux/amd64 \\
+            --output-dir "$BUILD_OUTPUT" \\
+            --cache-from "type=gha,scope=ndf-${{ matrix.image }}" \\
+            --cache-to "type=gha,mode=max,scope=ndf-${{ matrix.image }}" \\
             --progress plain
 
       - name: Resolve image reference
@@ -124,7 +126,7 @@ jobs:
           set -euo pipefail
           IMAGE_REPOSITORY=$(python -c '
           import json
-          with open("'"$BUILD_OUTPUT"'/build-metadata.json", encoding="utf-8") as file:
+          with open("'"\"$BUILD_OUTPUT\"'/build-metadata.json", encoding="utf-8") as file:
               print(json.load(file)["image"]["repository"])
           ')
           echo "image_ref=${IMAGE_REPOSITORY}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
@@ -132,10 +134,10 @@ jobs:
       - name: Validate image contents and metadata
         run: |
           set -euo pipefail
-          python images/ndf/scripts/validate_image.py \
-            --image "${{ steps.image.outputs.image_ref }}" \
-            --metadata "$BUILD_OUTPUT/build-metadata.json" \
-            --lock "images/ndf/locks/${{ matrix.image }}.lock.json" \
+          python images/ndf/scripts/validate_image.py \\
+            --image "${{ steps.image.outputs.image_ref }}" \\
+            --metadata "$BUILD_OUTPUT/build-metadata.json" \\
+            --lock "images/ndf/locks/${{ matrix.image }}.lock.json" \\
             --report "$BUILD_OUTPUT/image-validation.json"
 
       - name: Upload build and validation artifacts
