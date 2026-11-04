@@ -1,15 +1,14 @@
+import json
 import os
 import shutil
 import subprocess
 import sys
-
-import json
-import pytest
 from pathlib import Path
 
+import pytest
 from scripts.resolve_manifest import (
-    ManifestLoader,
     ManifestError,
+    ManifestLoader,
 )
 
 
@@ -27,6 +26,7 @@ def run_resolver(environment, *arguments):
         capture_output=True,
         text=True,
     )
+
 
 def write_test_manifest(
     manifests_dir,
@@ -61,24 +61,29 @@ def write_test_manifest(
         },
         "validation": {},
         "includes": includes or [],
-        "applications": applications if applications is not None else [
-           {
-               "name": "frappe",
-               "repository": "https://github.com/frappe/frappe",
-               "target_ref": "version-16",
-               "required": True,
-               "install_order": 0,
-               "dependencies": [],
-               "ref": None,
-               "compatibility_status": "pending",
-           }
-       ],
+        "applications": (
+            applications
+            if applications is not None
+            else [
+                {
+                    "name": "frappe",
+                    "repository": "https://github.com/frappe/frappe",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 0,
+                    "dependencies": [],
+                    "ref": None,
+                    "compatibility_status": "pending",
+                }
+            ]
+        ),
     }
 
     path = manifests_dir / filename
     path.write_text(json.dumps(manifest, indent=2))
 
     return path
+
 
 def shared_test_application():
     """Return an identical application definition for manifest tests."""
@@ -93,6 +98,7 @@ def shared_test_application():
         "ref": "a" * 40,
         "compatibility_status": "verified",
     }
+
 
 @pytest.fixture
 def loader(tmp_path):
@@ -183,6 +189,7 @@ def generated_lock(loader, sample_manifest, sample_applications, tmp_path):
 
     return lock_path, lock_data
 
+
 @pytest.fixture
 def cli_environment(tmp_path):
     """Create an isolated environment for CLI integration tests."""
@@ -261,20 +268,17 @@ def cli_environment(tmp_path):
         "manifest_version": "1.0",
         "id": "cli-test",
         "name": "CLI Test Product",
-
         "framework": {
             "name": "frappe",
             "version": "16",
             "release_channel": "stable",
             "target_ref": "version-16",
         },
-
         "profile": {
             "type": "product",
             "required": True,
             "install_by_default": True,
         },
-
         "resolution": {
             "strategy": "locked",
             "immutable_commit": True,
@@ -282,9 +286,7 @@ def cli_environment(tmp_path):
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
-
         "validation": {},
-
         "applications": [
             {
                 "name": "test_app",
@@ -319,6 +321,7 @@ def cli_environment(tmp_path):
 # Lock generation
 # ---------------------------------------------------------
 
+
 class TestLockGeneration:
 
     def test_build_lock_data(self, loader, sample_manifest, sample_applications):
@@ -350,7 +353,9 @@ class TestLockGeneration:
 
         assert first == second
 
-    def test_write_lock_file(self, loader, sample_manifest, sample_applications, tmp_path):
+    def test_write_lock_file(
+        self, loader, sample_manifest, sample_applications, tmp_path
+    ):
         lock_data = loader.build_lock_data(
             sample_manifest,
             sample_applications,
@@ -366,9 +371,7 @@ class TestLockGeneration:
         assert result == lock_path
         assert lock_path.exists()
 
-        written_data = json.loads(
-            lock_path.read_text(encoding="utf-8")
-        )
+        written_data = json.loads(lock_path.read_text(encoding="utf-8"))
 
         assert written_data == lock_data
 
@@ -377,15 +380,19 @@ class TestLockGeneration:
 # Lock validation
 # ---------------------------------------------------------
 
+
 class TestLockValidation:
 
     def test_valid_lock_passes(self, loader, sample_manifest, generated_lock):
         lock_path, _ = generated_lock
 
-        assert loader.validate_lock_file(
-            lock_path,
-            sample_manifest,
-        ) is True
+        assert (
+            loader.validate_lock_file(
+                lock_path,
+                sample_manifest,
+            )
+            is True
+        )
 
     def test_modified_manifest_fails_checksum_validation(
         self,
@@ -426,11 +433,14 @@ class TestLockValidation:
             encoding="utf-8",
         )
 
-        assert loader.validate_lock_file(
-            lock_path,
-            sample_manifest,
-            verify_manifest_checksums=False,
-        ) is True
+        assert (
+            loader.validate_lock_file(
+                lock_path,
+                sample_manifest,
+                verify_manifest_checksums=False,
+            )
+            is True
+        )
 
     def test_invalid_lock_json_is_rejected(
         self,
@@ -451,6 +461,7 @@ class TestLockValidation:
 # ---------------------------------------------------------
 # Lock comparison
 # ---------------------------------------------------------
+
 
 class TestLockComparison:
 
@@ -498,8 +509,7 @@ class TestLockComparison:
         )
 
         assert any(
-            "Changed manifest content: test-product" in change
-            for change in changes
+            "Changed manifest content: test-product" in change for change in changes
         )
 
     def test_changed_application_reference_is_detected(
@@ -529,10 +539,7 @@ class TestLockComparison:
             sample_manifest,
         )
 
-        assert any(
-            "frappe.ref" in change
-            for change in changes
-        )
+        assert any("frappe.ref" in change for change in changes)
 
     def test_added_application_is_detected(
         self,
@@ -564,10 +571,7 @@ class TestLockComparison:
             sample_manifest,
         )
 
-        assert any(
-            "Added application: erpnext" in change
-            for change in changes
-        )
+        assert any("Added application: erpnext" in change for change in changes)
 
     def test_removed_application_is_detected(
         self,
@@ -596,10 +600,7 @@ class TestLockComparison:
             sample_manifest,
         )
 
-        assert any(
-            "Removed application: frappe" in change
-            for change in changes
-        )
+        assert any("Removed application: frappe" in change for change in changes)
 
     def test_missing_previous_lock_is_reported(
         self,
@@ -622,10 +623,7 @@ class TestLockComparison:
         )
 
         assert changes
-        assert any(
-            "No previous lock file found" in change
-            for change in changes
-        )
+        assert any("No previous lock file found" in change for change in changes)
 
     def test_invalid_previous_lock_is_rejected_without_modification(
         self,
@@ -656,6 +654,7 @@ class TestLockComparison:
             )
 
         assert lock_path.read_text(encoding="utf-8") == original_content
+
 
 class TestCheckMode:
 
@@ -765,6 +764,7 @@ class TestCheckMode:
         assert result.returncode == 1
         assert "Lock file does not exist" in result.stderr
 
+
 class TestRecursiveManifestLoading:
 
     def test_recursive_manifest_loading(self, loader):
@@ -869,10 +869,7 @@ class TestRecursiveManifestLoading:
 
         result = loader.load("product.json")
 
-        included_ids = [
-            item["id"]
-            for item in result["_loaded_includes"]
-        ]
+        included_ids = [item["id"] for item in result["_loaded_includes"]]
 
         assert included_ids.count("shared") == 1
 
@@ -960,10 +957,7 @@ class TestRecursiveManifestLoading:
             applications,
         )
 
-        manifest_paths = [
-            entry["path"]
-            for entry in lock_data["manifests"]
-        ]
+        manifest_paths = [entry["path"] for entry in lock_data["manifests"]]
 
         assert len(manifest_paths) == len(set(manifest_paths))
 
@@ -974,9 +968,7 @@ class TestRecursiveManifestLoading:
             "shared.json",
         }
 
-    def test_duplicate_manifest_id_from_different_files_is_rejected(
-        self, loader
-    ):
+    def test_duplicate_manifest_id_from_different_files_is_rejected(self, loader):
         manifests_dir = loader.manifests_dir
 
         write_test_manifest(
@@ -1007,9 +999,7 @@ class TestRecursiveManifestLoading:
         ):
             loader.load("product.json")
 
-    def test_duplicate_manifest_id_in_optional_include_is_rejected(
-        self, loader
-    ):
+    def test_duplicate_manifest_id_in_optional_include_is_rejected(self, loader):
         manifests_dir = loader.manifests_dir
 
         write_test_manifest(
@@ -1039,6 +1029,7 @@ class TestRecursiveManifestLoading:
             match="Duplicate manifest ID 'shared-identity'",
         ):
             loader.load("product.json")
+
 
 class TestApplicationComposition:
 
@@ -1070,7 +1061,7 @@ class TestApplicationComposition:
 
         assert names.count("frappe") == 1
 
-    def test_conflicting_application_definitions_are_rejected(self,loader):
+    def test_conflicting_application_definitions_are_rejected(self, loader):
         first_definition = {
             "name": "frappe",
             "repository": "https://github.com/frappe/frappe",
@@ -1102,6 +1093,7 @@ class TestApplicationComposition:
             match="Conflicting application definition",
         ):
             loader.compose_applications(manifest)
+
 
 class TestApplicationDependencies:
 
@@ -1182,5 +1174,9 @@ class TestApplicationDependencies:
         assert ordered_names.index("frappe") < ordered_names.index("erpnext")
         assert ordered_names.index("erpnext") < ordered_names.index("webshop")
         assert ordered_names.index("webshop") < ordered_names.index("dt_ecommerce")
-        assert ordered_names.index("dt_ecommerce") < ordered_names.index("dt_recomendations")
-        assert ordered_names.index("dt_recomendations") < ordered_names.index("dt_dalali_ecommerce")
+        assert ordered_names.index("dt_ecommerce") < ordered_names.index(
+            "dt_recomendations"
+        )
+        assert ordered_names.index("dt_recomendations") < ordered_names.index(
+            "dt_dalali_ecommerce"
+        )

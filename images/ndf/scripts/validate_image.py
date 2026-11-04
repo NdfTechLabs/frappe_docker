@@ -43,10 +43,16 @@ def run_docker(command: list[str]) -> str:
 
 
 def inspect_image_labels(image_ref: str) -> dict[str, str]:
-    output = run_docker([
-        "docker", "image", "inspect", image_ref,
-        "--format", "{{json .Config.Labels}}",
-    ])
+    output = run_docker(
+        [
+            "docker",
+            "image",
+            "inspect",
+            image_ref,
+            "--format",
+            "{{json .Config.Labels}}",
+        ]
+    )
     try:
         labels = json.loads(output)
     except json.JSONDecodeError as exc:
@@ -69,10 +75,18 @@ def inspect_image_contents(image_ref: str) -> dict[str, Any]:
         "if line.strip()]"
         "}))"
     )
-    output = run_docker([
-        "docker", "run", "--rm", "--entrypoint", "bash", image_ref,
-        "-lc", f"python -c {json.dumps(inspection_code)}",
-    ])
+    output = run_docker(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "bash",
+            image_ref,
+            "-lc",
+            f"python -c {json.dumps(inspection_code)}",
+        ]
+    )
     try:
         contents = json.loads(output)
     except json.JSONDecodeError as exc:
@@ -95,7 +109,9 @@ def validate_image(
     expected_apps = [app["name"] for app in metadata["applications"]]
     expected_app_set = set(expected_apps)
     if len(expected_apps) != len(expected_app_set):
-        raise ImageValidationError("Build metadata contains duplicate application names.")
+        raise ImageValidationError(
+            "Build metadata contains duplicate application names."
+        )
 
     actual_dirs = contents.get("directories")
     actual_apps_txt = contents.get("apps_txt")
@@ -125,7 +141,8 @@ def validate_image(
     image = metadata["image"]
     framework = metadata["framework"]
     manifest_entries = [
-        item for item in lock_data.get("manifests", [])
+        item
+        for item in lock_data.get("manifests", [])
         if item.get("path") == image["manifest"]
     ]
     if len(manifest_entries) != 1:
@@ -209,9 +226,13 @@ def main() -> int:
         description="Validate an NDF product image against its build metadata and lock."
     )
     parser.add_argument("--image", required=True, help="Local Docker image reference.")
-    parser.add_argument("--metadata", required=True, type=Path, help="Build metadata JSON.")
+    parser.add_argument(
+        "--metadata", required=True, type=Path, help="Build metadata JSON."
+    )
     parser.add_argument("--lock", required=True, type=Path, help="Manifest lock JSON.")
-    parser.add_argument("--report", type=Path, help="Optional JSON validation report path.")
+    parser.add_argument(
+        "--report", type=Path, help="Optional JSON validation report path."
+    )
     args = parser.parse_args()
 
     try:

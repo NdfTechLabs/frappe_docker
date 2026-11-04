@@ -1,0 +1,54 @@
+[
+  {
+    "branch": "version-16",
+    "url": "https://github.com/frappe/erpnext"
+  },
+  {
+    "branch": "version-16",
+    "url": "https://github.com/frappe/payments"
+  },
+  {
+    "branch": "version-16",
+    "url": "https://github.com/frappe/webshop"
+  },
+  {
+    "branch": "version-1",
+    "url": "https://github.com/NdfTechLabs/dt_ecommerce"
+  },
+  {
+    "branch": "version-1",
+    "url": "https://github.com/NdfTechLabs/dt_recomendations"
+  },
+  {
+    "branch": "version-1",
+    "url": "https://github.com/NdfTechLabs/dt_dalali_ecommerce"
+  },
+  {
+    "branch": "version-1",
+    "url": "https://github.com/NdfTechLabs/dt_tenant"
+  },
+  {
+    "branch": "version-16",
+    "url": "https://github.com/frappe/hrms"
+  },
+  {
+    "branch": "version-16",
+    "url": "https://github.com/frappe/lending"
+  },
+  {
+    "branch": "version-16",
+    "url": "https://github.com/navariltd/frappe-mpsa-payments"
+  },
+  {
+    "branch": "develop",
+    "url": "https://github.com/frappe/telephony"
+  },
+  {
+    "branch": "main",
+    "url": "https://github.com/frappe/helpdesk"
+  },
+  {
+    "branch": "version-3",
+    "url": "https://github.com/frappe/insights"
+  }
+]

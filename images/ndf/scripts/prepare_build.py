@@ -71,15 +71,10 @@ def load_image_definition(
     except ImageDefinitionError as exc:
         raise BuildPreparationError(str(exc)) from exc
 
-    matches = [
-        image for image in definitions["images"]
-        if image["id"] == image_id
-    ]
+    matches = [image for image in definitions["images"] if image["id"] == image_id]
 
     if not matches:
-        available = ", ".join(
-            image["id"] for image in definitions["images"]
-        )
+        available = ", ".join(image["id"] for image in definitions["images"])
         raise BuildPreparationError(
             f"Unknown image ID '{image_id}'. Available images: {available}"
         )
@@ -125,10 +120,7 @@ def validate_build_lock(
     if not isinstance(framework, dict):
         raise BuildPreparationError("Lock file has no valid framework section.")
 
-    frappe_apps = [
-        app for app in lock_data["applications"]
-        if app["name"] == "frappe"
-    ]
+    frappe_apps = [app for app in lock_data["applications"] if app["name"] == "frappe"]
     if len(frappe_apps) != 1:
         raise BuildPreparationError(
             "Lock file must contain exactly one 'frappe' application."
@@ -136,9 +128,7 @@ def validate_build_lock(
 
     frappe_app = frappe_apps[0]
     if framework.get("name") != "frappe":
-        raise BuildPreparationError(
-            "Only the Frappe framework is currently supported."
-        )
+        raise BuildPreparationError("Only the Frappe framework is currently supported.")
 
     if framework.get("target_ref") != frappe_app.get("target_ref"):
         raise BuildPreparationError(
@@ -181,10 +171,12 @@ def build_apps_json(lock_data: dict[str, Any]) -> list[dict[str, str]]:
                 f"Application '{app['name']}' has an invalid target_ref."
             )
 
-        apps_json.append({
-            "url": repository,
-            "branch": target_ref,
-        })
+        apps_json.append(
+            {
+                "url": repository,
+                "branch": target_ref,
+            }
+        )
 
     return apps_json
 

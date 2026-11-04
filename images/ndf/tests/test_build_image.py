@@ -3,7 +3,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from scripts.build_image import (
     BuildExecutionError,
     build_command,
@@ -14,11 +13,7 @@ from scripts.build_image import (
 
 
 def test_get_manifest_checksum_returns_matching_source_revision():
-    lock = {
-        "manifests": [
-            {"path": "products/dalali-v16.json", "sha256": "a" * 64}
-        ]
-    }
+    lock = {"manifests": [{"path": "products/dalali-v16.json", "sha256": "a" * 64}]}
     assert get_manifest_checksum(lock, "products/dalali-v16.json") == "a" * 64
 
 
@@ -49,11 +44,7 @@ def test_build_labels_include_manifest_lock_and_application_refs():
             {"name": "erpnext", "target_ref": "version-16", "resolved_sha": "c" * 40}
         ],
     }
-    lock = {
-        "manifests": [
-            {"path": "products/dalali-v16.json", "sha256": "a" * 64}
-        ]
-    }
+    lock = {"manifests": [{"path": "products/dalali-v16.json", "sha256": "a" * 64}]}
 
     labels = build_labels(metadata, lock)
     apps = json.loads(labels["com.ndf.applications"])

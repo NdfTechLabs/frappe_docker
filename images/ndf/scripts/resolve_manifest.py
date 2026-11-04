@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-import subprocess
 import argparse
+import hashlib
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
 from jsonschema import Draft202012Validator
-import hashlib
-import re
 
 
 class ManifestError(Exception):
     """Raised when manifest loading or resolution fails."""
+
 
 class DuplicateManifestIDError(ManifestError):
     """Raised when different manifest files declare the same ID."""
@@ -35,9 +37,7 @@ class ManifestLoader:
             )
 
         if not path.is_file():
-            raise ManifestError(
-                f"Manifest not found: {manifest_path}"
-            )
+            raise ManifestError(f"Manifest not found: {manifest_path}")
 
         return path
 
@@ -49,19 +49,13 @@ class ManifestLoader:
                 manifest = json.load(file)
 
         except json.JSONDecodeError as exc:
-            raise ManifestError(
-                f"Invalid JSON in {path.name}: {exc}"
-            ) from exc
+            raise ManifestError(f"Invalid JSON in {path.name}: {exc}") from exc
 
         except OSError as exc:
-            raise ManifestError(
-                f"Unable to read {path}: {exc}"
-            ) from exc
+            raise ManifestError(f"Unable to read {path}: {exc}") from exc
 
         if not isinstance(manifest, dict):
-            raise ManifestError(
-                f"Manifest must contain a JSON object: {path.name}"
-            )
+            raise ManifestError(f"Manifest must contain a JSON object: {path.name}")
 
         return manifest
 
@@ -74,9 +68,7 @@ class ManifestLoader:
             cycle = self.loading_stack + [path]
             chain = " -> ".join(p.name for p in cycle)
 
-            raise ManifestError(
-                f"Circular manifest inclusion detected: {chain}"
-            )
+            raise ManifestError(f"Circular manifest inclusion detected: {chain}")
 
         if path in self.loaded:
             return self.loaded[path]
@@ -85,9 +77,7 @@ class ManifestLoader:
         self.validate(manifest, path)
 
         if "id" not in manifest:
-            raise ManifestError(
-                f"Manifest is missing its ID: {path.name}"
-            )
+            raise ManifestError(f"Manifest is missing its ID: {path.name}")
 
         self.loading_stack.append(path)
 
@@ -95,9 +85,7 @@ class ManifestLoader:
             includes = manifest.get("includes", [])
 
             if not isinstance(includes, list):
-                raise ManifestError(
-                    f"'includes' must be an array in {path.name}"
-                )
+                raise ManifestError(f"'includes' must be an array in {path.name}")
 
             loaded_includes = []
             loaded_include_paths = set()
@@ -105,9 +93,7 @@ class ManifestLoader:
             for include in includes:
 
                 if not isinstance(include, dict):
-                    raise ManifestError(
-                        f"Invalid include entry in {path.name}"
-                    )
+                    raise ManifestError(f"Invalid include entry in {path.name}")
 
                 include_path = include.get("manifest")
 
@@ -178,9 +164,7 @@ class ManifestLoader:
                 schema = json.load(file)
 
         except (OSError, json.JSONDecodeError) as exc:
-            raise ManifestError(
-                f"Unable to load manifest schema: {exc}"
-            ) from exc
+            raise ManifestError(f"Unable to load manifest schema: {exc}") from exc
 
         validator = Draft202012Validator(schema)
 
@@ -199,8 +183,7 @@ class ManifestLoader:
                 details.append(f"  - {location}: {error.message}")
 
             raise ManifestError(
-                f"Schema validation failed for {path.name}:\n"
-                + "\n".join(details)
+                f"Schema validation failed for {path.name}:\n" + "\n".join(details)
             )
 
     def compose_applications(self, manifest: dict) -> list:
@@ -243,10 +226,7 @@ class ManifestLoader:
     def validate_dependencies(self, applications: list):
         """Ensure all application dependencies exist in the composition."""
 
-        available_apps = {
-            app["name"]: app
-            for app in applications
-        }
+        available_apps = {app["name"]: app for app in applications}
 
         errors = []
 
@@ -271,10 +251,7 @@ class ManifestLoader:
     def resolve_install_order(self, applications: list) -> list:
         """Calculate application installation order using dependencies."""
 
-        available_apps = {
-            app["name"]: app
-            for app in applications
-        }
+        available_apps = {app["name"]: app for app in applications}
 
         visited = set()
         visiting = []
@@ -286,8 +263,7 @@ class ManifestLoader:
                 cycle = visiting[cycle_start:] + [app_name]
 
                 raise ManifestError(
-                    "Circular application dependency detected:\n"
-                    + " -> ".join(cycle)
+                    "Circular application dependency detected:\n" + " -> ".join(cycle)
                 )
 
             if app_name in visited:
@@ -363,9 +339,7 @@ class ManifestLoader:
         if tag_ref in resolved:
             return resolved[tag_ref]
 
-        raise ManifestError(
-            f"Git reference '{target_ref}' not found in {repository}"
-        )
+        raise ManifestError(f"Git reference '{target_ref}' not found in {repository}")
 
     def resolve_application_refs(self, applications: list) -> list:
         """Resolve all application Git references to immutable commits."""
@@ -382,10 +356,7 @@ class ManifestLoader:
 
             app["ref"] = self.resolve_git_ref(repository, target_ref)
 
-            print(
-                f"Resolved {app['name']}: "
-                f"{target_ref} -> {app['ref']}"
-            )
+            print(f"Resolved {app['name']}: " f"{target_ref} -> {app['ref']}")
 
         return applications
 
@@ -399,7 +370,6 @@ class ManifestLoader:
         loaded_manifests = []
         collected_manifest_paths = set()
 
-
         def collect_manifests(current: dict):
             source_path = Path(current["_source_path"]).resolve()
 
@@ -410,23 +380,20 @@ class ManifestLoader:
 
             collected_manifest_paths.add(source_path)
 
-            relative_path = source_path.relative_to(
-                self.manifests_dir
+            relative_path = source_path.relative_to(self.manifests_dir)
+
+            checksum = hashlib.sha256(source_path.read_bytes()).hexdigest()
+
+            loaded_manifests.append(
+                {
+                    "id": current["id"],
+                    "path": relative_path.as_posix(),
+                    "sha256": checksum,
+                }
             )
-
-            checksum = hashlib.sha256(
-                source_path.read_bytes()
-            ).hexdigest()
-
-            loaded_manifests.append({
-                "id": current["id"],
-                "path": relative_path.as_posix(),
-                "sha256": checksum,
-            })
 
             for child in current.get("_loaded_includes", []):
                 collect_manifests(child)
-
 
         collect_manifests(manifest)
 
@@ -469,9 +436,7 @@ class ManifestLoader:
             exist_ok=True,
         )
 
-        temporary_path = output_path.with_suffix(
-            output_path.suffix + ".tmp"
-        )
+        temporary_path = output_path.with_suffix(output_path.suffix + ".tmp")
 
         try:
             temporary_path.write_text(
@@ -479,7 +444,8 @@ class ManifestLoader:
                     lock_data,
                     indent=2,
                     sort_keys=True,
-                ) + "\n",
+                )
+                + "\n",
                 encoding="utf-8",
             )
 
@@ -505,18 +471,14 @@ class ManifestLoader:
                 lock = json.load(file)
 
         except (OSError, json.JSONDecodeError) as exc:
-            raise ManifestError(
-                f"Unable to read lock file {lock_path}: {exc}"
-            ) from exc
+            raise ManifestError(f"Unable to read lock file {lock_path}: {exc}") from exc
 
         if not isinstance(lock, dict):
             raise ManifestError("Lock file must contain a JSON object.")
 
         # 1. Lock format version
         if lock.get("lock_version") != 1:
-            raise ManifestError(
-                f"Unsupported lock version: {lock.get('lock_version')}"
-            )
+            raise ManifestError(f"Unsupported lock version: {lock.get('lock_version')}")
 
         # 2. Product identity
         product = lock.get("product")
@@ -551,11 +513,14 @@ class ManifestLoader:
             relative_path = entry.get("path")
             expected_sha256 = entry.get("sha256")
 
-            if not all(isinstance(value, str) and value for value in (
-                manifest_id,
-                relative_path,
-                expected_sha256,
-            )):
+            if not all(
+                isinstance(value, str) and value
+                for value in (
+                    manifest_id,
+                    relative_path,
+                    expected_sha256,
+                )
+            ):
                 raise ManifestError("Incomplete source manifest entry in lock file.")
 
             if manifest_id in seen_ids:
@@ -579,14 +544,10 @@ class ManifestLoader:
             source_path = self.resolve_path(relative_path)
 
             if not source_path.is_file():
-                raise ManifestError(
-                    f"Source manifest does not exist: {relative_path}"
-                )
+                raise ManifestError(f"Source manifest does not exist: {relative_path}")
 
             if verify_manifest_checksums:
-                actual_sha256 = hashlib.sha256(
-                    source_path.read_bytes()
-                ).hexdigest()
+                actual_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
 
                 if actual_sha256 != expected_sha256:
                     raise ManifestError(
@@ -623,19 +584,13 @@ class ManifestLoader:
                 raise ManifestError("Application has an invalid name.")
 
             if name in available_apps:
-                raise ManifestError(
-                    f"Duplicate application in lock file: {name}"
-                )
+                raise ManifestError(f"Duplicate application in lock file: {name}")
 
             if not isinstance(repository, str) or not repository:
-                raise ManifestError(
-                    f"Application '{name}' has no repository."
-                )
+                raise ManifestError(f"Application '{name}' has no repository.")
 
             if not isinstance(target_ref, str) or not target_ref:
-                raise ManifestError(
-                    f"Application '{name}' has no target_ref."
-                )
+                raise ManifestError(f"Application '{name}' has no target_ref.")
 
             if not isinstance(commit, str) or not re.fullmatch(
                 r"[a-fA-F0-9]{40}", commit
@@ -658,9 +613,7 @@ class ManifestLoader:
                 or any(not isinstance(dep, str) or not dep for dep in dependencies)
                 or len(dependencies) != len(set(dependencies))
             ):
-                raise ManifestError(
-                    f"Invalid dependencies for application '{name}'."
-                )
+                raise ManifestError(f"Invalid dependencies for application '{name}'.")
 
             available_apps[name] = app
             previous_order = order
@@ -700,13 +653,10 @@ class ManifestLoader:
             return ["No previous lock file found. A new lock will be created."]
 
         try:
-            previous_lock = json.loads(
-                previous_lock_path.read_text(encoding="utf-8")
-            )
+            previous_lock = json.loads(previous_lock_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ManifestError(
-                f"Unable to read previous lock file "
-                f"{previous_lock_path}: {exc}"
+                f"Unable to read previous lock file " f"{previous_lock_path}: {exc}"
             ) from exc
 
         # Validate structure, but allow source checksum changes.
@@ -724,19 +674,15 @@ class ManifestLoader:
             new_value = new_lock_data.get(section)
 
             if old_value != new_value:
-                changes.append(
-                    f"Changed {section}: {old_value} -> {new_value}"
-                )
+                changes.append(f"Changed {section}: {old_value} -> {new_value}")
 
         # Compare manifests by manifest ID.
         old_manifests = {
-            item["id"]: item
-            for item in previous_lock.get("manifests", [])
+            item["id"]: item for item in previous_lock.get("manifests", [])
         }
 
         new_manifests = {
-            item["id"]: item
-            for item in new_lock_data.get("manifests", [])
+            item["id"]: item for item in new_lock_data.get("manifests", [])
         }
 
         for manifest_id in sorted(new_manifests.keys() - old_manifests.keys()):
@@ -757,13 +703,11 @@ class ManifestLoader:
 
         # Compare applications by application name.
         old_apps = {
-            item["name"]: item
-            for item in previous_lock.get("applications", [])
+            item["name"]: item for item in previous_lock.get("applications", [])
         }
 
         new_apps = {
-            item["name"]: item
-            for item in new_lock_data.get("applications", [])
+            item["name"]: item for item in new_lock_data.get("applications", [])
         }
 
         for app_name in sorted(new_apps.keys() - old_apps.keys()):
@@ -793,24 +737,20 @@ class ManifestLoader:
 
         return changes
 
+
 def print_manifest_tree(manifest: dict, level: int = 0):
     """Display the loaded manifest hierarchy."""
 
     indent = "  " * level
 
-    print(
-        f"{indent}- {manifest['id']} "
-        f"({Path(manifest['_source_path']).name})"
-    )
+    print(f"{indent}- {manifest['id']} " f"({Path(manifest['_source_path']).name})")
 
     for child in manifest.get("_loaded_includes", []):
         print_manifest_tree(child, level + 1)
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="NDF Frappe Manifest Resolver"
-    )
+    parser = argparse.ArgumentParser(description="NDF Frappe Manifest Resolver")
 
     parser.add_argument(
         "manifest",
@@ -859,9 +799,7 @@ def main():
 
     # 3. Resolve installation order
     try:
-        ordered_applications = loader.resolve_install_order(
-            applications
-        )
+        ordered_applications = loader.resolve_install_order(applications)
 
     except ManifestError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -874,9 +812,7 @@ def main():
 
     # 4. Resolve immutable Git references
     try:
-        ordered_applications = loader.resolve_application_refs(
-            ordered_applications
-        )
+        ordered_applications = loader.resolve_application_refs(ordered_applications)
 
     except ManifestError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -887,11 +823,7 @@ def main():
     # 5. Determine lock file location
     lock_filename = f"{Path(args.manifest).stem}.lock.json"
 
-    lock_path = (
-        ndf_dir
-        / "locks"
-        / lock_filename
-    )
+    lock_path = ndf_dir / "locks" / lock_filename
 
     # 6. Build new lock data in memory
     try:
@@ -949,6 +881,7 @@ def main():
         sys.exit(1)
 
     print(f"\nLock file generated and validated: {lock_path}")
+
 
 if __name__ == "__main__":
     main()

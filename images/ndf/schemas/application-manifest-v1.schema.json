@@ -32,12 +32,7 @@
     },
     "framework": {
       "type": "object",
-      "required": [
-        "name",
-        "version",
-        "release_channel",
-        "target_ref"
-      ],
+      "required": ["name", "version", "release_channel", "target_ref"],
       "properties": {
         "name": {
           "const": "frappe"
@@ -56,11 +51,7 @@
     },
     "profile": {
       "type": "object",
-      "required": [
-        "type",
-        "required",
-        "install_by_default"
-      ],
+      "required": ["type", "required", "install_by_default"],
       "properties": {
         "type": {
           "enum": ["base", "capability", "product"]

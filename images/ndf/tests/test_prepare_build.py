@@ -4,7 +4,6 @@ import shutil
 from pathlib import Path
 
 import pytest
-
 from scripts.prepare_build import (
     BuildPreparationError,
     build_apps_json,
@@ -111,9 +110,7 @@ def build_project(tmp_path):
             {
                 "id": manifest["id"],
                 "path": "products/test-product-v16.json",
-                "sha256": hashlib.sha256(
-                    manifest_path.read_bytes()
-                ).hexdigest(),
+                "sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
             }
         ],
         "applications": applications,
@@ -201,16 +198,10 @@ def test_prepare_build_generates_bench_inputs_and_metadata(
         output_dir=output_dir,
     )
 
-    apps_json = json.loads(
-        result["apps_json_path"].read_text(encoding="utf-8")
-    )
-    metadata = json.loads(
-        result["metadata_path"].read_text(encoding="utf-8")
-    )
+    apps_json = json.loads(result["apps_json_path"].read_text(encoding="utf-8"))
+    metadata = json.loads(result["metadata_path"].read_text(encoding="utf-8"))
 
-    assert result["image"]["repository"] == (
-        "ghcr.io/ndftechlabs/test-product"
-    )
+    assert result["image"]["repository"] == ("ghcr.io/ndftechlabs/test-product")
     assert result["framework"]["target_ref"] == "version-16"
     assert result["applications_count"] == 3
     assert result["bench_apps_count"] == 2
@@ -238,9 +229,7 @@ def test_prepare_build_rejects_unknown_image(build_project):
 def test_prepare_build_rejects_stale_manifest_checksum(
     build_project,
 ):
-    manifest_path = (
-        build_project / "manifests" / "products" / "test-product-v16.json"
-    )
+    manifest_path = build_project / "manifests" / "products" / "test-product-v16.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["name"] = "Changed Product"
     manifest_path.write_text(
@@ -259,9 +248,7 @@ def test_prepare_build_rejects_stale_manifest_checksum(
 
 
 def test_prepare_build_rejects_framework_ref_mismatch(build_project):
-    lock_path = (
-        build_project / "locks" / "test-product-v16.lock.json"
-    )
+    lock_path = build_project / "locks" / "test-product-v16.lock.json"
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
     lock["framework"]["target_ref"] = "develop"
     lock_path.write_text(

@@ -2,7 +2,6 @@ import json
 from unittest.mock import patch
 
 import pytest
-
 from scripts.validate_image import (
     ImageValidationError,
     inspect_image_contents,
@@ -66,14 +65,16 @@ def validation_inputs():
         "com.ndf.framework.version": "16",
         "com.ndf.framework.target-ref": "version-16",
         "com.ndf.lock.sha256": "b" * 64,
-        "com.ndf.applications": json.dumps([
-            {
-                "name": app["name"],
-                "target_ref": app["target_ref"],
-                "resolved_sha": app["resolved_sha"],
-            }
-            for app in metadata["applications"]
-        ]),
+        "com.ndf.applications": json.dumps(
+            [
+                {
+                    "name": app["name"],
+                    "target_ref": app["target_ref"],
+                    "resolved_sha": app["resolved_sha"],
+                }
+                for app in metadata["applications"]
+            ]
+        ),
     }
     contents = {
         "directories": [
@@ -151,10 +152,12 @@ def test_validate_image_rejects_duplicate_expected_applications(validation_input
 def test_inspect_image_contents_runs_one_shot_container():
     class Result:
         returncode = 0
-        stdout = json.dumps({
-            "directories": ["frappe", "erpnext"],
-            "apps_txt": ["frappe", "erpnext"],
-        })
+        stdout = json.dumps(
+            {
+                "directories": ["frappe", "erpnext"],
+                "apps_txt": ["frappe", "erpnext"],
+            }
+        )
         stderr = ""
 
     with patch("scripts.validate_image.subprocess.run", return_value=Result()) as run:
@@ -162,7 +165,5 @@ def test_inspect_image_contents_runs_one_shot_container():
 
     assert result["directories"] == ["frappe", "erpnext"]
     command = run.call_args.args[0]
-    assert command[:4] == [
-        "docker", "run", "--rm", "--entrypoint"
-    ]
+    assert command[:4] == ["docker", "run", "--rm", "--entrypoint"]
     assert "local/dalali:test" in command

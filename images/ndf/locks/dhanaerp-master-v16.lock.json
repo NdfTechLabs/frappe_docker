@@ -9,9 +9,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 2,
       "name": "erpnext",
       "ref": "9cd11b19575bfc34f092a24f6c8b368c4dd69481",
@@ -19,9 +17,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "erpnext"
-      ],
+      "dependencies": ["erpnext"],
       "installation_order": 3,
       "name": "hrms",
       "ref": "b12d935b99c1434618845fdd9f3a3d340b5a3aed",
@@ -29,11 +25,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "hrms"
-      ],
+      "dependencies": ["frappe", "erpnext", "hrms"],
       "installation_order": 4,
       "name": "csf_ke",
       "ref": "b549e8600d9d1667e2ee5a259185acfd009a97c0",
@@ -41,9 +33,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 5,
       "name": "payments",
       "ref": "cca07d9f9392e2ea0e521c5975151db9e4b6c321",
@@ -51,10 +41,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "erpnext",
-        "payments"
-      ],
+      "dependencies": ["erpnext", "payments"],
       "installation_order": 6,
       "name": "webshop",
       "ref": "5ba16567c03405aa9f28fa7c58410eb02074c6c3",
@@ -62,11 +49,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "webshop"
-      ],
+      "dependencies": ["frappe", "erpnext", "webshop"],
       "installation_order": 7,
       "name": "dt_ecommerce",
       "ref": "8b93583a5cea5fb444c1f5d9889d22a6831722d9",
@@ -74,9 +57,7 @@
       "target_ref": "version-1"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 8,
       "name": "dt_master",
       "ref": "de956ca0dc8f6b1cf9e5d3984623bde7d2cbffbb",
@@ -84,11 +65,7 @@
       "target_ref": "version-1"
     },
     {
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "dt_ecommerce"
-      ],
+      "dependencies": ["frappe", "erpnext", "dt_ecommerce"],
       "installation_order": 9,
       "name": "dt_recomendations",
       "ref": "17f7b69d142d726b28537a263e103d99ae1ffa40",
@@ -96,9 +73,7 @@
       "target_ref": "version-1"
     },
     {
-      "dependencies": [
-        "erpnext"
-      ],
+      "dependencies": ["erpnext"],
       "installation_order": 10,
       "name": "lending",
       "ref": "08419c77d8399487964acfddf6ef8d1a6c7753a4",
@@ -106,11 +81,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "erpnext",
-        "hrms",
-        "lending"
-      ],
+      "dependencies": ["erpnext", "hrms", "lending"],
       "installation_order": 11,
       "name": "frappe_mpsa_payments",
       "ref": "dfa9a23b88dbf68563f54622cc5455af76c0df94",
@@ -118,9 +89,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 12,
       "name": "telephony",
       "ref": "9447577500a25d242088398157b72c654fa34b20",
@@ -128,9 +97,7 @@
       "target_ref": "develop"
     },
     {
-      "dependencies": [
-        "telephony"
-      ],
+      "dependencies": ["telephony"],
       "installation_order": 13,
       "name": "helpdesk",
       "ref": "99c961681a69be4b33a2f6564e60f49780a2f685",
@@ -138,9 +105,7 @@
       "target_ref": "main"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 14,
       "name": "insights",
       "ref": "c7dc954d8275756deb5ad24f7c35c3f3c2ca1a6c",
@@ -148,11 +113,7 @@
       "target_ref": "version-3"
     },
     {
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "csf_ke"
-      ],
+      "dependencies": ["frappe", "erpnext", "csf_ke"],
       "installation_order": 15,
       "name": "kenya_compliance_via_slade",
       "ref": "08b7985ea81ac64b72562edf6882f1a5ce5bc224",

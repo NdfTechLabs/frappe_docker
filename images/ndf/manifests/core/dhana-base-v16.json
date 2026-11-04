@@ -44,9 +44,7 @@
       "ref": null,
       "required": true,
       "install_order": 20,
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "compatibility_status": "target_ref_to_verify"
     },
     {
@@ -56,9 +54,7 @@
       "ref": null,
       "required": true,
       "install_order": 30,
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "compatibility_status": "target_ref_to_verify"
     },
     {
@@ -68,10 +64,7 @@
       "ref": null,
       "required": true,
       "install_order": 40,
-      "dependencies": [
-        "erpnext",
-        "payments"
-      ],
+      "dependencies": ["erpnext", "payments"],
       "compatibility_status": "target_ref_to_verify"
     },
     {
@@ -81,9 +74,7 @@
       "ref": null,
       "required": true,
       "install_order": 50,
-      "dependencies": [
-        "erpnext"
-      ],
+      "dependencies": ["erpnext"],
       "compatibility_status": "target_ref_to_verify"
     },
     {
@@ -93,9 +84,7 @@
       "ref": null,
       "required": true,
       "install_order": 60,
-      "dependencies": [
-        "erpnext"
-      ],
+      "dependencies": ["erpnext"],
       "compatibility_status": "target_ref_to_verify"
     },
     {
@@ -105,11 +94,7 @@
       "ref": null,
       "required": true,
       "install_order": 70,
-      "dependencies": [
-        "erpnext",
-        "hrms",
-        "lending"
-      ],
+      "dependencies": ["erpnext", "hrms", "lending"],
       "compatibility_status": "verify_version_16_hooks_and_dependencies"
     },
     {
@@ -119,9 +104,7 @@
       "ref": null,
       "required": true,
       "install_order": 80,
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "compatibility_status": "verify_stable_v16_ref"
     },
     {
@@ -131,9 +114,7 @@
       "ref": null,
       "required": true,
       "install_order": 90,
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "compatibility_status": "verify_stable_v16_ref"
     },
     {
@@ -143,9 +124,7 @@
       "ref": null,
       "required": true,
       "install_order": 100,
-      "dependencies": [
-        "telephony"
-      ],
+      "dependencies": ["telephony"],
       "compatibility_status": "verify_stable_v16_ref"
     }
   ],

@@ -18,19 +18,13 @@ def load_json(path: Path) -> dict:
             data = json.load(file)
 
     except json.JSONDecodeError as exc:
-        raise ImageDefinitionError(
-            f"Invalid JSON in {path}: {exc}"
-        ) from exc
+        raise ImageDefinitionError(f"Invalid JSON in {path}: {exc}") from exc
 
     except OSError as exc:
-        raise ImageDefinitionError(
-            f"Unable to read {path}: {exc}"
-        ) from exc
+        raise ImageDefinitionError(f"Unable to read {path}: {exc}") from exc
 
     if not isinstance(data, dict):
-        raise ImageDefinitionError(
-            f"Expected a JSON object in {path}"
-        )
+        raise ImageDefinitionError(f"Expected a JSON object in {path}")
 
     return data
 
@@ -48,15 +42,12 @@ def validate_schema(definitions: dict, schema_path: Path):
         details = []
 
         for error in errors:
-            location = ".".join(
-                str(part) for part in error.absolute_path
-            ) or "<root>"
+            location = ".".join(str(part) for part in error.absolute_path) or "<root>"
 
             details.append(f"  - {location}: {error.message}")
 
         raise ImageDefinitionError(
-            "Image-definition schema validation failed:\n"
-            + "\n".join(details)
+            "Image-definition schema validation failed:\n" + "\n".join(details)
         )
 
 
@@ -70,9 +61,7 @@ def validate_definitions(
     seen_ids = set()
     seen_repositories = set()
 
-    expected_prefix = (
-        f"{registry['host']}/{registry['namespace']}/"
-    )
+    expected_prefix = f"{registry['host']}/{registry['namespace']}/"
 
     manifests_root = manifests_dir.resolve()
 
@@ -82,14 +71,10 @@ def validate_definitions(
         manifest = image["manifest"]
 
         if image_id in seen_ids:
-            raise ImageDefinitionError(
-                f"Duplicate image ID: {image_id}"
-            )
+            raise ImageDefinitionError(f"Duplicate image ID: {image_id}")
 
         if repository in seen_repositories:
-            raise ImageDefinitionError(
-                f"Duplicate image repository: {repository}"
-            )
+            raise ImageDefinitionError(f"Duplicate image repository: {repository}")
 
         if not repository.startswith(expected_prefix):
             raise ImageDefinitionError(
@@ -104,8 +89,7 @@ def validate_definitions(
 
         if not manifest_path.is_relative_to(manifests_root):
             raise ImageDefinitionError(
-                f"Manifest path escapes the manifests directory: "
-                f"{manifest}"
+                f"Manifest path escapes the manifests directory: " f"{manifest}"
             )
 
         if not manifest_path.is_file():
@@ -126,9 +110,7 @@ def validate_definitions(
 def main():
     ndf_dir = Path(__file__).resolve().parents[1]
 
-    parser = argparse.ArgumentParser(
-        description="Validate NDF image definitions."
-    )
+    parser = argparse.ArgumentParser(description="Validate NDF image definitions.")
 
     parser.add_argument(
         "definitions",
@@ -140,9 +122,7 @@ def main():
     args = parser.parse_args()
 
     definitions_path = (ndf_dir / args.definitions).resolve()
-    schema_path = (
-        ndf_dir / "schemas" / "image-definitions-v1.schema.json"
-    )
+    schema_path = ndf_dir / "schemas" / "image-definitions-v1.schema.json"
     manifests_dir = ndf_dir / "manifests"
 
     try:
@@ -162,9 +142,7 @@ def main():
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    print(
-        f"Validated {len(definitions['images'])} image definitions."
-    )
+    print(f"Validated {len(definitions['images'])} image definitions.")
     print("Image definitions are valid.")
 
     return 0

@@ -36,9 +36,7 @@
       "ref": null,
       "required": false,
       "install_order": 110,
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "compatibility_status": "pending_frappe_v16_install_and_migration_validation",
       "notes": "Frappe Desk AI integration. Its agent endpoint and authentication settings must be configured to reach the separately deployed frappe-ai-agent service."
     },
@@ -81,9 +79,7 @@
       },
       "dependencies": {
         "services": [],
-        "applications": [
-          "frappe_ai"
-        ]
+        "applications": ["frappe_ai"]
       },
       "configuration": {
         "secrets": "inject_at_runtime_only",
@@ -109,9 +105,7 @@
         "deployment": "separate_container",
         "port": 8080,
         "protocol": "http",
-        "entrypoint": [
-          "./frappe-mcp-server"
-        ],
+        "entrypoint": ["./frappe-mcp-server"],
         "healthcheck": {
           "path": "/health",
           "method": "GET",

@@ -37,9 +37,7 @@
       "ref": null,
       "required": true,
       "install_order": 100,
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "compatibility_status": "pending_frappe_v16_validation",
       "notes": "DhanaERP Tenant application. Provides tenant-specific functionality for customer deployments."
     }

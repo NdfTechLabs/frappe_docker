@@ -28,7 +28,9 @@ def load_json(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise BuildExecutionError(f"Unable to read build metadata {path}: {exc}") from exc
+        raise BuildExecutionError(
+            f"Unable to read build metadata {path}: {exc}"
+        ) from exc
     if not isinstance(data, dict):
         raise BuildExecutionError(f"Expected a JSON object in {path}")
     return data
@@ -37,7 +39,8 @@ def load_json(path: Path) -> dict[str, Any]:
 def get_manifest_checksum(lock_data: dict[str, Any], manifest_path: str) -> str:
     """Return the source manifest checksum recorded in the validated lock."""
     matches = [
-        item for item in lock_data.get("manifests", [])
+        item
+        for item in lock_data.get("manifests", [])
         if item.get("path") == manifest_path
     ]
     if len(matches) != 1:

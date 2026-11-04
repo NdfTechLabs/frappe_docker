@@ -1,5 +1,4 @@
 import pytest
-
 from scripts.validate_image_definitions import (
     ImageDefinitionError,
     validate_definitions,
@@ -78,9 +77,7 @@ class TestImageDefinitionValidation:
         environment = image_environment
         definitions = environment["definitions"]
 
-        definitions["images"][1]["repository"] = (
-            definitions["images"][0]["repository"]
-        )
+        definitions["images"][1]["repository"] = definitions["images"][0]["repository"]
 
         with pytest.raises(
             ImageDefinitionError,
@@ -110,9 +107,7 @@ class TestImageDefinitionValidation:
         environment = image_environment
         definitions = environment["definitions"]
 
-        definitions["images"][1]["manifest"] = (
-            "../../outside/malicious.json"
-        )
+        definitions["images"][1]["manifest"] = "../../outside/malicious.json"
 
         with pytest.raises(
             ImageDefinitionError,
