@@ -26,7 +26,7 @@
       "dt_delivery is included as an optional application.",
       "dt_ecommerce provides the primary NDF storefront implementation.",
       "dt_recomendations provides product recommendation and interaction analysis functionality.",
-      "dt_delivery provides delivery provider integration, fulfilment and warehouse-aware delivery functionality.",
+      "dt_delivery provides delivery provider integration, fulfillment and warehouse-aware delivery functionality.",
       "dt_delivery is currently maintained locally and must not be included in production builds until its repository is published and an immutable commit is resolved.",
       "All applications must pass Frappe v16 compatibility validation before production locking."
     ]
@@ -78,7 +78,7 @@
       "source_status": "local_only",
       "compatibility_status": "pending_frappe_v16_validation",
       "production_policy": "exclude_until_repository_published_and_commit_pinned",
-      "notes": "NDF delivery integration application. Currently maintained locally. Intended to provide delivery provider adapters, including Tumaboda, warehouse-aware fulfilment and delivery quotation integration. Publish the repository and validate its dependencies before enabling production builds."
+      "notes": "NDF delivery integration application. Currently maintained locally. Intended to provide delivery provider adapters, including Tumaboda, warehouse-aware fulfillment and delivery quotation integration. Publish the repository and validate its dependencies before enabling production builds."
     }
   ],
   "validation": {
@@ -103,7 +103,7 @@
       "visitor_interaction_tracking_is_functional",
       "product_recommendations_are_functional",
       "delivery_provider_integration_is_tested",
-      "warehouse_aware_fulfilment_is_tested",
+      "warehouse_aware_fulfillment_is_tested",
       "delivery_quotation_and_checkout_integration_are_tested",
       "dt_ecommerce_required_apps_are_available",
       "dt_recomendations_required_apps_are_available",
