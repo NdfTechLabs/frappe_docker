@@ -1,0 +1,150 @@
+{
+  "applications": [
+    {
+      "dependencies": [],
+      "installation_order": 1,
+      "name": "frappe",
+      "repository": "https://github.com/frappe/frappe",
+      "resolved_sha": "90c8b61afd60ee49f982ca1a9751008e4ae1e24c",
+      "target_ref": "version-16"
+    },
+    {
+      "dependencies": ["frappe"],
+      "installation_order": 2,
+      "name": "erpnext",
+      "repository": "https://github.com/frappe/erpnext",
+      "resolved_sha": "9cd11b19575bfc34f092a24f6c8b368c4dd69481",
+      "target_ref": "version-16"
+    },
+    {
+      "dependencies": ["frappe"],
+      "installation_order": 3,
+      "name": "payments",
+      "repository": "https://github.com/frappe/payments",
+      "resolved_sha": "cca07d9f9392e2ea0e521c5975151db9e4b6c321",
+      "target_ref": "version-16"
+    },
+    {
+      "dependencies": ["erpnext", "payments"],
+      "installation_order": 4,
+      "name": "webshop",
+      "repository": "https://github.com/frappe/webshop",
+      "resolved_sha": "5ba16567c03405aa9f28fa7c58410eb02074c6c3",
+      "target_ref": "version-16"
+    },
+    {
+      "dependencies": ["frappe", "erpnext", "webshop"],
+      "installation_order": 5,
+      "name": "dt_ecommerce",
+      "repository": "https://github.com/NdfTechLabs/dt_ecommerce",
+      "resolved_sha": "8b93583a5cea5fb444c1f5d9889d22a6831722d9",
+      "target_ref": "version-1"
+    },
+    {
+      "dependencies": ["frappe", "erpnext", "dt_ecommerce"],
+      "installation_order": 6,
+      "name": "dt_recomendations",
+      "repository": "https://github.com/NdfTechLabs/dt_recomendations",
+      "resolved_sha": "17f7b69d142d726b28537a263e103d99ae1ffa40",
+      "target_ref": "version-1"
+    },
+    {
+      "dependencies": [
+        "frappe",
+        "erpnext",
+        "webshop",
+        "dt_ecommerce",
+        "dt_recomendations"
+      ],
+      "installation_order": 7,
+      "name": "dt_dalali_ecommerce",
+      "repository": "https://github.com/NdfTechLabs/dt_dalali_ecommerce",
+      "resolved_sha": "4adddc03507472a6a435524719a7e7bdf53c5d58",
+      "target_ref": "version-1"
+    },
+    {
+      "dependencies": ["frappe"],
+      "installation_order": 8,
+      "name": "dt_tenant",
+      "repository": "https://github.com/NdfTechLabs/dt_tenant",
+      "resolved_sha": "94fdef6460b28037a6a64bb977c01da22437eba5",
+      "target_ref": "version-1"
+    },
+    {
+      "dependencies": ["erpnext"],
+      "installation_order": 9,
+      "name": "hrms",
+      "repository": "https://github.com/frappe/hrms",
+      "resolved_sha": "b12d935b99c1434618845fdd9f3a3d340b5a3aed",
+      "target_ref": "version-16"
+    },
+    {
+      "dependencies": ["erpnext"],
+      "installation_order": 10,
+      "name": "lending",
+      "repository": "https://github.com/frappe/lending",
+      "resolved_sha": "08419c77d8399487964acfddf6ef8d1a6c7753a4",
+      "target_ref": "version-16"
+    },
+    {
+      "dependencies": ["erpnext", "hrms", "lending"],
+      "installation_order": 11,
+      "name": "frappe_mpsa_payments",
+      "repository": "https://github.com/navariltd/frappe-mpsa-payments",
+      "resolved_sha": "dfa9a23b88dbf68563f54622cc5455af76c0df94",
+      "target_ref": "version-16"
+    },
+    {
+      "dependencies": ["frappe"],
+      "installation_order": 12,
+      "name": "telephony",
+      "repository": "https://github.com/frappe/telephony",
+      "resolved_sha": "9447577500a25d242088398157b72c654fa34b20",
+      "target_ref": "develop"
+    },
+    {
+      "dependencies": ["telephony"],
+      "installation_order": 13,
+      "name": "helpdesk",
+      "repository": "https://github.com/frappe/helpdesk",
+      "resolved_sha": "99c961681a69be4b33a2f6564e60f49780a2f685",
+      "target_ref": "main"
+    },
+    {
+      "dependencies": ["frappe"],
+      "installation_order": 14,
+      "name": "insights",
+      "repository": "https://github.com/frappe/insights",
+      "resolved_sha": "c7dc954d8275756deb5ad24f7c35c3f3c2ca1a6c",
+      "target_ref": "version-3"
+    }
+  ],
+  "framework": {
+    "name": "frappe",
+    "release_channel": "stable",
+    "target_ref": "version-16",
+    "version": "16"
+  },
+  "image": {
+    "id": "dalali-v16",
+    "manifest": "products/tenant/dalali-v16.json",
+    "product": "dalali",
+    "repository": "ghcr.io/ndftechlabs/dhanaerp-dalali"
+  },
+  "lock": {
+    "path": "dalali-v16.lock.json",
+    "sha256": "1a394ddff0ddaba742f5245657714c6ac4a7fb288e52297f56ca628a81a4f139",
+    "version": 1
+  },
+  "product": {
+    "id": "dalali-v16",
+    "manifest_version": "1.0.0",
+    "name": "Dalali",
+    "profile": {
+      "install_by_default": true,
+      "required": true,
+      "type": "product"
+    }
+  },
+  "schema_version": "1.0"
+}
