@@ -2,6 +2,8 @@ name: NDF / Validate
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "images/ndf/**"
       - "requirements-test.txt"
