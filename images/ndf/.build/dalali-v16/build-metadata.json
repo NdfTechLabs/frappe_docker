@@ -9,9 +9,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 2,
       "name": "erpnext",
       "repository": "https://github.com/frappe/erpnext",
@@ -19,9 +17,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 3,
       "name": "payments",
       "repository": "https://github.com/frappe/payments",
@@ -29,10 +25,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "erpnext",
-        "payments"
-      ],
+      "dependencies": ["erpnext", "payments"],
       "installation_order": 4,
       "name": "webshop",
       "repository": "https://github.com/frappe/webshop",
@@ -40,11 +33,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "webshop"
-      ],
+      "dependencies": ["frappe", "erpnext", "webshop"],
       "installation_order": 5,
       "name": "dt_ecommerce",
       "repository": "https://github.com/NdfTechLabs/dt_ecommerce",
@@ -52,11 +41,7 @@
       "target_ref": "version-1"
     },
     {
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "dt_ecommerce"
-      ],
+      "dependencies": ["frappe", "erpnext", "dt_ecommerce"],
       "installation_order": 6,
       "name": "dt_recomendations",
       "repository": "https://github.com/NdfTechLabs/dt_recomendations",
@@ -78,9 +63,7 @@
       "target_ref": "version-1"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 8,
       "name": "dt_tenant",
       "repository": "https://github.com/NdfTechLabs/dt_tenant",
@@ -88,9 +71,7 @@
       "target_ref": "version-1"
     },
     {
-      "dependencies": [
-        "erpnext"
-      ],
+      "dependencies": ["erpnext"],
       "installation_order": 9,
       "name": "hrms",
       "repository": "https://github.com/frappe/hrms",
@@ -98,9 +79,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "erpnext"
-      ],
+      "dependencies": ["erpnext"],
       "installation_order": 10,
       "name": "lending",
       "repository": "https://github.com/frappe/lending",
@@ -108,11 +87,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "erpnext",
-        "hrms",
-        "lending"
-      ],
+      "dependencies": ["erpnext", "hrms", "lending"],
       "installation_order": 11,
       "name": "frappe_mpsa_payments",
       "repository": "https://github.com/navariltd/frappe-mpsa-payments",
@@ -120,9 +95,7 @@
       "target_ref": "version-16"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 12,
       "name": "telephony",
       "repository": "https://github.com/frappe/telephony",
@@ -130,9 +103,7 @@
       "target_ref": "develop"
     },
     {
-      "dependencies": [
-        "telephony"
-      ],
+      "dependencies": ["telephony"],
       "installation_order": 13,
       "name": "helpdesk",
       "repository": "https://github.com/frappe/helpdesk",
@@ -140,9 +111,7 @@
       "target_ref": "main"
     },
     {
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "installation_order": 14,
       "name": "insights",
       "repository": "https://github.com/frappe/insights",

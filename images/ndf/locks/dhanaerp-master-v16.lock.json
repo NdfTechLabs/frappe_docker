@@ -4,7 +4,7 @@
       "dependencies": [],
       "installation_order": 1,
       "name": "frappe",
-      "ref": "90c8b61afd60ee49f982ca1a9751008e4ae1e24c",
+      "ref": "3d1284c5fdb52207a516a49bbf2fd186cb43b3ab",
       "repository": "https://github.com/frappe/frappe",
       "target_ref": "version-16"
     },
@@ -12,7 +12,7 @@
       "dependencies": ["frappe"],
       "installation_order": 2,
       "name": "erpnext",
-      "ref": "9cd11b19575bfc34f092a24f6c8b368c4dd69481",
+      "ref": "34f6ff862db319375d4bfad2e7e8ac06470bf1b5",
       "repository": "https://github.com/frappe/erpnext",
       "target_ref": "version-16"
     },
@@ -20,7 +20,7 @@
       "dependencies": ["erpnext"],
       "installation_order": 3,
       "name": "hrms",
-      "ref": "b12d935b99c1434618845fdd9f3a3d340b5a3aed",
+      "ref": "3b7f8f2854a06fb9eb4d2785e20ddaf8ad750980",
       "repository": "https://github.com/frappe/hrms",
       "target_ref": "version-16"
     },
@@ -100,7 +100,7 @@
       "dependencies": ["telephony"],
       "installation_order": 13,
       "name": "helpdesk",
-      "ref": "99c961681a69be4b33a2f6564e60f49780a2f685",
+      "ref": "0503116a499ed38fcf290c3f270753f1fdd0c6ad",
       "repository": "https://github.com/frappe/helpdesk",
       "target_ref": "main"
     },
@@ -132,27 +132,27 @@
     {
       "id": "dhanaerp-master-v16",
       "path": "products/master/dhanaerp-master-v16.json",
-      "sha256": "546f03e3bb08d915557dfdf8b2dc94a1d57d0d33d37057c5b1777777d2b49c4f"
+      "sha256": "e3d8f16abbf71e65835bda32af05bf5469815f6b42b873fc010e4f0179094bab"
     },
     {
       "id": "dhana-base-v16",
       "path": "core/dhana-base-v16.json",
-      "sha256": "3e6e0b318063b8564585bd2546974efb5d7a00faecde0a11c6d07dac25e5453a"
+      "sha256": "00543a706b953dd9b3745a675e91114cf238bd585340b494f3e30e8d6e692569"
     },
     {
       "id": "dhana-master-base-v16",
       "path": "products/master/dhana-master-base-v16.json",
-      "sha256": "da29804db080e0d01d24864d6a9c4bf3ef580cc8c883662d8696f55fca0e20e3"
+      "sha256": "666c20c8fc7d7fdc7bb418ee26d09498031a18c136587f34775b41b4edeff2b1"
     },
     {
       "id": "etims-v16",
       "path": "capabilities/etims-v16.json",
-      "sha256": "a6cbc6b45cdaaf17556a7514f7b8adea9d12b69d3c93edb6c2ceb3f07cbef863"
+      "sha256": "60f5f77ce4d8ac737ea5b33f3c210aab3529defbf73dd67c9273aaeab54ba64e"
     },
     {
       "id": "ecommerce-v16",
       "path": "capabilities/ecommerce-v16.json",
-      "sha256": "27833496cf9583203958d54569aceed82ef24d333ba9c3b30028042882674d9d"
+      "sha256": "a3315d9f32d7af1b31a756bb0a5c513365da3cdd85807596f46aacf17920ba48"
     }
   ],
   "product": {

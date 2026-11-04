@@ -4,7 +4,7 @@
       "dependencies": [],
       "installation_order": 1,
       "name": "frappe",
-      "ref": "90c8b61afd60ee49f982ca1a9751008e4ae1e24c",
+      "ref": "3d1284c5fdb52207a516a49bbf2fd186cb43b3ab",
       "repository": "https://github.com/frappe/frappe",
       "target_ref": "version-16"
     },
@@ -12,7 +12,7 @@
       "dependencies": ["frappe"],
       "installation_order": 2,
       "name": "erpnext",
-      "ref": "9cd11b19575bfc34f092a24f6c8b368c4dd69481",
+      "ref": "34f6ff862db319375d4bfad2e7e8ac06470bf1b5",
       "repository": "https://github.com/frappe/erpnext",
       "target_ref": "version-16"
     },
@@ -74,7 +74,7 @@
       "dependencies": ["erpnext"],
       "installation_order": 9,
       "name": "hrms",
-      "ref": "b12d935b99c1434618845fdd9f3a3d340b5a3aed",
+      "ref": "3b7f8f2854a06fb9eb4d2785e20ddaf8ad750980",
       "repository": "https://github.com/frappe/hrms",
       "target_ref": "version-16"
     },
@@ -106,7 +106,7 @@
       "dependencies": ["telephony"],
       "installation_order": 13,
       "name": "helpdesk",
-      "ref": "99c961681a69be4b33a2f6564e60f49780a2f685",
+      "ref": "0503116a499ed38fcf290c3f270753f1fdd0c6ad",
       "repository": "https://github.com/frappe/helpdesk",
       "target_ref": "main"
     },
@@ -130,22 +130,22 @@
     {
       "id": "dalali-v16",
       "path": "products/tenant/dalali-v16.json",
-      "sha256": "539d0cd94bcad8a50b035306fd8758ffb2cc39da5e8b141478c3d0f8cdad820f"
+      "sha256": "67a34438c71a3b2604142ba94a4167a53c34db926d144f7435e3ccc4e27ed2ef"
     },
     {
       "id": "dhana-base-v16",
       "path": "core/dhana-base-v16.json",
-      "sha256": "3e6e0b318063b8564585bd2546974efb5d7a00faecde0a11c6d07dac25e5453a"
+      "sha256": "00543a706b953dd9b3745a675e91114cf238bd585340b494f3e30e8d6e692569"
     },
     {
       "id": "dhana-tenant-base-v16",
       "path": "products/tenant/dhana-tenant-base-v16.json",
-      "sha256": "c8f6b586e5f1a1492ddb3a3cff5d9354a37d747eca173f4733d159de89b769ff"
+      "sha256": "ffda466b32c9a2320414a3aaf24fa9a2aec5864c3088ef453d43474220b0520e"
     },
     {
       "id": "ecommerce-v16",
       "path": "capabilities/ecommerce-v16.json",
-      "sha256": "27833496cf9583203958d54569aceed82ef24d333ba9c3b30028042882674d9d"
+      "sha256": "a3315d9f32d7af1b31a756bb0a5c513365da3cdd85807596f46aacf17920ba48"
     }
   ],
   "product": {
