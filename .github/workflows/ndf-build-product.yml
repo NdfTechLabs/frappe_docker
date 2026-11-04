@@ -126,7 +126,7 @@ jobs:
           set -euo pipefail
           IMAGE_REPOSITORY=$(python -c '
           import json
-          with open("'"\"$BUILD_OUTPUT\"'/build-metadata.json", encoding="utf-8") as file:
+          with open("'"$BUILD_OUTPUT"'/build-metadata.json", encoding="utf-8") as file:
               print(json.load(file)["image"]["repository"])
           ')
           echo "image_ref=${IMAGE_REPOSITORY}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
