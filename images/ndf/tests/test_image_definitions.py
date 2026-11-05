@@ -122,7 +122,7 @@ class TestImageDefinitionValidation:
             )
 
 
-    def test_product_image_definitions_use_independent_ghcr_repositories():
+    def test_product_image_definitions_use_independent_ghcr_repositories(self):
         definitions_path = (
             Path(__file__).resolve().parents[1]
             / "image-definitions"
