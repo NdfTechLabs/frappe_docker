@@ -291,6 +291,8 @@ def build_image(
     build_output_dir.mkdir(parents=True, exist_ok=True)
     buildx_metadata_path = build_output_dir / "buildx-metadata.json"
     build_result_path = build_output_dir / "build-result.json"
+    buildx_metadata_path.unlink(missing_ok=True)
+    build_result_path.unlink(missing_ok=True)
 
     command = build_command(
         repository_root=repository_root,
