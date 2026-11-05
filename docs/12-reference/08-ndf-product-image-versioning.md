@@ -77,7 +77,7 @@ python images/ndf/scripts/build_image.py \
   --image dalali-v16 \
   --tag v16-1.2.0 \
   --tag v16-latest \
-  --tag v16-<full-git-sha> \
+  --tag v16-0123456789abcdef \
   --platform linux/amd64,linux/arm64 \
   --push
 ```
