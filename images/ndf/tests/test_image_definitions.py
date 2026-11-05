@@ -80,7 +80,9 @@ class TestImageDefinitionValidation:
         environment = image_environment
         definitions = environment["definitions"]
 
-        definitions["images"][1]["repository"] = definitions["images"][0]["repository"]
+        definitions["images"][1]["repository"] = definitions["images"][0][
+            "repository"
+        ]
 
         with pytest.raises(
             ImageDefinitionError,
@@ -120,7 +122,6 @@ class TestImageDefinitionValidation:
                 definitions,
                 environment["manifests_dir"],
             )
-
 
     def test_product_image_definitions_use_independent_ghcr_repositories(self):
         definitions_path = (
