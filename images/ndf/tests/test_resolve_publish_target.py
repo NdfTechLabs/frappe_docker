@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 from scripts.resolve_publish_target import (
     PublishTargetError,
     resolve_publish_target,

@@ -51,9 +51,7 @@ def resolve_publish_target(
 
     manifest_path = manifests_dir / manifest_relative_path
     try:
-        manifest: dict[str, Any] = json.loads(
-            manifest_path.read_text(encoding="utf-8")
-        )
+        manifest: dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise PublishTargetError(
             f"Unable to read product manifest {manifest_path}: {exc}"
