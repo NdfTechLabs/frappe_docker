@@ -56,3 +56,33 @@ The release workflow must additionally attach or expose the source Git commit an
 ## Implementation status
 
 This document defines the intended contract. It does not itself enable registry authentication, create GHCR packages, or publish images. Those are subsequent M3 work packages.
+
+## Build output modes
+
+The NDF build command supports local validation and explicit registry publishing through Docker Buildx.
+
+Local builds are the default and load the result into the local Docker image store:
+
+```bash
+python images/ndf/scripts/build_image.py \
+  --image dalali-v16 \
+  --tag local-test \
+  --platform linux/amd64
+```
+
+Registry publishing requires the explicit `--push` flag. Multiple tags are applied to the same build result:
+
+```bash
+python images/ndf/scripts/build_image.py \
+  --image dalali-v16 \
+  --tag v16-1.2.0 \
+  --tag v16-latest \
+  --tag v16-0123456789abcdef \
+  --platform linux/amd64,linux/arm64 \
+  --push
+```
+
+The command writes the Buildx metadata to `buildx-metadata.json` and a build summary to `build-result.json` in the selected build output directory. When Buildx provides it, the summary records the resulting image digest. Registry authentication is intentionally external to this command; the caller must authenticate before using `--push`.
+
+Local `--load` builds are limited to one platform. Multi-platform builds require registry output via `--push`.
+\n
