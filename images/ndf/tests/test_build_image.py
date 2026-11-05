@@ -232,3 +232,18 @@ def test_execute_build_reads_buildx_metadata(tmp_path):
 
     assert result["containerimage.digest"] == "sha256:" + "a" * 64
 \n
+
+def test_validate_image_tags_accepts_valid_tags():
+    assert validate_image_tags(["v16-1.2.0", "v16-latest", "v16-0123456789abcdef"]) == [
+        "v16-1.2.0",
+        "v16-latest",
+        "v16-0123456789abcdef",
+    ]
+
+
+def test_validate_image_tags_rejects_invalid_and_duplicate_tags():
+    with pytest.raises(BuildExecutionError, match="Invalid Docker image tag"):
+        validate_image_tags(["invalid tag"])
+    with pytest.raises(BuildExecutionError, match="Duplicate"):
+        validate_image_tags(["v16-latest", "v16-latest"])
+\n
