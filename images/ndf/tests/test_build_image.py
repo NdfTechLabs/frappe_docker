@@ -9,6 +9,7 @@ from scripts.build_image import (
     build_labels,
     execute_build,
     get_manifest_checksum,
+    normalize_platforms,
 )
 
 
@@ -162,3 +163,71 @@ def test_execute_build_reports_build_failure():
     ):
         with pytest.raises(BuildExecutionError, match="exit code 17"):
             execute_build(["docker", "buildx", "build", "--load", "."])
+
+def test_build_command_pushes_to_registry_with_multiple_tags_and_platforms(tmp_path):
+    command = _build_command(
+        tmp_path,
+        image_tag=None,
+        image_tags=["v16-1.0.0", "v16-latest", "v16-0123456789abcdef"],
+        push=True,
+        platform="linux/amd64,linux/arm64",
+        metadata_file=tmp_path / "buildx-metadata.json",
+    )
+
+    assert "--push" in command
+    assert "--load" not in command
+    assert command.count("--tag") == 3
+    assert "ghcr.io/ndftechlabs/dalali:v16-1.0.0" in command
+    assert "ghcr.io/ndftechlabs/dalali:v16-latest" in command
+    assert "ghcr.io/ndftechlabs/dalali:v16-0123456789abcdef" in command
+    assert "linux/amd64,linux/arm64" in command
+    assert "--metadata-file" in command
+    assert str(tmp_path / "buildx-metadata.json") in command
+
+
+def test_build_command_requires_at_least_one_tag(tmp_path):
+    with pytest.raises(BuildExecutionError, match="At least one image tag"):
+        _build_command(tmp_path, image_tag=None, image_tags=[])
+
+
+def test_normalize_platforms_accepts_single_and_multiple_platforms():
+    assert normalize_platforms("linux/amd64") == ["linux/amd64"]
+    assert normalize_platforms("linux/amd64, linux/arm64") == [
+        "linux/amd64",
+        "linux/arm64",
+    ]
+
+
+def test_normalize_platforms_rejects_invalid_and_duplicate_values():
+    with pytest.raises(BuildExecutionError, match="Invalid platform"):
+        normalize_platforms("amd64")
+    with pytest.raises(BuildExecutionError, match="Duplicate"):
+        normalize_platforms("linux/amd64,linux/amd64")
+
+
+def test_execute_build_reads_buildx_metadata(tmp_path):
+    metadata_file = tmp_path / "buildx-metadata.json"
+    metadata_file.write_text(
+        json.dumps({"containerimage.digest": "sha256:" + "a" * 64}),
+        encoding="utf-8",
+    )
+
+    class VersionResult:
+        returncode = 0
+        stderr = ""
+        stdout = "github.com/docker/buildx"
+
+    class BuildResult:
+        returncode = 0
+
+    with patch(
+        "scripts.build_image.subprocess.run",
+        side_effect=[VersionResult(), BuildResult()],
+    ):
+        result = execute_build(
+            ["docker", "buildx", "build", "--push", "."],
+            metadata_file=metadata_file,
+        )
+
+    assert result["containerimage.digest"] == "sha256:" + "a" * 64
+\n
