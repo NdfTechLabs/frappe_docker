@@ -293,10 +293,8 @@ def build_image(
     platforms = normalize_platforms(platform)
     if not push and len(platforms) > 1:
         raise BuildExecutionError(
-            (
-                "Local --load supports one platform. "
-                "Use --push for multi-platform builds."
-            )
+            "Local --load supports one platform. "
+            "Use --push for multi-platform builds."
         )
 
     prepared = prepare_build(
@@ -312,9 +310,7 @@ def build_image(
 
     image = prepared["image"]
     framework = prepared["framework"]
-    tags = validate_image_tags(
-        image_tags or ([image_tag] if image_tag else ["local"])
-    )
+    tags = validate_image_tags(image_tags or ([image_tag] if image_tag else ["local"]))
 
     build_output_dir = Path(prepared["metadata_path"]).parent
     build_output_dir.mkdir(parents=True, exist_ok=True)
@@ -348,11 +344,7 @@ def build_image(
         dry_run=dry_run,
         metadata_file=buildx_metadata_path,
     )
-    digest = (
-        buildx_metadata.get("containerimage.digest")
-        if buildx_metadata
-        else None
-    )
+    digest = buildx_metadata.get("containerimage.digest") if buildx_metadata else None
 
     result = {
         "schema_version": "1.0",
@@ -485,9 +477,7 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    image_refs = [
-        f"{result['image']['repository']}:{tag}" for tag in result["tags"]
-    ]
+    image_refs = [f"{result['image']['repository']}:{tag}" for tag in result["tags"]]
     print(f"Image: {', '.join(image_refs)}")
     print(f"Build metadata: {result['metadata_path']}")
     print(f"Build result: {result['build_result_path']}")
