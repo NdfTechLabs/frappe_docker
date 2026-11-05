@@ -1,0 +1,201 @@
+name: NDF / Publish Product Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: Product image to publish
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - dhanaerp-master-v16
+          - dalali-v16
+          - vincowoods-v16
+      platform:
+        description: Target platform(s)
+        required: true
+        type: choice
+        default: linux/amd64
+        options:
+          - linux/amd64
+          - linux/amd64,linux/arm64
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ndf-publish-${{ github.ref }}-${{ inputs.product || 'all' }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare publishing matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Require the default branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Publishing is permitted only from main." >&2
+            exit 1
+          fi
+
+      - name: Configure product matrix
+        id: set-matrix
+        env:
+          SELECTED_PRODUCT: ${{ inputs.product }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "$SELECTED_PRODUCT" in
+            all)
+              PRODUCTS=("dhanaerp-master-v16" "dalali-v16" "vincowoods-v16")
+              ;;
+            dhanaerp-master-v16|dalali-v16|vincowoods-v16)
+              PRODUCTS=("$SELECTED_PRODUCT")
+              ;;
+            *)
+              echo "Unsupported product selection: $SELECTED_PRODUCT" >&2
+              exit 1
+              ;;
+          esac
+
+          MATRIX_JSON=$(printf '%s\n' "${PRODUCTS[@]}" | python -c '
+          import json
+          import sys
+          images = [line.strip() for line in sys.stdin if line.strip()]
+          print(json.dumps({"image": images}))
+          ')
+          echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish ${{ matrix.image }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    env:
+      IMAGE_ID: ${{ matrix.image }}
+      TARGET_PLATFORMS: ${{ inputs.platform }}
+      BUILD_OUTPUT: .ndf-build/${{ matrix.image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install build and validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        if: contains(env.TARGET_PLATFORMS, 'arm64')
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve image repository and source tag
+        id: image
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/resolve_publish_target.py \
+            --image "$IMAGE_ID" \
+            --sha "$GITHUB_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Build and publish product image
+        env:
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$BUILD_OUTPUT"
+
+          python images/ndf/scripts/build_image.py \
+            --image "$IMAGE_ID" \
+            --tag "$IMAGE_TAG" \
+            --platform "$TARGET_PLATFORMS" \
+            --output-dir "$BUILD_OUTPUT" \
+            --cache-from "type=gha,scope=ndf-publish-$IMAGE_ID" \
+            --cache-to "type=gha,mode=max,scope=ndf-publish-$IMAGE_ID" \
+            --progress plain \
+            --push
+
+      - name: Verify published digest metadata
+        id: digest
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+
+          result_path = Path(os.environ["BUILD_OUTPUT"]) / "build-result.json"
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          digest = result.get("digest")
+          if not result.get("pushed"):
+              raise SystemExit("Build result does not confirm a registry push.")
+          if not isinstance(digest, str) or not digest.startswith("sha256:"):
+              raise SystemExit("Buildx did not return a valid image digest.")
+          print(f"digest={digest}")
+          PY
+
+      - name: Pull published image for validation
+        run: docker pull "${{ steps.image.outputs.image_ref }}"
+
+      - name: Validate published image contents and metadata
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/validate_image.py \
+            --image "${{ steps.image.outputs.image_ref }}" \
+            --metadata "$BUILD_OUTPUT/build-metadata.json" \
+            --lock "images/ndf/locks/$IMAGE_ID.lock.json" \
+            --report "$BUILD_OUTPUT/registry-validation.json"
+
+      - name: Write publishing summary
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+          IMAGE_DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          {
+            echo "## Published NDF product image"
+            echo
+            echo "- Image: $IMAGE_REF"
+            echo "- Digest: $IMAGE_DIGEST"
+            echo "- Source commit: $GITHUB_SHA"
+            echo "- Platforms: $TARGET_PLATFORMS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload publishing and validation artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-publish-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .ndf-build/${{ matrix.image }}/
+          if-no-files-found: warn
+          retention-days: 30
