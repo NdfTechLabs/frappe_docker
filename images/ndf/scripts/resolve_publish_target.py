@@ -67,7 +67,9 @@ def resolve_publish_target(
         )
 
     repository = image.get("repository")
-    if not isinstance(repository, str) or not repository.startswith("ghcr.io/ndftechlabs/"):
+    if not isinstance(repository, str) or not repository.startswith(
+        "ghcr.io/ndftechlabs/"
+    ):
         raise PublishTargetError(
             f"Image '{image_id}' does not target an approved NDF GHCR repository."
         )
@@ -90,7 +92,11 @@ def main() -> int:
         description="Resolve an NDF product image to its GHCR publishing target."
     )
     parser.add_argument("--image", required=True, help="NDF image definition ID.")
-    parser.add_argument("--sha", required=True, help="Full 40-character source Git SHA.")
+    parser.add_argument(
+        "--sha",
+        required=True,
+        help="Full 40-character source Git SHA.",
+    )
     parser.add_argument(
         "--github-output",
         type=Path,
