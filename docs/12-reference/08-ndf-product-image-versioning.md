@@ -8,11 +8,9 @@ This document defines the registry naming and release-tag contract for NDF produ
 
 Each independently released product has its own GHCR package:
 
-| Product image ID      | GHCR repository                         |
-| --------------------- | --------------------------------------- |
-| `dhanaerp-master-v16` | `ghcr.io/ndftechlabs/dhanaerp-master` |
-| `dalali-v16`          | `ghcr.io/ndftechlabs/dalali`          |
-| `vincowoods-v16`      | `ghcr.io/ndftechlabs/vincowoods`      |
+- `dhanaerp-master-v16`: `ghcr.io/ndftechlabs/dhanaerp-master`
+- `dalali-v16`: `ghcr.io/ndftechlabs/dalali`
+- `vincowoods-v16`: `ghcr.io/ndftechlabs/vincowoods`
 
 The image ID identifies the build definition and Frappe compatibility line. The repository identifies the independently distributed product. Do not add the framework major to the package name; it belongs in the image tags.
 
@@ -20,12 +18,10 @@ The image ID identifies the build definition and Frappe compatibility line. The 
 
 The framework major is included in every release tag so multiple Frappe compatibility lines can coexist in one product package.
 
-| Tag                      | Example                 | Meaning                                                                                         |
-| ------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| Stable latest            | `v16-latest`           | Latest approved stable release for Frappe 16. Updated only by a product release.                |
-| Product semantic version | `v16-1.2.0`            | Immutable product release. Semantic versioning is independent for each product.                 |
-| Source commit            | `v16-<full-git-sha>`   | Immutable traceability tag for the exact source commit used to build the image.                 |
-| CI validation            | `ci-<run-id>-<attempt>` | Temporary validation tag; never a release alias.                                                |
+- **Stable latest — `v16-latest`:** Latest approved stable release for Frappe 16. Updated only by a product release.
+- **Product semantic version — `v16-1.2.0`:** Immutable product release. Semantic versioning is independent for each product.
+- **Source commit — `v16-<full-git-sha>`:** Immutable traceability tag for the exact source commit used to build the image.
+- **CI validation — `ci-<run-id>-<attempt>`:** Temporary validation tag; never a release alias.
 
 Examples:
 
