@@ -285,7 +285,9 @@ def build_image(
     framework = prepared["framework"]
     tags = image_tags or ([image_tag] if image_tag else ["local"])
     if any(not tag or any(char.isspace() for char in tag) for tag in tags):
-        raise BuildExecutionError("Image tags must be non-empty and contain no whitespace.")
+        raise BuildExecutionError(
+            "Image tags must be non-empty and contain no whitespace."
+        )
 
     build_output_dir = Path(prepared["metadata_path"]).parent
     build_output_dir.mkdir(parents=True, exist_ok=True)
@@ -378,7 +380,9 @@ def main() -> int:
     parser.add_argument(
         "--push",
         action="store_true",
-        help="Push the image to its configured registry. Without this flag, --load is used.",
+        help=(
+            "Push the image to its configured registry. Without this flag, --load is used."
+        ),
     )
     parser.add_argument(
         "--definitions",
@@ -392,7 +396,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--platform",
-        help="Target platform or comma-separated platforms, e.g. linux/amd64,linux/arm64.",
+        help=(
+            "Target platform or comma-separated platforms, e.g. linux/amd64,linux/arm64."
+        ),
     )
     parser.add_argument(
         "--no-cache",
@@ -418,7 +424,10 @@ def main() -> int:
         action="append",
         default=[],
         metavar="BACKEND",
-        help="Buildx cache destination (repeatable), e.g. type=gha,mode=max,scope=ndf-dalali-v16.",
+        help=(
+            "Buildx cache destination (repeatable), e.g. "
+            "type=gha,mode=max,scope=ndf-dalali-v16."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -448,7 +457,10 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Image: {', '.join(result['image']['repository'] + ':' + tag for tag in result['tags'])}")
+    image_refs = [
+        f"{result['image']['repository']}:{tag}" for tag in result["tags"]
+    ]
+    print(f"Image: {', '.join(image_refs)}")
     print(f"Build metadata: {result['metadata_path']}")
     if result["digest"]:
         print(f"Image digest: {result['digest']}")
