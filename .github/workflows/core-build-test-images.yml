@@ -254,8 +254,9 @@ jobs:
           python -m venv venv
           venv/bin/pip install -r requirements-test.txt
 
+      # NDF tests run separately by NDF / Validate. Keep this upstream suite scoped to core tests.
       - name: Test
-        run: venv/bin/pytest --color=yes
+        run: venv/bin/pytest --color=yes --ignore=images/ndf/tests/
 
       # Failed runs retain a report for review, but only a fully successful main
       # workflow run can be selected as a future baseline.
