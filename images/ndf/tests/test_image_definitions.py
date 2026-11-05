@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from scripts.validate_image_definitions import (
     ImageDefinitionError,
@@ -49,7 +52,6 @@ def image_environment(tmp_path):
 
 
 class TestImageDefinitionValidation:
-
     def test_valid_definitions_pass(self, image_environment):
         environment = image_environment
 
@@ -132,3 +134,18 @@ class TestImageDefinitionValidation:
                 definitions,
                 environment["manifests_dir"],
             )
+
+
+def test_product_image_definitions_use_independent_ghcr_repositories():
+    definitions_path = (
+        Path(__file__).resolve().parents[1] / "image-definitions" / "images-v1.json"
+    )
+    definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
+
+    repositories = {image["id"]: image["repository"] for image in definitions["images"]}
+
+    assert repositories == {
+        "dhanaerp-master-v16": "ghcr.io/ndftechlabs/dhanaerp-master",
+        "dalali-v16": "ghcr.io/ndftechlabs/dalali",
+        "vincowoods-v16": "ghcr.io/ndftechlabs/vincowoods",
+    }
