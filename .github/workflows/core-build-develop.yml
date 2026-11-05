@@ -27,10 +27,6 @@ on:
       - .github/scripts/get_latest_tags.py
       - .github/image-size-policy.json
 
-  schedule:
-    # Every Monday at 03:17 UTC
-    - cron: "17 3 * * 1"
-
   workflow_dispatch:
 
 jobs:
