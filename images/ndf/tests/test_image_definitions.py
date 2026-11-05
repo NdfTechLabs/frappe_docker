@@ -123,24 +123,6 @@ class TestImageDefinitionValidation:
                 environment["manifests_dir"],
             )
 
-    def test_product_image_definitions_use_independent_ghcr_repositories(self):
-        definitions_path = (
-            Path(__file__).resolve().parents[1]
-            / "image-definitions"
-            / "images-v1.json"
-        )
-        definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
-
-        repositories = {
-            image["id"]: image["repository"] for image in definitions["images"]
-        }
-
-        assert repositories == {
-            "dhanaerp-master-v16": "ghcr.io/ndftechlabs/dhanaerp-master",
-            "dalali-v16": "ghcr.io/ndftechlabs/dalali",
-            "vincowoods-v16": "ghcr.io/ndftechlabs/vincowoods",
-        }
-
     def test_manifest_identity_mismatch_is_rejected(self, image_environment):
         environment = image_environment
         definitions = environment["definitions"]
@@ -155,3 +137,21 @@ class TestImageDefinitionValidation:
                 definitions,
                 environment["manifests_dir"],
             )
+
+def test_product_image_definitions_use_independent_ghcr_repositories():
+    definitions_path = (
+        Path(__file__).resolve().parents[1]
+        / "image-definitions"
+        / "images-v1.json"
+    )
+    definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
+
+    repositories = {
+        image["id"]: image["repository"] for image in definitions["images"]
+    }
+
+    assert repositories == {
+        "dhanaerp-master-v16": "ghcr.io/ndftechlabs/dhanaerp-master",
+        "dalali-v16": "ghcr.io/ndftechlabs/dalali",
+        "vincowoods-v16": "ghcr.io/ndftechlabs/vincowoods",
+    }
