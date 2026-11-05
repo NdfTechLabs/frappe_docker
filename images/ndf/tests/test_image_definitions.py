@@ -137,6 +137,7 @@ class TestImageDefinitionValidation:
                 environment["manifests_dir"],
             )
 
+
 def test_product_image_definitions_use_independent_ghcr_repositories():
     definitions_path = (
         Path(__file__).resolve().parents[1]
