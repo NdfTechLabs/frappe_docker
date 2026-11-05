@@ -52,7 +52,6 @@ def image_environment(tmp_path):
 
 
 class TestImageDefinitionValidation:
-
     def test_valid_definitions_pass(self, image_environment):
         environment = image_environment
 
