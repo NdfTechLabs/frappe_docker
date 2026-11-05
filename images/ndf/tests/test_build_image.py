@@ -164,6 +164,7 @@ def test_execute_build_reports_build_failure():
         with pytest.raises(BuildExecutionError, match="exit code 17"):
             execute_build(["docker", "buildx", "build", "--load", "."])
 
+
 def test_build_command_pushes_to_registry_with_multiple_tags_and_platforms(tmp_path):
     command = _build_command(
         tmp_path,
