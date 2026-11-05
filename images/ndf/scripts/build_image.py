@@ -95,7 +95,7 @@ def build_command(
     dockerfile: Path,
     apps_json: Path,
     image_repository: str,
-    image_tag: str,
+    image_tag: str | None,
     frappe_branch: str,
     labels: dict[str, str],
     platform: str | None = None,
@@ -104,27 +104,43 @@ def build_command(
     progress: str = "plain",
     cache_from: list[str] | None = None,
     cache_to: list[str] | None = None,
+    push: bool = False,
+    image_tags: list[str] | None = None,
+    metadata_file: Path | None = None,
 ) -> list[str]:
-    """Construct a deterministic, local-only Docker Buildx command."""
-    command = [
-        "docker",
-        "buildx",
-        "build",
-        "--load",
-        "--pull",
-        "--file",
-        str(dockerfile.relative_to(repository_root)),
-        "--tag",
-        f"{image_repository}:{image_tag}",
-        "--build-arg",
-        f"FRAPPE_BRANCH={frappe_branch}",
-        "--build-arg",
-        "FRAPPE_PATH=https://github.com/frappe/frappe",
-        "--secret",
-        f"id=apps_json,src={apps_json}",
-        "--progress",
-        progress,
-    ]
+    """Construct an explicit local-load or registry-push Buildx command."""
+    tags = image_tags or ([image_tag] if image_tag else [])
+    if not tags:
+        raise BuildExecutionError("At least one image tag must be supplied.")
+
+    command = ["docker", "buildx", "build"]
+    command.append("--push" if push else "--load")
+    command.extend(
+        [
+            "--pull",
+            "--file",
+            str(dockerfile.relative_to(repository_root)),
+        ]
+    )
+
+    for tag in tags:
+        command.extend(["--tag", f"{image_repository}:{tag}"])
+
+    command.extend(
+        [
+            "--build-arg",
+            f"FRAPPE_BRANCH={frappe_branch}",
+            "--build-arg",
+            "FRAPPE_PATH=https://github.com/frappe/frappe",
+            "--secret",
+            f"id=apps_json,src={apps_json}",
+            "--progress",
+            progress,
+        ]
+    )
+
+    if metadata_file:
+        command.extend(["--metadata-file", str(metadata_file)])
 
     if platform:
         command.extend(["--platform", platform])
@@ -147,18 +163,18 @@ def build_command(
     command.append(str(repository_root))
     return command
 
-
 def execute_build(
     command: list[str],
     *,
     dry_run: bool = False,
-) -> None:
-    """Check Buildx availability and execute the build unless dry-run."""
+    metadata_file: Path | None = None,
+) -> dict[str, Any] | None:
+    """Check Buildx availability, execute the build and read Buildx metadata."""
     print(shlex.join(command))
 
     if dry_run:
         print("Dry run: Docker build was not executed.")
-        return
+        return None
 
     try:
         version = subprocess.run(
@@ -187,6 +203,20 @@ def execute_build(
             f"Docker Buildx failed with exit code {result.returncode}."
         )
 
+    if metadata_file is None or not metadata_file.is_file():
+        return None
+
+    try:
+        metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BuildExecutionError(
+            f"Unable to read Buildx metadata file {metadata_file}: {exc}"
+        ) from exc
+
+    if not isinstance(metadata, dict):
+        raise BuildExecutionError("Buildx metadata must be a JSON object.")
+
+    return metadata
 
 def build_image(
     *,
