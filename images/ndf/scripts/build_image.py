@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Build a local NDF product image with Docker Buildx.
+"""Build an NDF product image locally or publish it with Docker Buildx.
 
-This command prepares the product's Bench inputs from its manifest lock file,
-then invokes the existing layered Containerfile. It loads the result into the
-local Docker image store and never pushes to a registry.
+Local loading is the safe default. Registry publishing requires the explicit
+--push flag and supports multiple tags and target platforms.
 """
 
 import argparse
@@ -21,7 +20,7 @@ except ImportError:
 
 
 class BuildExecutionError(Exception):
-    """Raised when the local Docker image build cannot be completed."""
+    """Raised when a product image build cannot be completed."""
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -89,6 +88,27 @@ def build_labels(
     }
 
 
+def normalize_platforms(platform: str | None) -> list[str]:
+    """Parse and validate a comma-separated Buildx platform list."""
+    if not platform:
+        return []
+
+    platforms = [value.strip() for value in platform.split(",") if value.strip()]
+    if not platforms:
+        raise BuildExecutionError("At least one valid platform must be supplied.")
+
+    if len(platforms) != len(set(platforms)):
+        raise BuildExecutionError("Duplicate target platforms are not allowed.")
+
+    for value in platforms:
+        if "/" not in value:
+            raise BuildExecutionError(
+                f"Invalid platform '{value}'. Expected values such as linux/amd64."
+            )
+
+    return platforms
+
+
 def build_command(
     *,
     repository_root: Path,
@@ -108,13 +128,12 @@ def build_command(
     image_tags: list[str] | None = None,
     metadata_file: Path | None = None,
 ) -> list[str]:
-    """Construct an explicit local-load or registry-push Buildx command."""
+    """Construct a deterministic local-load or registry-push Buildx command."""
     tags = image_tags or ([image_tag] if image_tag else [])
     if not tags:
         raise BuildExecutionError("At least one image tag must be supplied.")
 
-    command = ["docker", "buildx", "build"]
-    command.append("--push" if push else "--load")
+    command = ["docker", "buildx", "build", "--push" if push else "--load"]
     command.extend(
         [
             "--pull",
@@ -163,13 +182,14 @@ def build_command(
     command.append(str(repository_root))
     return command
 
+
 def execute_build(
     command: list[str],
     *,
     dry_run: bool = False,
     metadata_file: Path | None = None,
 ) -> dict[str, Any] | None:
-    """Check Buildx availability, execute the build and read Buildx metadata."""
+    """Check Buildx, execute the build and return Buildx metadata when present."""
     print(shlex.join(command))
 
     if dry_run:
@@ -218,11 +238,14 @@ def execute_build(
 
     return metadata
 
+
 def build_image(
     *,
     repository_root: Path,
     image_id: str,
     image_tag: str | None = None,
+    image_tags: list[str] | None = None,
+    push: bool = False,
     definitions_relative_path: str = "image-definitions/images-v1.json",
     output_dir: Path | None = None,
     platform: str | None = None,
@@ -233,13 +256,19 @@ def build_image(
     cache_to: list[str] | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Prepare and build one NDF product image into the local Docker store."""
+    """Prepare and build one NDF product image locally or to a registry."""
     repository_root = repository_root.resolve()
     ndf_dir = repository_root / "images" / "ndf"
     dockerfile = repository_root / "images" / "layered" / "Containerfile"
 
     if not dockerfile.is_file():
         raise BuildExecutionError(f"Layered Containerfile not found: {dockerfile}")
+
+    platforms = normalize_platforms(platform)
+    if not push and len(platforms) > 1:
+        raise BuildExecutionError(
+            "Local --load supports one platform. Use --push for multi-platform builds."
+        )
 
     prepared = prepare_build(
         ndf_dir=ndf_dir,
@@ -254,14 +283,22 @@ def build_image(
 
     image = prepared["image"]
     framework = prepared["framework"]
-    tag = image_tag or "local"
+    tags = image_tags or ([image_tag] if image_tag else ["local"])
+    if any(not tag or any(char.isspace() for char in tag) for tag in tags):
+        raise BuildExecutionError("Image tags must be non-empty and contain no whitespace.")
+
+    build_output_dir = Path(prepared["metadata_path"]).parent
+    build_output_dir.mkdir(parents=True, exist_ok=True)
+    buildx_metadata_path = build_output_dir / "buildx-metadata.json"
+    build_result_path = build_output_dir / "build-result.json"
 
     command = build_command(
         repository_root=repository_root,
         dockerfile=dockerfile,
         apps_json=prepared["apps_json_path"],
         image_repository=image["repository"],
-        image_tag=tag,
+        image_tag=None,
+        image_tags=tags,
         frappe_branch=framework["target_ref"],
         labels=labels,
         platform=platform,
@@ -270,16 +307,51 @@ def build_image(
         progress=progress,
         cache_from=cache_from,
         cache_to=cache_to,
+        push=push,
+        metadata_file=buildx_metadata_path,
     )
 
-    execute_build(command, dry_run=dry_run)
+    buildx_metadata = execute_build(
+        command,
+        dry_run=dry_run,
+        metadata_file=buildx_metadata_path,
+    )
+    digest = (
+        buildx_metadata.get("containerimage.digest")
+        if buildx_metadata
+        else None
+    )
+
+    result = {
+        "schema_version": "1.0",
+        "image_id": image["id"],
+        "repository": image["repository"],
+        "tags": tags,
+        "image_refs": [f"{image['repository']}:{tag}" for tag in tags],
+        "output": "registry" if push else "local",
+        "pushed": push and not dry_run,
+        "platforms": platforms,
+        "digest": digest,
+        "buildx_metadata_file": str(buildx_metadata_path),
+        "dry_run": dry_run,
+    }
+
+    if not dry_run:
+        build_result_path.write_text(
+            json.dumps(result, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
     return {
         "image": image,
-        "tag": tag,
+        "tags": tags,
         "command": command,
         "metadata_path": prepared["metadata_path"],
         "apps_json_path": prepared["apps_json_path"],
+        "buildx_metadata_path": buildx_metadata_path,
+        "build_result_path": build_result_path,
+        "digest": digest,
+        "push": push,
         "dry_run": dry_run,
     }
 
@@ -288,7 +360,7 @@ def main() -> int:
     repository_root = Path(__file__).resolve().parents[3]
 
     parser = argparse.ArgumentParser(
-        description="Prepare and build a local NDF product image with Docker Buildx."
+        description="Prepare and build an NDF product image with Docker Buildx."
     )
     parser.add_argument(
         "--image",
@@ -297,7 +369,14 @@ def main() -> int:
     )
     parser.add_argument(
         "--tag",
-        help="Local image tag (defaults to 'local'; no registry push is performed).",
+        action="append",
+        dest="image_tags",
+        help="Image tag (repeat to apply multiple tags). Defaults to 'local'.",
+    )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="Push the image to its configured registry. Without this flag, --load is used.",
     )
     parser.add_argument(
         "--definitions",
@@ -309,7 +388,10 @@ def main() -> int:
         type=Path,
         help="Build-input output directory (defaults to images/ndf/.build/<image-id>).",
     )
-    parser.add_argument("--platform", help="Optional Buildx target platform.")
+    parser.add_argument(
+        "--platform",
+        help="Target platform or comma-separated platforms, e.g. linux/amd64,linux/arm64.",
+    )
     parser.add_argument(
         "--no-cache",
         action="store_true",
@@ -348,7 +430,8 @@ def main() -> int:
         result = build_image(
             repository_root=repository_root,
             image_id=args.image,
-            image_tag=args.tag,
+            image_tags=args.image_tags,
+            push=args.push,
             definitions_relative_path=args.definitions,
             output_dir=args.output_dir,
             platform=args.platform,
@@ -363,10 +446,14 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Image: {result['image']['repository']}:{result['tag']}")
+    print(f"Image: {', '.join(result['image']['repository'] + ':' + tag for tag in result['tags'])}")
     print(f"Build metadata: {result['metadata_path']}")
+    if result["digest"]:
+        print(f"Image digest: {result['digest']}")
     if result["dry_run"]:
-        print("Build command validated; no image was created.")
+        print("Build command validated; no image was created or pushed.")
+    elif result["push"]:
+        print("Registry image build and push completed.")
     else:
         print("Local image build completed. No registry push was performed.")
 
