@@ -154,7 +154,12 @@ def build_command(
     """Construct a deterministic local-load or registry-push Buildx command."""
     tags = validate_image_tags(image_tags or ([image_tag] if image_tag else []))
 
-    command = ["docker", "buildx", "build", "--push" if push else "--load"]
+    command = [
+        "docker",
+        "buildx",
+        "build",
+        "--push" if push else "--load",
+    ]
     command.extend(
         [
             "--pull",
@@ -288,7 +293,10 @@ def build_image(
     platforms = normalize_platforms(platform)
     if not push and len(platforms) > 1:
         raise BuildExecutionError(
-            "Local --load supports one platform. Use --push for multi-platform builds."
+            (
+                "Local --load supports one platform. "
+                "Use --push for multi-platform builds."
+            )
         )
 
     prepared = prepare_build(
@@ -312,8 +320,9 @@ def build_image(
     build_output_dir.mkdir(parents=True, exist_ok=True)
     buildx_metadata_path = build_output_dir / "buildx-metadata.json"
     build_result_path = build_output_dir / "build-result.json"
-    buildx_metadata_path.unlink(missing_ok=True)
-    build_result_path.unlink(missing_ok=True)
+    if not dry_run:
+        buildx_metadata_path.unlink(missing_ok=True)
+        build_result_path.unlink(missing_ok=True)
 
     command = build_command(
         repository_root=repository_root,
