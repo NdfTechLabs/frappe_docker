@@ -234,7 +234,9 @@ def test_execute_build_reads_buildx_metadata(tmp_path):
 \n
 
 def test_validate_image_tags_accepts_valid_tags():
-    assert validate_image_tags(["v16-1.2.0", "v16-latest", "v16-0123456789abcdef"]) == [
+    assert validate_image_tags(
+        ["v16-1.2.0", "v16-latest", "v16-0123456789abcdef"]
+    ) == [
         "v16-1.2.0",
         "v16-latest",
         "v16-0123456789abcdef",
