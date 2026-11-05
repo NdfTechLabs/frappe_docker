@@ -76,7 +76,7 @@ def _build_command(tmp_path, **overrides):
         "repository_root": root,
         "dockerfile": dockerfile,
         "apps_json": apps_json,
-        "image_repository": "ghcr.io/ndftechlabs/dhanaerp-dalali",
+        "image_repository": "ghcr.io/ndftechlabs/dalali",
         "image_tag": "local",
         "frappe_branch": "version-16",
         "labels": {"com.ndf.image.id": "dalali-v16"},
@@ -100,7 +100,7 @@ def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
     assert "--secret" in command
     assert any(item.startswith("id=apps_json,src=") for item in command)
     assert "FRAPPE_BRANCH=version-16" in command
-    assert "ghcr.io/ndftechlabs/dhanaerp-dalali:local" in command
+    assert "ghcr.io/ndftechlabs/dalali:local" in command
     assert "linux/amd64" in command
     assert "--no-cache" in command
     assert "ndf-local" in command
