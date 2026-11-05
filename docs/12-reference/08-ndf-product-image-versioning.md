@@ -43,7 +43,7 @@ Examples:
 ## Publishing boundaries
 
 - Pull requests: build and validate only; no GHCR publishing.
-- Main branch validation: build and validate only until the M3 publishing workflow is explicitly introduced.
+- Main branch validation: build and validate only; registry publishing requires an explicit manual dispatch from main.
 - Product release tags: publish only the selected product package after all release checks pass.
 - No workflow may publish to upstream Frappe Docker namespaces or repositories.
 
@@ -85,7 +85,6 @@ python images/ndf/scripts/build_image.py \
 The command writes the Buildx metadata to `buildx-metadata.json` and a build summary to `build-result.json` in the selected build output directory. When Buildx provides it, the summary records the resulting image digest. Registry authentication is intentionally external to this command; the caller must authenticate before using `--push`.
 
 Local `--load` builds are limited to one platform. Multi-platform builds require registry output via `--push`.
-\n
 
 ## M3.3 — Authenticated GHCR publishing
 
@@ -120,39 +119,3 @@ The workflow does not change GHCR package visibility. Newly created GHCR package
 - A dispatch from a branch other than `main` fails before the publishing matrix starts.
 - The selected product scope is validated before any image is built.
 - A successful workflow must include a registry push, a returned digest, and post-push image validation.
-\n
-
-## M3.3 — Authenticated GHCR publishing
-
-The `.github/workflows/ndf-publish-product.yml` workflow provides controlled publishing to the three product repositories.
-
-### Invocation and permissions
-
-- The publishing workflow is manually dispatched from the repository's `main` branch only.
-- The operator selects one product or all products and chooses either `linux/amd64` or `linux/amd64,linux/arm64`.
-- Pull-request and feature-branch workflows do not publish images.
-- The publishing job uses the repository-scoped `GITHUB_TOKEN` with `contents: read` and `packages: write`.
-- Docker authentication is performed by `docker/login-action`; credentials are not passed as build arguments or copied into image layers.
-- The workflow does not use a personal access token or require a long-lived registry secret.
-
-### Published tag and verification
-
-For each selected product, the publishing target resolver derives the Frappe major version from that product's manifest and publishes the full source commit tag:
-
-`v<framework-major>-<full-git-sha>`
-
-After the push, the workflow requires Buildx to report a SHA-256 digest, pulls the published image from GHCR, and runs the existing image-content and label validation against the product manifest lock. Build metadata, digest information and validation reports are retained as workflow artifacts.
-
-The workflow does not create semantic-version or `latest` aliases. Those remain part of the product release automation milestone.
-
-### Package visibility
-
-The workflow does not change GHCR package visibility. Newly created GHCR packages are private by default; an organization owner must explicitly decide whether each product package should remain private or become public after the first successful publication. Confirm package access and visibility before distributing image references to customers.
-
-### Operational safety
-
-- Publishing is not triggered by pull requests or ordinary pushes.
-- A dispatch from a branch other than `main` fails before the publishing matrix starts.
-- The selected product scope is validated before any image is built.
-- A successful workflow must include a registry push, a returned digest, and post-push image validation.
-
