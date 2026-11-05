@@ -109,6 +109,29 @@ def normalize_platforms(platform: str | None) -> list[str]:
     return platforms
 
 
+def validate_image_tags(tags: list[str]) -> list[str]:
+    """Validate Docker image tags and reject duplicates."""
+    if not tags:
+        raise BuildExecutionError("At least one image tag must be supplied.")
+
+    valid_characters = set(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-"
+    )
+    for tag in tags:
+        if (
+            not tag
+            or len(tag) > 128
+            or tag[0] not in valid_characters - set(".-")
+            or any(character not in valid_characters for character in tag)
+        ):
+            raise BuildExecutionError(f"Invalid Docker image tag: {tag!r}")
+
+    if len(tags) != len(set(tags)):
+        raise BuildExecutionError("Duplicate image tags are not allowed.")
+
+    return tags
+
+
 def build_command(
     *,
     repository_root: Path,
@@ -129,9 +152,7 @@ def build_command(
     metadata_file: Path | None = None,
 ) -> list[str]:
     """Construct a deterministic local-load or registry-push Buildx command."""
-    tags = image_tags or ([image_tag] if image_tag else [])
-    if not tags:
-        raise BuildExecutionError("At least one image tag must be supplied.")
+    tags = validate_image_tags(image_tags or ([image_tag] if image_tag else []))
 
     command = ["docker", "buildx", "build", "--push" if push else "--load"]
     command.extend(
@@ -283,11 +304,9 @@ def build_image(
 
     image = prepared["image"]
     framework = prepared["framework"]
-    tags = image_tags or ([image_tag] if image_tag else ["local"])
-    if any(not tag or any(char.isspace() for char in tag) for tag in tags):
-        raise BuildExecutionError(
-            "Image tags must be non-empty and contain no whitespace."
-        )
+    tags = validate_image_tags(
+        image_tags or ([image_tag] if image_tag else ["local"])
+    )
 
     build_output_dir = Path(prepared["metadata_path"]).parent
     build_output_dir.mkdir(parents=True, exist_ok=True)
@@ -462,6 +481,7 @@ def main() -> int:
     ]
     print(f"Image: {', '.join(image_refs)}")
     print(f"Build metadata: {result['metadata_path']}")
+    print(f"Build result: {result['build_result_path']}")
     if result["digest"]:
         print(f"Image digest: {result['digest']}")
     if result["dry_run"]:
