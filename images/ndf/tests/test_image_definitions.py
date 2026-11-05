@@ -79,9 +79,7 @@ class TestImageDefinitionValidation:
         environment = image_environment
         definitions = environment["definitions"]
 
-        definitions["images"][1]["repository"] = definitions["images"][0][
-            "repository"
-        ]
+        definitions["images"][1]["repository"] = definitions["images"][0]["repository"]
 
         with pytest.raises(
             ImageDefinitionError,
@@ -140,15 +138,11 @@ class TestImageDefinitionValidation:
 
 def test_product_image_definitions_use_independent_ghcr_repositories():
     definitions_path = (
-        Path(__file__).resolve().parents[1]
-        / "image-definitions"
-        / "images-v1.json"
+        Path(__file__).resolve().parents[1] / "image-definitions" / "images-v1.json"
     )
     definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
 
-    repositories = {
-        image["id"]: image["repository"] for image in definitions["images"]
-    }
+    repositories = {image["id"]: image["repository"] for image in definitions["images"]}
 
     assert repositories == {
         "dhanaerp-master-v16": "ghcr.io/ndftechlabs/dhanaerp-master",
