@@ -122,34 +122,12 @@ jobs:
 
       - name: Resolve image repository and source tag
         id: image
-        env:
-          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import json
-          import os
-          from pathlib import Path
-
-          definitions_path = Path("images/ndf/image-definitions/images-v1.json")
-          definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
-          matches = [
-              item for item in definitions["images"]
-              if item["id"] == os.environ["IMAGE_ID"]
-          ]
-          if len(matches) != 1:
-              raise SystemExit(f"Expected one image definition for {os.environ['IMAGE_ID']}")
-
-          image = matches[0]
-          manifest_path = Path("images/ndf/manifests") / image["manifest"]
-          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-          framework_major = manifest["framework"]["version"].split(".", maxsplit=1)[0]
-          image_tag = f"v{framework_major}-{os.environ['SOURCE_SHA']}"
-
-          print(f"repository={image['repository']}")
-          print(f"tag={image_tag}")
-          print(f"image_ref={image['repository']}:{image_tag}")
-          PY
+          python images/ndf/scripts/resolve_publish_target.py \
+            --image "$IMAGE_ID" \
+            --sha "$GITHUB_SHA" \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Build and publish product image
         env:
