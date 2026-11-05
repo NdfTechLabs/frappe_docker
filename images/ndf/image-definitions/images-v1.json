@@ -16,13 +16,13 @@
       "id": "dalali-v16",
       "product": "dalali",
       "manifest": "products/tenant/dalali-v16.json",
-      "repository": "ghcr.io/ndftechlabs/dhanaerp-dalali"
+      "repository": "ghcr.io/ndftechlabs/dalali"
     },
     {
       "id": "vincowoods-v16",
       "product": "vincowoods",
       "manifest": "products/tenant/vincowoods-v16.json",
-      "repository": "ghcr.io/ndftechlabs/dhanaerp-vincowoods"
+      "repository": "ghcr.io/ndftechlabs/vincowoods"
     }
   ]
 }
