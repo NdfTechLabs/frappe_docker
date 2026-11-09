@@ -1,0 +1,31 @@
+{
+  "$schema": "../../schemas/marketplace-app-descriptor-v1.schema.json",
+  "descriptor_version": "1.0.0",
+  "app_id": "dt_ecommerce",
+  "name": "NDF Ecommerce",
+  "publisher": "NDF Tech Labs",
+  "description": "Primary NDF ecommerce application.",
+  "source": {
+    "repository": "https://github.com/NdfTechLabs/dt_ecommerce",
+    "default_ref": "version-1"
+  },
+  "app_module": {
+    "bench_app_name": "dt_ecommerce"
+  },
+  "compatibility": {
+    "status": "pending"
+  },
+  "dependencies": {
+    "bench_apps": [
+      {"app_id": "frappe", "required": true},
+      {"app_id": "erpnext", "required": true},
+      {"app_id": "webshop", "required": true}
+    ]
+  },
+  "build": {},
+  "installation": {
+    "bench_installable": true,
+    "requires_migrate": true,
+    "post_install_policy": "operator_action"
+  }
+}

@@ -24,12 +24,12 @@ It owns how Frappe product environments are composed, resolved, built, validated
 
 The M4 architecture establishes the following ownership boundaries:
 
-| Component | Responsibility |
-|---|---|
-| NDF Frappe Docker | Product composition, dependency resolution, image construction, validation, immutable publishing and deployment descriptors |
-| GHCR | Distribution of immutable images and associated artifacts |
-| DT Master | Infrastructure Nodes, Bench Environments, Docker/Compose orchestration, site lifecycle, deployment execution, migration, verification and rollback |
-| DT Tenant | Tenant-facing marketplace/subscription experience and authenticated requests to DT Master |
+| Component         | Responsibility                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NDF Frappe Docker | Product composition, dependency resolution, image construction, validation, immutable publishing and deployment descriptors                        |
+| GHCR              | Distribution of immutable images and associated artifacts                                                                                          |
+| DT Master         | Infrastructure Nodes, Bench Environments, Docker/Compose orchestration, site lifecycle, deployment execution, migration, verification and rollback |
+| DT Tenant         | Tenant-facing marketplace/subscription experience and authenticated requests to DT Master                                                          |
 
 Governing principle:
 
@@ -51,16 +51,16 @@ Governing principle:
 
 M4.1 defined and approved the NDF contracts consumed by DT Master.
 
-| Workstream | NDF responsibility | Expected output |
-|---|---|---|
-| Marketplace App Descriptor | Define and validate app source, version, framework/runtime compatibility and dependency declarations | Versioned app descriptor schema |
-| Deployment Candidate | Validate the requested complete Bench composition and build parameters | Candidate input schema |
-| Runtime resolution | Resolve compatible Python, Node.js, Yarn and framework versions | Exact runtime selection |
-| Dependency resolution | Resolve Python, Node.js and OS package dependencies | Deterministic dependency lock |
-| Candidate manifest generation | Convert a candidate composition into NDF build inputs | Resolved manifest and lock |
-| Image build and validation | Build and test the requested composition | Validated immutable OCI image |
-| Deployment descriptor | Describe the image actually produced, not merely the requested manifest | Versioned descriptor with image digest |
-| Publishing | Publish image and associated descriptor/artifacts | Immutable GHCR reference and digest |
+| Workstream                    | NDF responsibility                                                                                   | Expected output                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Marketplace App Descriptor    | Define and validate app source, version, framework/runtime compatibility and dependency declarations | Versioned app descriptor schema        |
+| Deployment Candidate          | Validate the requested complete Bench composition and build parameters                               | Candidate input schema                 |
+| Runtime resolution            | Resolve compatible Python, Node.js, Yarn and framework versions                                      | Exact runtime selection                |
+| Dependency resolution         | Resolve Python, Node.js and OS package dependencies                                                  | Deterministic dependency lock          |
+| Candidate manifest generation | Convert a candidate composition into NDF build inputs                                                | Resolved manifest and lock             |
+| Image build and validation    | Build and test the requested composition                                                             | Validated immutable OCI image          |
+| Deployment descriptor         | Describe the image actually produced, not merely the requested manifest                              | Versioned descriptor with image digest |
+| Publishing                    | Publish image and associated descriptor/artifacts                                                    | Immutable GHCR reference and digest    |
 
 ### M4.2 — Runtime Infrastructure Enhancements
 
@@ -75,8 +75,9 @@ The central implementation priority is to prove exactly what source revisions we
 - [M4.2 Implementation Plan](M4.2-IMPLEMENTATION-PLAN.md) — readiness conclusions, approved scope, work packages, deliverables, dependency order, acceptance criteria, boundaries and authorization.
 - [M4.2 Implementation Tracker](M4.2-IMPLEMENTATION-TRACKER.md) — work-package status, acceptance evidence and execution log.
 - [M4.2.1 Resolver Implementation](M4.2.1-RESOLVER-IMPLEMENTATION.md) — baseline findings, source-reference policy, resolution-time SHA/provenance, lock v2 contract and focused test requirements.
+- [M4.2.2 Application Descriptor Contract](M4.2.2-APPLICATION-DESCRIPTOR.md) — descriptor/composition ownership, schema versioning, typed dependencies, compatibility evidence and migration boundaries.
 
-**Current execution:** M4.2.1 — Build Foundation and Resolver Correction is Complete (2026-11-10). Its final user-run validation passed: 47 resolver tests and 88 full NDF tests. The feature branch has a pull request into `main`; the tracker records its URL and closure evidence. M4.2.2 — Application and Dependency Descriptors is In Progress. The resolver does not classify branch names as development-only.
+**Current execution:** M4.2.1 — Build Foundation and Resolver Correction is Complete (2026-11-10). Its final user-run validation passed: 47 resolver tests and 88 full NDF tests. PR #8 is open into `main`; it has not been merged. M4.2.2 — Application and Dependency Descriptors is Complete (2026-11-10). Its final user-run validation passed: 37 focused descriptor tests and 125 full NDF tests; Python compilation completed without errors and pre-commit passed after formatting corrections. The accepted contract separates authoring validity from production metadata readiness, validates supplied SemVer/PEP 440 constraints, requires NDF-controlled compatibility evidence for verified status, uses an NDF-owned build/install policy catalogue and enforces canonical descriptor catalogue paths. Resolver/lock integration tests are explicitly assigned to M4.2.3 and remain mandatory; no resolver code or product manifests/locks were changed in M4.2.2. M4.2.3 — Composition and Service Resolution is now the next work package. The resolver does not classify branch names as development-only.
 
 Approved work packages:
 

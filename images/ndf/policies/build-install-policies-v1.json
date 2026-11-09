@@ -1,0 +1,6 @@
+{
+  "catalogue_version": "1.0.0",
+  "description": "NDF-owned registry of declarative build and installation policies. Entries identify an NDF implementation; descriptors may reference identifiers but cannot provide executable implementations.",
+  "build_policies": {},
+  "installation_policies": {}
+}
