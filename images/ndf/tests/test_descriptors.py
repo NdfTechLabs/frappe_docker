@@ -6,6 +6,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from scripts.validate_descriptors import (
     DescriptorValidationError,
+    collect_production_eligibility_issues,
     validate_composition_descriptors,
     validate_descriptor,
 )
@@ -49,6 +50,7 @@ class TestMarketplaceDescriptorSchemas:
                 "python": [
                     {
                         "name": "example-python-package",
+                        "required": True,
                         "version": ">=1.0,<2.0",
                         "disposition": "runtime_compatible",
                         "build_required": True,
@@ -57,6 +59,7 @@ class TestMarketplaceDescriptorSchemas:
                 "node": [
                     {
                         "name": "example-node-package",
+                        "required": True,
                         "version": "^1.2.3",
                         "package_manager": "npm",
                         "scope": "build",
@@ -66,6 +69,7 @@ class TestMarketplaceDescriptorSchemas:
                 "os": [
                     {
                         "name": "example-system-library",
+                        "required": True,
                         "distribution_family": "debian",
                         "package_manager": "apt",
                         "scope": "build",
@@ -114,12 +118,146 @@ class TestMarketplaceDescriptorSchemas:
             validate_descriptor(descriptor, SCHEMA_DIR)
 
 
+    def test_invalid_semver_constraint_is_rejected(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"]["frappe"] = "not-a-valid-range"
+        with pytest.raises(DescriptorValidationError, match="Invalid SemVer range"):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
+    def test_invalid_pep440_constraint_is_rejected(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"]["python"] = "not-a-specifier"
+        with pytest.raises(DescriptorValidationError, match="Invalid PEP 440"):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
+    def test_valid_ecosystem_constraints_are_accepted(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"].update(
+            {
+                "frappe": ">=16.0.0 <17.0.0",
+                "erpnext": "^16.0.0",
+                "python": ">=3.12,<3.15",
+                "node": "^24.0.0",
+            }
+        )
+        validate_descriptor(descriptor, SCHEMA_DIR)
+
+    def test_os_package_manager_must_match_distribution_family(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["dependencies"]["os"] = [
+            {
+                "name": "example-package",
+                "required": True,
+                "distribution_family": "debian",
+                "package_manager": "dnf",
+                "scope": "build",
+                "disposition": "environment_level",
+            }
+        ]
+        with pytest.raises(
+            DescriptorValidationError, match="Unsupported OS package-manager"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
+    def test_unapproved_build_policy_is_rejected(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["build"] = {
+            "build_system": "custom_policy",
+            "policy_id": "publisher.arbitrary-command",
+        }
+        with pytest.raises(DescriptorValidationError, match="Unapproved NDF build policy"):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
+    def test_verified_compatibility_requires_ndf_test_matrix(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"] = {
+            "status": "verified",
+            "frappe": "^16.0.0",
+            "python": ">=3.12,<3.15",
+            "evidence": [
+                {
+                    "kind": "automated_test",
+                    "authority": "ndf",
+                    "reference": "https://github.com/NdfTechLabs/frappe_docker/actions",
+                    "result": "passed",
+                    "tested_versions": {
+                        "frappe": "16.1.0",
+                        "python": "3.14.3",
+                    },
+                }
+            ],
+        }
+        validate_descriptor(descriptor, SCHEMA_DIR)
+
+    def test_production_eligibility_rejects_incomplete_authoring_descriptor(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        issues = collect_production_eligibility_issues(descriptor)
+        assert any("compatibility status is not verified" in item for item in issues)
+        assert any("missing explicit version_policy" in item for item in issues)
+
+    def test_latest_compatible_is_explicit_and_production_complete_for_dependency_policy(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"].update(
+            {
+                "status": "verified",
+                "frappe": "^16.0.0",
+                "erpnext": "^16.0.0",
+                "python": ">=3.12,<3.15",
+                "evidence": [
+                    {
+                        "kind": "automated_test",
+                        "authority": "ndf",
+                        "reference": "https://github.com/NdfTechLabs/frappe_docker/actions",
+                        "result": "passed",
+                        "tested_versions": {
+                            "frappe": "16.1.0",
+                            "erpnext": "16.1.0",
+                            "python": "3.14.3",
+                        },
+                    }
+                ],
+            }
+        )
+        for dependency in descriptor["dependencies"]["bench_apps"]:
+            dependency["version_policy"] = "latest_compatible"
+        assert collect_production_eligibility_issues(descriptor) == []
+
+    def test_constraint_policy_without_version_blocks_production(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["dependencies"]["bench_apps"][0]["version_policy"] = "constraint"
+        issues = collect_production_eligibility_issues(descriptor)
+        assert any("constraint policy requires a version" in item for item in issues)
+
+    def test_latest_compatible_cannot_also_declare_version(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["dependencies"]["bench_apps"][0].update(
+            {"version_policy": "latest_compatible", "version": "^16.0.0"}
+        )
+        issues = collect_production_eligibility_issues(descriptor)
+        assert any("cannot also declare a version" in item for item in issues)
+
+    def test_descriptor_catalogue_filename_must_match_app_identity(self, tmp_path):
+        copy_descriptor_tree(tmp_path)
+        descriptor_path = (
+            tmp_path / "images" / "ndf" / "descriptors" / "apps" / "dt_ecommerce.json"
+        )
+        renamed_path = descriptor_path.with_name("renamed.json")
+        descriptor_path.rename(renamed_path)
+        composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
+        composition["applications"][0][
+            "descriptor"
+        ] = "images/ndf/descriptors/apps/renamed.json"
+        with pytest.raises(
+            DescriptorValidationError, match="normalized catalogue-relative"
+        ):
+            validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
+
 class TestCompositionDescriptorSemantics:
     def test_descriptor_path_traversal_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["descriptor"] = "../../../../etc/passwd"
         with pytest.raises(
-            DescriptorValidationError, match="normalized repository-relative"
+            DescriptorValidationError, match="normalized catalogue-relative"
         ):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
@@ -141,23 +279,15 @@ class TestCompositionDescriptorSemantics:
         ):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
-    def test_duplicate_descriptor_app_ids_are_rejected(self, tmp_path):
-        copy_descriptor_tree(tmp_path)
-        duplicate = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
-        duplicate["name"] = "Duplicate identity fixture"
-        duplicate_path = (
-            tmp_path / "images" / "ndf" / "descriptors" / "apps" / "duplicate.json"
-        )
-        duplicate_path.write_text(json.dumps(duplicate), encoding="utf-8")
-
+    def test_duplicate_descriptor_app_ids_are_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][1][
             "descriptor"
-        ] = "images/ndf/descriptors/apps/duplicate.json"
+        ] = composition["applications"][0]["descriptor"]
         with pytest.raises(
             DescriptorValidationError, match="Duplicate descriptor app_id"
         ):
-            validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
+            validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
     def test_duplicate_bench_install_names_are_rejected(self, tmp_path):
         copy_descriptor_tree(tmp_path)
@@ -172,14 +302,14 @@ class TestCompositionDescriptorSemantics:
             / "ndf"
             / "descriptors"
             / "apps"
-            / "duplicate-bench-name.json"
+            / "different_marketplace_id.json"
         )
         duplicate_path.write_text(json.dumps(duplicate), encoding="utf-8")
 
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][1][
             "descriptor"
-        ] = "images/ndf/descriptors/apps/duplicate-bench-name.json"
+        ] = "images/ndf/descriptors/apps/different_marketplace_id.json"
         with pytest.raises(DescriptorValidationError, match="Duplicate Bench app name"):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
