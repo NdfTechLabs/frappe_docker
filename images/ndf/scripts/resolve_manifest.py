@@ -381,7 +381,7 @@ class ManifestLoader:
                 ):
                     raise ManifestError(
                         f"{descriptor['app_id']}: target_runtime.package_versions "
-                        f"must provide exact version, source and resolver for {key}."
+                        f"must provide an exact selection (version, source and resolver) for {key}."
                     )
                 selected_version = selection["version"]
                 policy = dependency.get("version_policy")
