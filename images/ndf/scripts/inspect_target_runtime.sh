@@ -183,7 +183,7 @@ CONTAINER_SCRIPT
 
   echo "==> Capturing installed dpkg inventory"
   docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$image" -c \
-    'dpkg-query -W -f='''${binary:Package}\t${Version}\t${Architecture}\n''' 2>/dev/null | LC_ALL=C sort' \
+    "dpkg-query -W -f='\${binary:Package}\t\${Version}\t\${Architecture}\n' 2>/dev/null | LC_ALL=C sort" \
     > "$dir/dpkg-inventory.tsv"
 
   echo "==> Capturing package inventory summary"
