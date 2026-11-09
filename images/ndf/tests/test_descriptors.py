@@ -220,6 +220,7 @@ class TestMarketplaceDescriptorSchemas:
                     "authority": "ndf",
                     "reference": "https://github.com/NdfTechLabs/frappe_docker/actions",
                     "result": "passed",
+                    "tested_at": "2026-11-10T00:00:00Z",
                     "tested_versions": {
                         "frappe": "16.1.0",
                         "python": "3.14.3",
