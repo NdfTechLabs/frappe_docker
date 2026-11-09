@@ -208,9 +208,18 @@ class ManifestLoader:
             for key in values:
                 if key in policy and not isinstance(policy[key], bool):
                     raise ManifestError(f"Resolution policy '{key}' must be a boolean.")
-            values["require_immutable_commit"] = values["require_immutable_commit"] or policy.get("require_immutable_commit", True)
-            values["allow_development_branches"] = values["allow_development_branches"] and policy.get("allow_development_branches", False)
-            values["fail_on_unverified_compatibility"] = values["fail_on_unverified_compatibility"] or policy.get("fail_on_unverified_compatibility", True)
+            values["require_immutable_commit"] = (
+                values["require_immutable_commit"]
+                or policy.get("require_immutable_commit", True)
+            )
+            values["allow_development_branches"] = (
+                values["allow_development_branches"]
+                and policy.get("allow_development_branches", False)
+            )
+            values["fail_on_unverified_compatibility"] = (
+                values["fail_on_unverified_compatibility"]
+                or policy.get("fail_on_unverified_compatibility", True)
+            )
 
         return values
 
@@ -218,7 +227,9 @@ class ManifestLoader:
     def is_development_branch(ref_name: str) -> bool:
         """Classify conventional moving development branch names."""
         normalized = ref_name.strip().lower()
-        exact_names = {"develop", "development", "dev", "main", "master", "nightly"}
+        exact_names = {
+            "develop", "development", "dev", "main", "master", "nightly"
+        }
         prefixes = ("develop/", "development/", "dev/", "nightly/")
         return normalized in exact_names or normalized.startswith(prefixes)
 
@@ -363,7 +374,11 @@ class ManifestLoader:
             return {"sha": resolved[branch_ref], "kind": "branch", "name": branch_ref}
         raise ManifestError(f"Git reference '{target_ref}' not found in {repository}")
 
-    def resolve_application_refs(self, applications: list, policy: dict[str, bool]) -> list:
+    def resolve_application_refs(
+        self,
+        applications: list,
+        policy: dict[str, bool],
+    ) -> list:
         """Resolve required application refs and enforce effective policy."""
         errors = []
         for app in applications:
@@ -389,13 +404,18 @@ class ManifestLoader:
                 )
 
             commit = resolved["sha"]
-            if policy["require_immutable_commit"] and not re.fullmatch(r"[a-fA-F0-9]{40}", commit):
+            if policy["require_immutable_commit"] and not re.fullmatch(
+                r"[a-fA-F0-9]{40}", commit
+            ):
                 errors.append(f"{app['name']}: resolved source is not a full immutable commit SHA")
 
             app["ref"] = commit
             app["_reference_kind"] = resolved["kind"]
             app["_resolved_ref"] = resolved["name"]
-            print(f"Resolved {app['name']}: {target_ref} -> {commit} ({resolved['kind']}: {resolved['name']})")
+            print(
+                f"Resolved {app['name']}: {target_ref} -> {commit} "
+                f"({resolved['kind']}: {resolved['name']})"
+            )
 
         if errors:
             raise ManifestError(
@@ -442,17 +462,22 @@ class ManifestLoader:
         collect_manifests(manifest)
 
         policy = self.resolve_policy(manifest)
-        framework_application = next((app for app in applications if app["name"] == "frappe"), None)
+        framework_application = next(
+            (app for app in applications if app["name"] == "frappe"),
+            None,
+        )
         if framework_application is None:
             raise ManifestError("Resolved application composition does not contain Frappe.")
 
         framework = dict(manifest["framework"])
-        framework.update({
+        framework.update(
+            {
             "target_ref": framework_application["target_ref"],
             "ref": framework_application["ref"],
             "reference_kind": framework_application.get("_reference_kind"),
-            "resolved_ref": framework_application.get("_resolved_ref"),
-        })
+                "resolved_ref": framework_application.get("_resolved_ref"),
+            }
+        )
 
         return {
             "lock_version": 2,
@@ -542,8 +567,16 @@ class ManifestLoader:
             raise ManifestError(f"Unsupported lock version: {lock.get('lock_version')}")
 
         policy = lock.get("resolution_policy")
-        policy_keys = {"require_immutable_commit", "allow_development_branches", "fail_on_unverified_compatibility"}
-        if not isinstance(policy, dict) or set(policy) != policy_keys or any(not isinstance(policy[key], bool) for key in policy_keys):
+        policy_keys = {
+            "require_immutable_commit",
+            "allow_development_branches",
+            "fail_on_unverified_compatibility",
+        }
+        if (
+            not isinstance(policy, dict)
+            or set(policy) != policy_keys
+            or any(not isinstance(policy[key], bool) for key in policy_keys)
+        ):
             raise ManifestError("Lock file has an invalid effective resolution policy.")
         if policy != self.resolve_policy(expected_manifest):
             raise ManifestError("Lock file effective resolution policy does not match the source manifests.")
@@ -671,14 +704,25 @@ class ManifestLoader:
                 )
 
             if reference_kind not in {"branch", "tag"}:
-                raise ManifestError(f"Application '{name}' has invalid reference provenance.")
+                raise ManifestError(
+                    f"Application '{name}' has invalid reference provenance."
+                )
             if not isinstance(resolved_ref, str) or not resolved_ref:
-                raise ManifestError(f"Application '{name}' has no resolved Git reference name.")
+                raise ManifestError(
+                    f"Application '{name}' has no resolved Git reference name."
+                )
             if policy["require_immutable_commit"] and not re.fullmatch(r"[a-fA-F0-9]{40}", commit):
                 raise ManifestError(f"Application '{name}' is not locked to an immutable commit SHA.")
-            if policy["fail_on_unverified_compatibility"] and str(compatibility_status or "").strip().lower() != "verified":
+            if (
+                policy["fail_on_unverified_compatibility"]
+                and str(compatibility_status or "").strip().lower() != "verified"
+            ):
                 raise ManifestError(f"Application '{name}' has unverified compatibility status.")
-            if reference_kind == "branch" and self.is_development_branch(target_ref) and not policy["allow_development_branches"]:
+            if (
+                reference_kind == "branch"
+                and self.is_development_branch(target_ref)
+                and not policy["allow_development_branches"]
+            ):
                 raise ManifestError(f"Application '{name}' uses a prohibited development branch.")
 
             if (
@@ -731,7 +775,9 @@ class ManifestLoader:
             or framework.get("reference_kind") != frappe_app.get("reference_kind")
             or framework.get("resolved_ref") != frappe_app.get("resolved_ref")
         ):
-            raise ManifestError("Framework source identity does not match the locked Frappe application.")
+            raise ManifestError(
+                "Framework source identity does not match the locked Frappe application."
+            )
 
         return True
 
