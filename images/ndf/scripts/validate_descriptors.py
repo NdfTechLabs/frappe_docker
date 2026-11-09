@@ -187,14 +187,23 @@ def validate_descriptor(
     _validate_os_package_manager(descriptor)
 
 
-def collect_production_eligibility_issues(
+def collect_production_metadata_issues(
     descriptor: dict[str, Any],
+    selected_optional_dependencies: set[str] | None = None,
 ) -> list[str]:
-    """Return missing/ambiguous metadata that blocks production eligibility.
+    """Return metadata gaps that prevent a descriptor entering production resolution.
 
-    This is a metadata completeness gate, not a dependency resolver. It does
-    not calculate transitive closure or test satisfiability against an image.
+    Optional dependency identities use "<ecosystem>:<app_id-or-package-name>".
+    This is not the final production-eligibility decision: it does not resolve
+    dependency graphs or test satisfiability against a concrete image.
     """
+    selected_optional_dependencies = selected_optional_dependencies or set()
+
+    def is_selected(ecosystem: str, dependency: dict[str, Any]) -> bool:
+        if dependency.get("required", True):
+            return True
+        identity = dependency.get("app_id", dependency.get("name", ""))
+        return f"{ecosystem}:{identity}" in selected_optional_dependencies
     issues: list[str] = []
     app_id = descriptor.get("app_id", "<unknown>")
     compatibility = descriptor.get("compatibility", {})
@@ -204,11 +213,14 @@ def collect_production_eligibility_issues(
 
     required_compatibility = ["frappe", "python"]
     bench_dependencies = descriptor.get("dependencies", {}).get("bench_apps", [])
-    if any(item.get("app_id") == "erpnext" and item.get("required") for item in bench_dependencies):
+    if any(
+        item.get("app_id") == "erpnext" and is_selected("bench_apps", item)
+        for item in bench_dependencies
+    ):
         required_compatibility.append("erpnext")
     dependencies = descriptor.get("dependencies", {})
     if any(
-        item.get("required", True) for item in dependencies.get("node", [])
+        is_selected("node", item) for item in dependencies.get("node", [])
     ) or descriptor.get("build", {}).get("requires_assets_build"):
         required_compatibility.append("node")
 
@@ -222,6 +234,7 @@ def collect_production_eligibility_issues(
         item
         for item in evidence
         if item.get("authority") == "ndf"
+        and item.get("kind") in {"automated_test", "manual_test"}
         and item.get("result") == "passed"
         and required_evidence_versions.issubset(
             {
@@ -239,8 +252,7 @@ def collect_production_eligibility_issues(
 
     for ecosystem in ("bench_apps", "python", "node", "os"):
         for index, dependency in enumerate(dependencies.get(ecosystem, [])):
-            if dependency.get("required", True) is False:
-                # Selection of optional dependencies is decided by composition.
+            if not is_selected(ecosystem, dependency):
                 continue
             label = f"{app_id}: dependencies.{ecosystem}[{index}]"
             policy = dependency.get("version_policy")
@@ -261,12 +273,17 @@ def collect_production_eligibility_issues(
     return issues
 
 
-def validate_production_eligibility(descriptor: dict[str, Any]) -> None:
-    """Raise when descriptor metadata is not production-eligible."""
-    issues = collect_production_eligibility_issues(descriptor)
+def validate_production_metadata(
+    descriptor: dict[str, Any],
+    selected_optional_dependencies: set[str] | None = None,
+) -> None:
+    """Raise when descriptor metadata is not ready for production resolution."""
+    issues = collect_production_metadata_issues(
+        descriptor, selected_optional_dependencies
+    )
     if issues:
         raise DescriptorValidationError(
-            "Descriptor is not production-eligible:\\n" + "\\n".join(issues)
+            "Descriptor metadata is not production-ready:\\n" + "\\n".join(issues)
         )
 
 
