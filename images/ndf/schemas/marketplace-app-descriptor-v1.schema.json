@@ -211,6 +211,7 @@
                 "contains": {
                   "type": "object",
                   "required": [
+                    "kind",
                     "authority",
                     "result",
                     "tested_versions"
@@ -238,6 +239,12 @@
                           "minLength": 1
                         }
                       }
+                    },
+                    "kind": {
+                      "enum": [
+                        "automated_test",
+                        "manual_test"
+                      ]
                     }
                   }
                 }
