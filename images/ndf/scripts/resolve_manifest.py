@@ -168,11 +168,23 @@ class ManifestLoader:
                         raise ManifestError(
                             f"Capability entry has no valid manifest path in {path.name}"
                         )
-                    if capability_path in seen_capability_paths:
+                    normalized_capability_path = (
+                        self.manifests_dir / capability_path
+                    ).resolve()
+                    if not normalized_capability_path.is_relative_to(self.manifests_dir):
+                        raise ManifestError(
+                            f"Capability path escapes the manifests directory: {capability_path}"
+                        )
+                    if normalized_capability_path in seen_capability_paths:
                         raise ManifestError(
                             f"Duplicate capability reference in {path.name}: {capability_path}"
                         )
-                    seen_capability_paths.add(capability_path)
+                    seen_capability_paths.add(normalized_capability_path)
+                    if normalized_capability_path in loaded_include_paths:
+                        raise ManifestError(
+                            f"Manifest cannot be declared as both include and capability: "
+                            f"{capability_path}"
+                        )
                     required = capability.get("required", False)
                     selected = capability.get("selected")
                     if not isinstance(required, bool):
@@ -196,11 +208,6 @@ class ManifestLoader:
                         continue
                     try:
                         resolved_capability_path = self.resolve_path(capability_path)
-                        if resolved_capability_path in loaded_include_paths:
-                            raise ManifestError(
-                                f"Manifest cannot be declared as both include and capability: "
-                                f"{capability_path}"
-                            )
                         child = self.load(capability_path)
                     except ManifestError as exc:
                         if required or selected is True or isinstance(exc, DuplicateManifestIDError):
