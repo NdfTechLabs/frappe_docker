@@ -246,13 +246,13 @@ class TestMarketplaceDescriptorSchemas:
         ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
-    def test_production_eligibility_rejects_incomplete_authoring_descriptor(self):
+    def test_production_metadata_gate_rejects_incomplete_authoring_descriptor(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         issues = collect_production_metadata_issues(descriptor)
         assert any("compatibility status is not verified" in item for item in issues)
         assert any("missing explicit version_policy" in item for item in issues)
 
-    def test_latest_compatible_is_explicit_and_production_complete_for_dependency_policy(self):
+    def test_latest_compatible_policy_completes_dependency_metadata(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"].update(
             {
@@ -291,7 +291,7 @@ class TestMarketplaceDescriptorSchemas:
         )
         assert any("constraint policy requires a version" in item for item in selected)
 
-    def test_constraint_policy_without_version_blocks_production(self):
+    def test_constraint_policy_without_version_blocks_metadata_readiness(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["dependencies"]["bench_apps"][0]["version_policy"] = "constraint"
         issues = collect_production_metadata_issues(descriptor)
