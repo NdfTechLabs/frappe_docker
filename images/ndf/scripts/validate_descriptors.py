@@ -140,6 +140,24 @@ def _validate_version_syntax(descriptor: dict[str, Any]) -> None:
                     f"compatibility.evidence[{evidence_index}].tested_versions.python: {value!r}"
                 ) from exc
 
+        for field in ("frappe", "erpnext", "node"):
+            tested_value = tested.get(field)
+            declared_range = compatibility.get(field)
+            if tested_value and declared_range:
+                if SemVerVersion(tested_value) not in NpmSpec(declared_range):
+                    raise DescriptorValidationError(
+                        f"Tested SemVer version at compatibility.evidence[{evidence_index}]"
+                        f".tested_versions.{field} does not satisfy compatibility.{field}"
+                    )
+        tested_python = tested.get("python")
+        declared_python = compatibility.get("python")
+        if tested_python and declared_python:
+            if not SpecifierSet(declared_python).contains(PythonVersion(tested_python)):
+                raise DescriptorValidationError(
+                    f"Tested PEP 440 version at compatibility.evidence[{evidence_index}]"
+                    ".tested_versions.python does not satisfy compatibility.python"
+                )
+
     # OS version strings are intentionally not parsed here. Their semantics
     # belong to the declared target package manager and its native solver.
 
