@@ -169,6 +169,43 @@ class TestMarketplaceDescriptorSchemas:
         with pytest.raises(DescriptorValidationError, match="Unapproved NDF build policy"):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_unapproved_installation_policy_is_rejected(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["installation"].update(
+            {
+                "post_install_policy": "approved_policy",
+                "policy_id": "publisher.custom-hook",
+            }
+        )
+        with pytest.raises(
+            DescriptorValidationError, match="Unapproved NDF installation policy"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
+    def test_publisher_evidence_cannot_establish_ndf_verified_status(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"] = {
+            "status": "verified",
+            "frappe": "^16.0.0",
+            "python": ">=3.12,<3.15",
+            "evidence": [
+                {
+                    "kind": "automated_test",
+                    "authority": "publisher",
+                    "reference": "https://example.com/publisher-ci",
+                    "result": "passed",
+                    "tested_versions": {
+                        "frappe": "16.1.0",
+                        "python": "3.14.3",
+                    },
+                }
+            ],
+        }
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor schema validation failed"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_verified_compatibility_requires_ndf_test_matrix(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"] = {
