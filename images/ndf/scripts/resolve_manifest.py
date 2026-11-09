@@ -11,11 +11,18 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-from validate_descriptors import (
-    DescriptorValidationError,
-    collect_production_metadata_issues,
-    validate_descriptor,
-)
+try:
+    from .validate_descriptors import (
+        DescriptorValidationError,
+        collect_production_metadata_issues,
+        validate_descriptor,
+    )
+except ImportError:
+    from validate_descriptors import (
+        DescriptorValidationError,
+        collect_production_metadata_issues,
+        validate_descriptor,
+    )
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version as PythonVersion
 from semantic_version import NpmSpec
@@ -1195,7 +1202,10 @@ class ManifestLoader:
                 "the source manifests."
             )
 
-        if lock.get("target_runtime") != expected_manifest.get("target_runtime"):
+        if (
+            verify_manifest_checksums
+            and lock.get("target_runtime") != expected_manifest.get("target_runtime")
+        ):
             raise ManifestError(
                 "Lock file target runtime matrix does not match the source manifest."
             )
@@ -1567,7 +1577,7 @@ class ManifestLoader:
         changes = []
 
         # Compare top-level metadata.
-        for section in ("product", "framework", "lock_version", "resolver"):
+        for section in ("product", "framework", "target_runtime", "lock_version", "resolver"):
             old_value = previous_lock.get(section)
             new_value = new_lock_data.get(section)
 
@@ -1654,6 +1664,8 @@ def print_manifest_tree(manifest: dict, level: int = 0):
     print(f"{indent}- {manifest['id']} " f"({Path(manifest['_source_path']).name})")
 
     for child in manifest.get("_loaded_includes", []):
+        print_manifest_tree(child, level + 1)
+    for child in manifest.get("_loaded_capabilities", []):
         print_manifest_tree(child, level + 1)
 
 
