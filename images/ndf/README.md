@@ -18,9 +18,9 @@ It owns how Frappe product environments are composed, resolved, built, validated
 
 ## M4 — DTaaS integration
 
-### M4.0 — Architecture and repository discovery
+### M4.0 — Architecture and Repository Discovery
 
-**Status: Completed (2026-11-09).**
+**Status: Complete (2026-11-09).**
 
 The M4 architecture establishes the following ownership boundaries:
 
@@ -45,10 +45,9 @@ Governing principle:
 - A new or changed Bench composition is built as a new immutable image and deployed through a replacement Bench Environment.
 - A published image does not automatically update an existing deployment.
 
-### M4.1 — Integration contract and architecture
+### M4.1 — Integration Contract and Architecture
 
-**Status: Complete (2026-11-09).** The NDF artifact, composition, candidate/build, immutable image and deployment descriptor contracts were accepted in the final 13-point M4.1 architecture review and approved by the platform owner.  
-**Implementation authorization: Not granted.** NDF implementation remains assigned to M4.2 and later milestones, subject to separate explicit authorization.
+**Status: Complete (2026-11-09).** The NDF artifact, composition, candidate/build, immutable image and deployment descriptor contracts were accepted in the final 13-point M4.1 architecture review and approved by the platform owner.
 
 M4.1 defined and approved the NDF contracts consumed by DT Master.
 
@@ -62,6 +61,33 @@ M4.1 defined and approved the NDF contracts consumed by DT Master.
 | Image build and validation | Build and test the requested composition | Validated immutable OCI image |
 | Deployment descriptor | Describe the image actually produced, not merely the requested manifest | Versioned descriptor with image digest |
 | Publishing | Publish image and associated descriptor/artifacts | Immutable GHCR reference and digest |
+
+### M4.2 — Runtime Infrastructure Enhancements
+
+**Status: Approved for implementation (2026-11-09).**
+
+The read-only implementation readiness review found the repository and existing pipeline ready for implementation planning. The platform owner approved the M4.2 scope, nine work packages, deliverables, dependency order and 20 acceptance criteria, and explicitly authorized implementation on 9 November 2026.
+
+The central implementation priority is to ensure that the actual image contains exactly the immutable source composition recorded in its lock. M4.2 extends the existing resolver, build and validation pipeline; it does not replace the upstream Frappe Docker foundation or create a competing image builder.
+
+**Authoritative M4.2 records:**
+
+- [M4.2 Implementation Plan](M4.2-IMPLEMENTATION-PLAN.md) — readiness conclusions, approved scope, work packages, deliverables, dependency order, acceptance criteria, boundaries and authorization.
+- [M4.2 Implementation Tracker](M4.2-IMPLEMENTATION-TRACKER.md) — work-package status, acceptance evidence and execution log.
+
+Approved work packages:
+
+1. M4.2.1 — Build Foundation and Resolver Correction.
+2. M4.2.2 — Application and Dependency Descriptors.
+3. M4.2.3 — Composition and Service Resolution.
+4. M4.2.4 — Immutable Image Construction.
+5. M4.2.5 — Image Verification.
+6. M4.2.6 — Product Deployment Descriptor.
+7. M4.2.7 — Candidate-Driven CI/CD.
+8. M4.2.8 — Artifact Trust.
+9. M4.2.9 — Integration Documentation and Testing.
+
+Implementation is restricted to M4.2. M4.4 Product Image Deployment and M4.5 Runtime Application Management responsibilities remain with their designated DT Master/DT Tenant milestones; M4.2 defines and validates the NDF-side contracts they consume.
 
 ### Existing pipeline to extend
 
@@ -78,8 +104,6 @@ Current relevant components include:
 - `.github/workflows/ndf-build-product.yml`
 - `.github/workflows/ndf-publish-product.yml`
 - `.github/workflows/ndf-release-product.yml`
-
-The current product workflows are based on predefined product definitions. Dynamic candidate composition, runtime/package dependency resolution and the complete deployment descriptor contract are accepted M4.1 architecture; implementation remains assigned to M4.2 and M4.4.
 
 ### Artifact principles
 
@@ -101,7 +125,7 @@ This repository is based on [upstream frappe_docker](https://github.com/frappe/f
 
 ## M4.1 completion record
 
-The following acceptance criteria were reviewed and approved as part of M4.1, which is Complete as of 2026-11-09:
+The following architecture areas were reviewed and approved as part of M4.1, which is Complete as of 2026-11-09:
 
 - DocType ownership and relationship model across DT Master and DT Tenant.
 - Versioned Marketplace App Descriptor and Deployment Candidate schemas.
@@ -112,4 +136,4 @@ The following acceptance criteria were reviewed and approved as part of M4.1, wh
 - Replacement Bench, site migration, verification, rollback and retirement lifecycle.
 - File-level repository migration matrix and implementation sequence.
 
-These architecture contracts are approved. Their implementation, build-pipeline validation and production integration remain pending the relevant M4.2–M4.7 work and separate implementation authorization. M4.1 completion does not imply that the NDF build pipeline already satisfies every accepted contract.
+M4.1 completion records architecture approval, not implementation completion. NDF pipeline implementation and validation are assigned to M4.2; subsequent deployment/runtime responsibilities remain assigned to M4.3–M4.7.
