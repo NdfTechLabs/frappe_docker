@@ -157,6 +157,7 @@ class ManifestLoader:
                 raise ManifestError(f"'capabilities' must be an array in {path.name}")
 
             if manifest.get("manifest_version") == "2.0.0":
+                seen_capability_paths = set()
                 for capability in capabilities:
                     if not isinstance(capability, dict):
                         raise ManifestError(
@@ -167,6 +168,11 @@ class ManifestLoader:
                         raise ManifestError(
                             f"Capability entry has no valid manifest path in {path.name}"
                         )
+                    if capability_path in seen_capability_paths:
+                        raise ManifestError(
+                            f"Duplicate capability reference in {path.name}: {capability_path}"
+                        )
+                    seen_capability_paths.add(capability_path)
                     required = capability.get("required", False)
                     selected = capability.get("selected")
                     if not isinstance(required, bool):
@@ -190,6 +196,11 @@ class ManifestLoader:
                         continue
                     try:
                         resolved_capability_path = self.resolve_path(capability_path)
+                        if resolved_capability_path in loaded_include_paths:
+                            raise ManifestError(
+                                f"Manifest cannot be declared as both include and capability: "
+                                f"{capability_path}"
+                            )
                         child = self.load(capability_path)
                     except ManifestError as exc:
                         if required or isinstance(exc, DuplicateManifestIDError):
@@ -1838,6 +1849,11 @@ class ManifestLoader:
             "reference_kind",
             "resolved_ref",
             "compatibility_status",
+            "app_id",
+            "release_version",
+            "descriptor",
+            "descriptor_sha256",
+            "package_dependencies",
         )
 
         for app_name in sorted(old_apps.keys() & new_apps.keys()):
