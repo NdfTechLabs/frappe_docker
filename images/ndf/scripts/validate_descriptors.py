@@ -67,6 +67,10 @@ def _schema_errors(
 
 
 def _validate_semver(value: str, location: str) -> None:
+    if not value or value.strip() != value:
+        raise DescriptorValidationError(
+            f"Invalid SemVer range at {location}: {value!r}"
+        )
     try:
         NpmSpec(value)
     except (TypeError, ValueError) as exc:
@@ -76,6 +80,10 @@ def _validate_semver(value: str, location: str) -> None:
 
 
 def _validate_pep440(value: str, location: str) -> None:
+    if not value or value.strip() != value:
+        raise DescriptorValidationError(
+            f"Invalid PEP 440 specifier at {location}: {value!r}"
+        )
     try:
         SpecifierSet(value)
     except (TypeError, InvalidSpecifier) as exc:
@@ -170,8 +178,8 @@ def validate_descriptor(
 ) -> None:
     """Validate authoring structure and every supplied ecosystem constraint.
 
-    Missing metadata is allowed here; use collect_production_eligibility_issues
-    to determine whether the descriptor is complete enough for production.
+    Missing metadata is allowed here; use collect_production_metadata_issues
+    to determine whether the descriptor is ready to enter production resolution.
     """
     errors = _schema_errors(
         descriptor,
