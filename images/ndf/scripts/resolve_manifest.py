@@ -199,7 +199,6 @@ class ManifestLoader:
         collect(manifest)
         values = {
             "require_immutable_commit": False,
-            "allow_development_branches": True,
             "fail_on_unverified_compatibility": False,
         }
 
@@ -213,26 +212,12 @@ class ManifestLoader:
                 values["require_immutable_commit"]
                 or policy.get("require_immutable_commit", True)
             )
-            values["allow_development_branches"] = (
-                values["allow_development_branches"]
-                and policy.get("allow_development_branches", False)
-            )
             values["fail_on_unverified_compatibility"] = (
                 values["fail_on_unverified_compatibility"]
                 or policy.get("fail_on_unverified_compatibility", True)
             )
 
         return values
-
-    @staticmethod
-    def is_development_branch(ref_name: str) -> bool:
-        """Classify conventional moving development branch names."""
-        normalized = ref_name.strip().lower()
-        exact_names = {
-            "develop", "development", "dev", "main", "master", "nightly"
-        }
-        prefixes = ("develop/", "development/", "dev/", "nightly/")
-        return normalized in exact_names or normalized.startswith(prefixes)
 
     def compose_applications(self, manifest: dict) -> list:
         """Collect required applications from the complete manifest hierarchy."""
@@ -445,16 +430,6 @@ class ManifestLoader:
                 )
 
             resolved = self.resolve_git_ref(repository, target_ref)
-            if (
-                resolved["kind"] == "branch"
-                and self.is_development_branch(target_ref)
-                and not policy["allow_development_branches"]
-            ):
-                errors.append(
-                    f"{app['name']}: development branch '{target_ref}' "
-                    "is prohibited by effective policy"
-                )
-
             commit = resolved["sha"]
             if policy["require_immutable_commit"] and not re.fullmatch(
                 r"[a-fA-F0-9]{40}", commit
@@ -626,7 +601,6 @@ class ManifestLoader:
         policy = lock.get("resolution_policy")
         policy_keys = {
             "require_immutable_commit",
-            "allow_development_branches",
             "fail_on_unverified_compatibility",
         }
         if (
@@ -796,14 +770,6 @@ class ManifestLoader:
             ):
                 raise ManifestError(
                     f"Application '{name}' has unverified compatibility status."
-                )
-            if (
-                reference_kind == "branch"
-                and self.is_development_branch(target_ref)
-                and not policy["allow_development_branches"]
-            ):
-                raise ManifestError(
-                    f"Application '{name}' uses a prohibited development branch."
                 )
 
             if (
