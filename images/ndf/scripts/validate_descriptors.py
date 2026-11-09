@@ -8,6 +8,7 @@ schema, metadata and composition-reference validation before resolver integratio
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -28,6 +29,7 @@ OS_PACKAGE_MANAGERS = {
     "alpine": {"apk"},
 }
 POLICY_CATALOGUE_NAME = "build-install-policies-v1.json"
+POLICY_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]*$")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -152,16 +154,33 @@ def _load_policy_catalogue(schema_dir: Path) -> dict[str, set[str]]:
     result: dict[str, set[str]] = {}
     for field in ("build_policies", "installation_policies"):
         values = catalogue.get(field)
-        if not isinstance(values, list) or any(
-            not isinstance(value, str) or not value.strip() for value in values
-        ):
+        if not isinstance(values, dict):
             raise DescriptorValidationError(
-                f"{field} must be an array of non-empty policy identifiers in {path}"
+                f"{field} must be an object of NDF-owned policy definitions in {path}"
             )
-        if len(values) != len(set(values)):
-            raise DescriptorValidationError(
-                f"{field} contains duplicate identifiers in {path}"
-            )
+        for policy_id, definition in values.items():
+            if not POLICY_ID_PATTERN.fullmatch(policy_id):
+                raise DescriptorValidationError(
+                    f"Invalid policy identifier '{policy_id}' in {path}"
+                )
+            if not isinstance(definition, dict):
+                raise DescriptorValidationError(
+                    f"Policy '{policy_id}' must have an object definition in {path}"
+                )
+            required_fields = ("policy_version", "description", "implementation_id")
+            if any(
+                not isinstance(definition.get(name), str)
+                or not definition[name].strip()
+                for name in required_fields
+            ):
+                raise DescriptorValidationError(
+                    f"Policy '{policy_id}' requires non-empty policy_version, "
+                    f"description and implementation_id in {path}"
+                )
+            if not POLICY_ID_PATTERN.fullmatch(definition["implementation_id"]):
+                raise DescriptorValidationError(
+                    f"Policy '{policy_id}' has an invalid NDF implementation_id in {path}"
+                )
         result[field] = set(values)
     return result
 
