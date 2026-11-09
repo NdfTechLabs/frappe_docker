@@ -95,8 +95,15 @@
           "manifest": {"type": "string", "minLength": 1},
           "required": {"type": "boolean"},
           "install_by_default": {"type": "boolean"},
+          "selected": {"type": "boolean"},
           "description": {"type": "string"}
         },
+        "allOf": [
+          {
+            "if": {"properties": {"required": {"const": false}}, "required": ["required"]},
+            "then": {"required": ["selected"]}
+          }
+        ],
         "additionalProperties": true
       }
     },
