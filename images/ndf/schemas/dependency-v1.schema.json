@@ -181,7 +181,7 @@
         "constraint",
         "latest_compatible"
       ],
-      "description": "Explicit version selection policy. Omission is allowed during authoring but blocks production eligibility."
+      "description": "Explicit version selection policy. Omission is allowed during authoring but blocks production metadata readiness."
     }
   }
 }
