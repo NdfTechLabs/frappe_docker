@@ -558,6 +558,7 @@ class TestLegacyManifestCompatibility:
         manifest = read_json(NDF_DIR / "manifests" / "core" / "dhana-base-v16.json")
         manifest["$schema"] = "../../schemas/application-manifest-v2.schema.json"
         manifest["manifest_version"] = "2.0.0"
+        manifest["target_runtime"] = {"frappe": "16.0.0", "python": "3.14.3"}
         Draft202012Validator.check_schema(schema)
         errors = list(Draft202012Validator(schema).iter_errors(manifest))
         assert errors == []
