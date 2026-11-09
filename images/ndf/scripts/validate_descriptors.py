@@ -207,9 +207,9 @@ def collect_production_eligibility_issues(
     if any(item.get("app_id") == "erpnext" and item.get("required") for item in bench_dependencies):
         required_compatibility.append("erpnext")
     dependencies = descriptor.get("dependencies", {})
-    if dependencies.get("node") or descriptor.get("build", {}).get(
-        "requires_assets_build"
-    ):
+    if any(
+        item.get("required", True) for item in dependencies.get("node", [])
+    ) or descriptor.get("build", {}).get("requires_assets_build"):
         required_compatibility.append("node")
 
     for field in required_compatibility:
@@ -217,16 +217,25 @@ def collect_production_eligibility_issues(
             issues.append(f"{app_id}: missing compatibility constraint for {field}")
 
     evidence = compatibility.get("evidence", [])
+    required_evidence_versions = set(required_compatibility)
     qualifying_evidence = [
         item
         for item in evidence
         if item.get("authority") == "ndf"
         and item.get("result") == "passed"
-        and item.get("tested_versions", {}).get("frappe")
-        and item.get("tested_versions", {}).get("python")
+        and required_evidence_versions.issubset(
+            {
+                key
+                for key, value in item.get("tested_versions", {}).items()
+                if value
+            }
+        )
     ]
     if not qualifying_evidence:
-        issues.append(f"{app_id}: missing passed NDF compatibility evidence")
+        matrix = ", ".join(sorted(required_evidence_versions))
+        issues.append(
+            f"{app_id}: missing passed NDF evidence covering tested versions: {matrix}"
+        )
 
     for ecosystem in ("bench_apps", "python", "node", "os"):
         for index, dependency in enumerate(dependencies.get(ecosystem, [])):
