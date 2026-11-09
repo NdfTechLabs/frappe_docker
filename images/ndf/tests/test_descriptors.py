@@ -323,6 +323,19 @@ class TestMarketplaceDescriptorSchemas:
         issues = collect_production_metadata_issues(descriptor)
         assert any("constraint policy requires a version" in item for item in issues)
 
+    def test_base_dependency_requires_a_fixed_constraint(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["dependencies"]["python"] = [
+            {
+                "name": "example-base-package",
+                "required": True,
+                "disposition": "base",
+                "version_policy": "latest_compatible",
+            }
+        ]
+        issues = collect_production_metadata_issues(descriptor)
+        assert any("base dependencies require a version constraint" in item for item in issues)
+
     def test_latest_compatible_cannot_also_declare_version(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["dependencies"]["bench_apps"][0].update(
