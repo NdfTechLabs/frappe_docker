@@ -13,8 +13,9 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
+from packaging.version import InvalidVersion, Version as PythonVersion
 from referencing import Registry, Resource
-from semantic_version import NpmSpec
+from semantic_version import NpmSpec, Version as SemVerVersion
 
 
 class DescriptorValidationError(ValueError):
@@ -115,6 +116,28 @@ def _validate_version_syntax(descriptor: dict[str, Any]) -> None:
         value = dependency.get("version")
         if value is not None:
             _validate_semver(value, f"dependencies.node[{index}].version")
+    for evidence_index, evidence in enumerate(compatibility.get("evidence", [])):
+        tested = evidence.get("tested_versions", {})
+        for field in ("frappe", "erpnext", "node"):
+            value = tested.get(field)
+            if value is not None:
+                try:
+                    SemVerVersion(value)
+                except (TypeError, ValueError) as exc:
+                    raise DescriptorValidationError(
+                        "Invalid tested SemVer version at "
+                        f"compatibility.evidence[{evidence_index}].tested_versions.{field}: {value!r}"
+                    ) from exc
+        value = tested.get("python")
+        if value is not None:
+            try:
+                PythonVersion(value)
+            except (TypeError, InvalidVersion) as exc:
+                raise DescriptorValidationError(
+                    "Invalid tested PEP 440 version at "
+                    f"compatibility.evidence[{evidence_index}].tested_versions.python: {value!r}"
+                ) from exc
+
     # OS version strings are intentionally not parsed here. Their semantics
     # belong to the declared target package manager and its native solver.
 
