@@ -49,7 +49,8 @@
       "properties": {
         "version": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Exact SemVer 2.0.0 release identity declared by the publisher; never inferred from a Git ref or commit SHA."
         },
         "released_at": {
           "type": "string",
