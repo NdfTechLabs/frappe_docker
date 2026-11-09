@@ -6,7 +6,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from scripts.validate_descriptors import (
     DescriptorValidationError,
-    collect_production_eligibility_issues,
+    collect_production_metadata_issues,
     validate_composition_descriptors,
     validate_descriptor,
 )
@@ -192,7 +192,7 @@ class TestMarketplaceDescriptorSchemas:
 
     def test_production_eligibility_rejects_incomplete_authoring_descriptor(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
-        issues = collect_production_eligibility_issues(descriptor)
+        issues = collect_production_metadata_issues(descriptor)
         assert any("compatibility status is not verified" in item for item in issues)
         assert any("missing explicit version_policy" in item for item in issues)
 
@@ -221,12 +221,24 @@ class TestMarketplaceDescriptorSchemas:
         )
         for dependency in descriptor["dependencies"]["bench_apps"]:
             dependency["version_policy"] = "latest_compatible"
-        assert collect_production_eligibility_issues(descriptor) == []
+        assert collect_production_metadata_issues(descriptor) == []
+
+    def test_selected_optional_dependency_is_subject_to_metadata_gate(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        optional = descriptor["dependencies"]["bench_apps"][0]
+        optional["required"] = False
+        optional["version_policy"] = "constraint"
+        unselected = collect_production_metadata_issues(descriptor)
+        assert not any("constraint policy requires a version" in item for item in unselected)
+        selected = collect_production_metadata_issues(
+            descriptor, {"bench_apps:frappe"}
+        )
+        assert any("constraint policy requires a version" in item for item in selected)
 
     def test_constraint_policy_without_version_blocks_production(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["dependencies"]["bench_apps"][0]["version_policy"] = "constraint"
-        issues = collect_production_eligibility_issues(descriptor)
+        issues = collect_production_metadata_issues(descriptor)
         assert any("constraint policy requires a version" in item for item in issues)
 
     def test_latest_compatible_cannot_also_declare_version(self):
@@ -234,7 +246,7 @@ class TestMarketplaceDescriptorSchemas:
         descriptor["dependencies"]["bench_apps"][0].update(
             {"version_policy": "latest_compatible", "version": "^16.0.0"}
         )
-        issues = collect_production_eligibility_issues(descriptor)
+        issues = collect_production_metadata_issues(descriptor)
         assert any("cannot also declare a version" in item for item in issues)
 
     def test_descriptor_catalogue_filename_must_match_app_identity(self, tmp_path):
