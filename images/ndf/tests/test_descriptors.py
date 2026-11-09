@@ -31,7 +31,9 @@ def copy_descriptor_tree(destination):
 class TestMarketplaceDescriptorSchemas:
     def test_representative_descriptor_fixtures_validate(self):
         for path in sorted((NDF_DIR / "descriptors" / "apps").glob("*.json")):
-            validate_descriptor(read_json(path), SCHEMA_DIR)
+            descriptor = read_json(path)
+            assert path.stem == descriptor["app_id"]
+            validate_descriptor(descriptor, SCHEMA_DIR)
 
     def test_v2_composition_fixture_resolves_descriptors(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
@@ -358,6 +360,16 @@ class TestCompositionDescriptorSemantics:
     def test_windows_style_descriptor_path_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["descriptor"] = r"..\\..\\outside.json"
+        with pytest.raises(
+            DescriptorValidationError, match="normalized catalogue-relative"
+        ):
+            validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
+
+    def test_noncanonical_descriptor_path_is_rejected(self):
+        composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
+        composition["applications"][0][
+            "descriptor"
+        ] = "images//ndf/descriptors/apps/dt_ecommerce.json"
         with pytest.raises(
             DescriptorValidationError, match="normalized catalogue-relative"
         ):
