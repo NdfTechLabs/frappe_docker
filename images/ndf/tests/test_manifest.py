@@ -1978,3 +1978,161 @@ class TestDescriptorLockIdentity:
         assert locked["reference_kind"] == "tag"
         assert locked["resolved_ref"] == "refs/tags/release-4"
         assert locked["descriptor_sha256"] == "c" * 64
+
+
+class TestDescriptorCompositionClosureAndLock:
+    def _descriptor(self, app_id, version, dependencies=None):
+        return {
+            "descriptor_version": "1.0.0",
+            "app_id": app_id,
+            "name": app_id.replace("_", " ").title(),
+            "publisher": "NDF",
+            "source": {
+                "repository": f"https://github.com/example/{app_id}",
+                "default_ref": f"git-ref-{app_id}",
+            },
+            "app_module": {"bench_app_name": app_id},
+            "release": {"version": version},
+            "compatibility": {
+                "status": "verified",
+                "frappe": ">=16.0.0 <17.0.0",
+                "python": ">=3.12,<3.15",
+                "evidence": [
+                    {
+                        "kind": "automated_test",
+                        "authority": "ndf",
+                        "reference": "https://github.com/NdfTechLabs/frappe_docker/actions",
+                        "result": "passed",
+                        "tested_at": "2026-11-10T00:00:00Z",
+                        "tested_versions": {
+                            "frappe": "16.0.0",
+                            "python": "3.14.3",
+                        },
+                    }
+                ],
+            },
+            "dependencies": {"bench_apps": dependencies or []},
+            "build": {},
+            "installation": {
+                "bench_installable": True,
+                "requires_migrate": True,
+                "post_install_policy": "operator_action",
+            },
+        }
+
+    def test_required_descriptor_dependency_closure_and_lock_identity(self, loader, tmp_path, monkeypatch):
+        policy_dir = tmp_path / "policies"
+        policy_dir.mkdir()
+        shutil.copy2(
+            Path(__file__).resolve().parents[1] / "policies" / "build-install-policies-v1.json",
+            policy_dir / "build-install-policies-v1.json",
+        )
+        descriptor_dir = (
+            tmp_path / "images" / "ndf" / "descriptors" / "apps"
+        )
+        descriptor_dir.mkdir(parents=True)
+
+        dependency = self._descriptor("dependency_app", "2.1.0")
+        root = self._descriptor(
+            "root_app",
+            "4.2.1",
+            dependencies=[
+                {
+                    "app_id": "dependency_app",
+                    "required": True,
+                    "version_policy": "constraint",
+                    "version": "^2.0.0",
+                }
+            ],
+        )
+        (descriptor_dir / "dependency_app.json").write_text(
+            json.dumps(dependency), encoding="utf-8"
+        )
+        (descriptor_dir / "root_app.json").write_text(
+            json.dumps(root), encoding="utf-8"
+        )
+
+        manifest = {
+            "manifest_version": "2.0.0",
+            "id": "descriptor-product",
+            "name": "Descriptor Product",
+            "framework": {
+                "name": "frappe",
+                "version": "16",
+                "release_channel": "stable",
+                "target_ref": "framework-ref-16",
+            },
+            "target_runtime": {"frappe": "16.0.0", "python": "3.14.3"},
+            "profile": {
+                "type": "product",
+                "required": True,
+                "install_by_default": True,
+            },
+            "resolution": {
+                "strategy": "locked",
+                "require_immutable_commit": True,
+                "fail_on_unverified_compatibility": True,
+            },
+            "applications": [
+                {
+                    "descriptor": "images/ndf/descriptors/apps/root_app.json",
+                    "required": True,
+                },
+                {
+                    "name": "frappe",
+                    "repository": "https://github.com/frappe/frappe",
+                    "target_ref": "framework-ref-16",
+                    "required": True,
+                    "install_order": 0,
+                    "dependencies": [],
+                    "compatibility_status": "verified",
+                },
+            ],
+            "validation": {},
+        }
+        (loader.manifests_dir / "descriptor-product.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        loaded = loader.load("descriptor-product.json")
+        applications = loader.compose_applications(loaded)
+        ordered = loader.resolve_install_order(applications)
+        names = [item["name"] for item in ordered]
+
+        assert "dependency_app" in names
+        assert names.index("dependency_app") < names.index("root_app")
+        root_app = next(item for item in ordered if item["name"] == "root_app")
+        assert root_app["app_id"] == "root_app"
+        assert root_app["release_version"] == "4.2.1"
+        assert root_app["target_ref"] == "git-ref-root_app"
+
+        commits = {
+            "framework-ref-16": "a" * 40,
+            "git-ref-root_app": "b" * 40,
+            "git-ref-dependency_app": "c" * 40,
+        }
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": commits[target_ref],
+                "kind": "tag",
+                "name": f"refs/tags/{target_ref}",
+            },
+        )
+        resolved = loader.resolve_application_refs(
+            ordered, loader.resolve_policy(loaded)
+        )
+        lock = loader.build_lock_data(loaded, resolved)
+        locked_root = next(
+            item for item in lock["applications"] if item["name"] == "root_app"
+        )
+
+        assert locked_root["app_id"] == "root_app"
+        assert locked_root["release_version"] == "4.2.1"
+        assert locked_root["target_ref"] == "git-ref-root_app"
+        assert locked_root["ref"] == "b" * 40
+        assert locked_root["reference_kind"] == "tag"
+        assert locked_root["resolved_ref"] == "refs/tags/git-ref-root_app"
+        assert locked_root["descriptor"] == "images/ndf/descriptors/apps/root_app.json"
+        assert locked_root["descriptor_sha256"]
