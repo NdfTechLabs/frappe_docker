@@ -498,7 +498,6 @@ class TestReferencePolicyEnforcement:
         }
 
         resolved = loader.resolve_application_refs(apps, policy)
-
         assert resolved[0]["ref"] == commit
         assert resolved[0]["_reference_kind"] == "tag"
         assert resolved[0]["_resolved_ref"] == "refs/tags/version-16"
@@ -834,21 +833,34 @@ class TestLockComparison:
         self,
         loader,
         sample_manifest,
+        sample_applications,
         generated_lock,
     ):
         lock_path, _ = generated_lock
 
+        # The previous composition contains Frappe and ERPNext.
+        previous_applications = sample_applications + [
+            {
+                "name": "erpnext",
+                "repository": "https://github.com/frappe/erpnext",
+                "target_ref": "version-16",
+                "ref": "b" * 40,
+                "dependencies": ["frappe"],
+                "compatibility_status": "verified",
+                "_reference_kind": "tag",
+                "_resolved_ref": "refs/tags/version-16",
+            }
+        ]
+        previous_lock_data = loader.build_lock_data(
+            sample_manifest,
+            previous_applications,
+        )
+        loader.write_lock_file(previous_lock_data, lock_path)
+
+        # Frappe remains in the valid composition; ERPNext is removed.
         new_lock_data = loader.build_lock_data(
             sample_manifest,
-            [
-                {
-                    "name": "erpnext",
-                    "repository": "https://github.com/frappe/erpnext",
-                    "target_ref": "version-16",
-                    "ref": "b" * 40,
-                    "dependencies": [],
-                }
-            ],
+            sample_applications,
         )
 
         changes = loader.compare_lock_files(
@@ -857,7 +869,7 @@ class TestLockComparison:
             sample_manifest,
         )
 
-        assert any("Removed application: frappe" in change for change in changes)
+        assert any("Removed application: erpnext" in change for change in changes)
 
     def test_missing_previous_lock_is_reported(
         self,
@@ -997,7 +1009,6 @@ class TestCheckMode:
         current_lock = environment["lock_path"].read_bytes()
 
         assert current_lock == original_lock
-
     def test_normal_execution_updates_outdated_lock(self, cli_environment):
         environment = cli_environment
 
