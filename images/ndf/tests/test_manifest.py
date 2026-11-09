@@ -117,6 +117,8 @@ def loader(tmp_path):
     for schema_name in (
         "application-manifest-v1.schema.json",
         "application-manifest-v2.schema.json",
+        "marketplace-app-descriptor-v1.schema.json",
+        "dependency-v1.schema.json",
         "service-descriptor-v1.schema.json",
     ):
         shutil.copy2(
