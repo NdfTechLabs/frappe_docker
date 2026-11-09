@@ -1595,6 +1595,20 @@ class ManifestLoader:
             for section in ("services", "external_requirements")
             for entry in lock.get(section, [])
         }
+        independent_count = sum(
+            len(lock.get(section, []))
+            for section in ("services", "external_requirements")
+        )
+        if len(all_independent) != independent_count:
+            raise ManifestError(
+                "Duplicate independent artifact identity across service inventories."
+            )
+        if sorted(locked_independent_artifacts) != list(
+            range(1, len(locked_independent_artifacts) + 1)
+        ):
+            raise ManifestError(
+                "Independent artifact resolution order must be contiguous and start at one."
+            )
         for entry in all_independent.values():
             for dependency_id in entry.get("depends_on", []):
                 dependency = all_independent.get(dependency_id)
