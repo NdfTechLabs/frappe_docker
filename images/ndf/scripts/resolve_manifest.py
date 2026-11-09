@@ -397,6 +397,23 @@ class ManifestLoader:
                     raise ManifestError(
                         f"{descriptor['app_id']}: unsupported version policy for {key}."
                     )
+                expected_resolver = (
+                    dependency.get("package_manager")
+                    if ecosystem == "os"
+                    else ("pip", "uv") if ecosystem == "python"
+                    else ("npm", "yarn", "pnpm")
+                )
+                allowed_resolvers = (
+                    {expected_resolver}
+                    if isinstance(expected_resolver, str)
+                    else set(expected_resolver)
+                )
+                if selection["resolver"] not in allowed_resolvers:
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: {key} uses resolver "
+                        f"{selection['resolver']!r}, expected one of "
+                        f"{sorted(allowed_resolvers)}."
+                    )
                 if ecosystem == "os" and (
                     dependency.get("distribution_family") != os_target.get("distribution_family")
                     or dependency.get("package_manager") != os_target.get("package_manager")
