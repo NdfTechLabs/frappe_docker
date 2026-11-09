@@ -1894,6 +1894,46 @@ class TestIndependentServiceComposition:
         with pytest.raises(ManifestError, match="Invalid service descriptor"):
             loader.compose_services(manifest)
 
+    def test_service_dependencies_are_closed_from_catalogue(self, loader):
+        self._write_service(
+            loader,
+            "cache",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "cache",
+                "name": "Cache",
+                "service_kind": "container",
+                "artifact": {"image": "registry.example/cache@sha256:" + "3" * 64},
+            },
+        )
+        root_path = self._write_service(
+            loader,
+            "search",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "search",
+                "name": "Search",
+                "service_kind": "container",
+                "artifact": {"image": "registry.example/search@sha256:" + "4" * 64},
+                "depends_on": ["cache"],
+            },
+        )
+        source = loader.manifests_dir / "product.json"
+        source.write_text("{}", encoding="utf-8")
+        manifest = {
+            "id": "product",
+            "_source_path": str(source),
+            "_loaded_includes": [],
+            "_loaded_capabilities": [],
+            "services": [{"descriptor": root_path, "required": True}],
+        }
+
+        services, external = loader.compose_services(manifest)
+
+        assert [item["service_id"] for item in services] == ["cache", "search"]
+        assert services[0]["resolution_order"] < services[1]["resolution_order"]
+        assert external == []
+
     def test_service_dependency_cycles_are_rejected(self, loader):
         first = self._write_service(
             loader,
@@ -1931,7 +1971,7 @@ class TestIndependentServiceComposition:
                 {"descriptor": second, "required": True},
             ],
         }
-        with pytest.raises(ManifestError, match="Circular service dependency"):
+        with pytest.raises(ManifestError, match="Circular independent-service dependency"):
             loader.compose_services(manifest)
 
 
