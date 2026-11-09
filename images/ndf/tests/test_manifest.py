@@ -534,7 +534,7 @@ class TestGitReferenceResolution:
         commit = "d" * 40
 
         def fake_run(args, **kwargs):
-            output = commit + "\\n" if args[-1] == "FETCH_HEAD" else ""
+            output = commit + "\n" if args[-1] == "FETCH_HEAD" else ""
             return subprocess.CompletedProcess(
                 args=args,
                 returncode=0,
@@ -559,9 +559,9 @@ class TestGitReferenceResolution:
         peeled_commit = "a" * 40
         branch_commit = "c" * 40
         output = (
-            f"{tag_object}\\trefs/tags/version-16\\n"
-            f"{peeled_commit}\\trefs/tags/version-16^{{}}\\n"
-            f"{branch_commit}\\trefs/heads/version-16\\n"
+            f"{tag_object}\trefs/tags/version-16\n"
+            f"{peeled_commit}\trefs/tags/version-16^{{}}\n"
+            f"{branch_commit}\trefs/heads/version-16\n"
         )
         monkeypatch.setattr(
             subprocess,
