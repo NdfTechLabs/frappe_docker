@@ -55,7 +55,6 @@ def write_test_manifest(
         "resolution": {
             "strategy": "locked",
             "require_immutable_commit": True,
-            "allow_development_branches": True,
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
@@ -287,7 +286,6 @@ def cli_environment(tmp_path):
         "resolution": {
             "strategy": "locked",
             "require_immutable_commit": True,
-            "allow_development_branches": True,
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
@@ -343,14 +341,12 @@ class TestResolutionPolicy:
         manifest = {
             "resolution": {
                 "require_immutable_commit": True,
-                "allow_development_branches": True,
                 "fail_on_unverified_compatibility": True,
             },
             "_loaded_includes": [
                 {
                     "resolution": {
                         "require_immutable_commit": False,
-                        "allow_development_branches": False,
                         "fail_on_unverified_compatibility": False,
                     },
                     "_loaded_includes": [],
@@ -360,57 +356,49 @@ class TestResolutionPolicy:
 
         assert loader.resolve_policy(manifest) == {
             "require_immutable_commit": True,
-            "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
         }
 
     def test_invalid_policy_type_is_rejected(self, loader):
         with pytest.raises(ManifestError, match="must be a boolean"):
             loader.resolve_policy({
-                "resolution": {"allow_development_branches": "false"},
+                "resolution": {"require_immutable_commit": "true"},
                 "_loaded_includes": [],
             })
-
-    @pytest.mark.parametrize(
-        "name",
-        ["develop", "development", "dev", "main", "master", "nightly", "develop/next"],
-    )
-    def test_conventional_development_branches_are_classified(self, loader, name):
-        assert loader.is_development_branch(name) is True
-
-    @pytest.mark.parametrize("name", ["version-16", "version-3", "release/16.1"])
-    def test_release_refs_are_not_classified_as_development(self, loader, name):
-        assert loader.is_development_branch(name) is False
 
 
 class TestReferencePolicyEnforcement:
 
-    def test_development_branch_is_rejected_when_policy_disallows_it(
-        self, loader, monkeypatch
+    @pytest.mark.parametrize("target_ref", ["main", "master", "develop", "version-16"])
+    def test_branch_refs_are_accepted_when_sha_and_compatibility_are_valid(
+        self, loader, monkeypatch, target_ref
     ):
+        commit = "a" * 40
         monkeypatch.setattr(
             loader,
             "resolve_git_ref",
-            lambda repository, target_ref: {
-                "sha": "a" * 40,
+            lambda repository, ref: {
+                "sha": commit,
                 "kind": "branch",
-                "name": "refs/heads/develop",
+                "name": f"refs/heads/{ref}",
             },
         )
         apps = [{
             "name": "test_app",
             "repository": "https://example.com/test.git",
-            "target_ref": "develop",
+            "target_ref": target_ref,
             "compatibility_status": "verified",
         }]
         policy = {
             "require_immutable_commit": True,
-            "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
         }
 
-        with pytest.raises(ManifestError, match="development branch"):
-            loader.resolve_application_refs(apps, policy)
+        resolved = loader.resolve_application_refs(apps, policy)
+
+        assert resolved[0]["ref"] == commit
+        assert resolved[0]["_reference_kind"] == "branch"
+        assert resolved[0]["_resolved_ref"] == f"refs/heads/{target_ref}"
 
     def test_unverified_compatibility_is_rejected(self, loader, monkeypatch):
         monkeypatch.setattr(
@@ -430,7 +418,6 @@ class TestReferencePolicyEnforcement:
         }]
         policy = {
             "require_immutable_commit": True,
-            "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
         }
 
@@ -454,7 +441,6 @@ class TestReferencePolicyEnforcement:
         }]
         policy = {
             "require_immutable_commit": True,
-            "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
         }
 
@@ -481,13 +467,11 @@ class TestReferencePolicyEnforcement:
         }]
         policy = {
             "require_immutable_commit": True,
-            "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
         }
 
         with pytest.raises(ManifestError, match="immutable commit SHA"):
             loader.resolve_application_refs(apps, policy)
-
 
     def test_verified_release_tag_is_accepted_and_provenance_is_retained(
         self, loader, monkeypatch
@@ -510,7 +494,6 @@ class TestReferencePolicyEnforcement:
         }]
         policy = {
             "require_immutable_commit": True,
-            "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
         }
 
