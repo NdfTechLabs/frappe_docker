@@ -1,0 +1,6 @@
+{
+  "catalogue_version": "1.0.0",
+  "description": "NDF-controlled allowlist of declarative build and installation policies. Empty catalogues mean no custom policies are approved.",
+  "build_policies": [],
+  "installation_policies": []
+}
