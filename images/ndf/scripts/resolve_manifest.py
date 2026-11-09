@@ -812,6 +812,71 @@ class ManifestLoader:
 
             installed_apps.add(name)
 
+        # When validating a build lock against unchanged source manifests,
+        # prove that the lock inventories the complete loaded manifest graph
+        # and the exact required application composition. Structural checks
+        # alone would allow a valid-looking lock to omit or substitute apps.
+        # Lock comparison disables this check while comparing an older lock
+        # against a changed manifest; it still performs structural validation.
+        if verify_manifest_checksums:
+            expected_manifest_entries = {}
+
+            def collect_expected_manifests(current: dict):
+                source_path = Path(current["_source_path"]).resolve()
+                relative_path = source_path.relative_to(
+                    self.manifests_dir
+                ).as_posix()
+                expected_manifest_entries[relative_path] = current["id"]
+                for child in current.get("_loaded_includes", []):
+                    collect_expected_manifests(child)
+
+            collect_expected_manifests(expected_manifest)
+            actual_manifest_entries = {
+                entry["path"]: entry["id"] for entry in manifests
+            }
+            if actual_manifest_entries != expected_manifest_entries:
+                raise ManifestError(
+                    "Lock file manifest inventory does not match the "
+                    "loaded source manifest graph."
+                )
+
+            expected_applications = self.compose_applications(expected_manifest)
+            if expected_applications:
+                self.validate_dependencies(expected_applications)
+                expected_order = self.resolve_install_order(expected_applications)
+                if len(expected_order) != len(applications):
+                    raise ManifestError(
+                        "Lock file application inventory does not match "
+                        "the required source manifest composition."
+                    )
+
+                composition_fields = (
+                    "name",
+                    "repository",
+                    "target_ref",
+                    "dependencies",
+                    "compatibility_status",
+                )
+                for index, (expected_app, locked_app) in enumerate(
+                    zip(expected_order, applications, strict=True),
+                    start=1,
+                ):
+                    mismatches = [
+                        field
+                        for field in composition_fields
+                        if locked_app.get(field) != expected_app.get(field)
+                    ]
+                    if (
+                        mismatches
+                        or locked_app.get("installation_order") != index
+                    ):
+                        raise ManifestError(
+                            "Lock file application composition does not match "
+                            f"the source manifests at position {index}: "
+                            f"{locked_app.get('name')} "
+                            f"(mismatched fields: {mismatches or ['installation_order']})."
+                        )
+
         frappe_app = available_apps.get("frappe")
         framework = lock.get("framework")
         if not isinstance(framework, dict) or frappe_app is None:
