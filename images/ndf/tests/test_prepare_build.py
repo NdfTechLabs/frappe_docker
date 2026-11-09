@@ -239,7 +239,7 @@ def test_prepare_build_rejects_framework_ref_mismatch(build_project):
 
     with pytest.raises(
         BuildPreparationError,
-        match="Framework target_ref does not match",
+        match="Framework source identity does not match the locked Frappe application.",
     ):
         prepare_build(
             ndf_dir=build_project,
