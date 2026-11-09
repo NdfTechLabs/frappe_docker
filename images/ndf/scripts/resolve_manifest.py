@@ -353,12 +353,19 @@ class ManifestLoader:
                 if not dependency.get("required", True) and f"{ecosystem}:{name}" not in selected_optional:
                     continue
                 key = f"{ecosystem}:{name}"
-                selected_version = packages.get(key)
-                if not isinstance(selected_version, str) or not selected_version:
+                selection = packages.get(key)
+                if (
+                    not isinstance(selection, dict)
+                    or not all(
+                        isinstance(selection.get(field), str) and selection[field]
+                        for field in ("version", "source", "resolver")
+                    )
+                ):
                     raise ManifestError(
                         f"{descriptor['app_id']}: target_runtime.package_versions "
-                        f"must provide an exact selection for {key}."
+                        f"must provide exact version, source and resolver for {key}."
                     )
+                selected_version = selection["version"]
                 policy = dependency.get("version_policy")
                 constraint = dependency.get("version")
                 if policy == "constraint":
@@ -403,6 +410,8 @@ class ManifestLoader:
                         "ecosystem": ecosystem,
                         "name": name,
                         "version": selected_version,
+                        "source": selection["source"],
+                        "resolver": selection["resolver"],
                         "version_policy": policy,
                         "disposition": dependency.get("disposition"),
                         "install": dependency.get("disposition") != "base",
