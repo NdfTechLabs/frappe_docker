@@ -74,9 +74,6 @@
         "require_immutable_commit": {
           "type": "boolean"
         },
-        "allow_development_branches": {
-          "type": "boolean"
-        },
         "fail_on_unverified_compatibility": {
           "type": "boolean"
         },
