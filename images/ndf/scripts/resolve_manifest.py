@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -186,6 +187,38 @@ class ManifestLoader:
                 f"Schema validation failed for {path.name}:\n" + "\n".join(details)
             )
 
+    def resolve_policy(self, manifest: dict) -> dict[str, bool]:
+        """Compute restrictive policy across the complete loaded manifest graph."""
+        policies = []
+
+        def collect(current: dict):
+            policies.append(current.get("resolution", {}))
+            for child in current.get("_loaded_includes", []):
+                collect(child)
+
+        collect(manifest)
+        values = {
+            "require_immutable_commit": False,
+            "fail_on_unverified_compatibility": False,
+        }
+
+        for policy in policies:
+            if not isinstance(policy, dict):
+                raise ManifestError("Manifest resolution policy must be an object.")
+            for key in values:
+                if key in policy and not isinstance(policy[key], bool):
+                    raise ManifestError(f"Resolution policy '{key}' must be a boolean.")
+            values["require_immutable_commit"] = (
+                values["require_immutable_commit"]
+                or policy.get("require_immutable_commit", True)
+            )
+            values["fail_on_unverified_compatibility"] = (
+                values["fail_on_unverified_compatibility"]
+                or policy.get("fail_on_unverified_compatibility", True)
+            )
+
+        return values
+
     def compose_applications(self, manifest: dict) -> list:
         """Collect required applications from the complete manifest hierarchy."""
 
@@ -291,29 +324,66 @@ class ManifestLoader:
 
         return ordered
 
-    def resolve_git_ref(self, repository: str, target_ref: str) -> str:
-        """Resolve a Git branch or tag to an immutable commit SHA."""
+    def resolve_git_ref(self, repository: str, target_ref: str) -> dict[str, str]:
+        """Resolve a Git commit, tag or branch and retain selected ref provenance."""
+        if re.fullmatch(r"[a-fA-F0-9]{40}", target_ref):
+            try:
+                with tempfile.TemporaryDirectory(prefix="ndf-git-ref-") as temp_dir:
+                    subprocess.run(
+                        ["git", "init", temp_dir],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=30,
+                    )
+                    subprocess.run(
+                        [
+                            "git", "-C", temp_dir, "fetch", "--depth=1",
+                            repository, target_ref,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=60,
+                    )
+                    result = subprocess.run(
+                        ["git", "-C", temp_dir, "rev-parse", "FETCH_HEAD"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=30,
+                    )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+                detail = getattr(exc, "stderr", "") or str(exc)
+                raise ManifestError(
+                    f"Unable to verify commit '{target_ref}' from "
+                    f"{repository}: {detail}"
+                ) from exc
+
+            commit = result.stdout.strip()
+            if (
+                not re.fullmatch(r"[a-fA-F0-9]{40}", commit)
+                or commit.lower() != target_ref.lower()
+            ):
+                raise ManifestError(
+                    f"Git did not resolve '{target_ref}' to the requested commit SHA."
+                )
+            return {"sha": commit, "kind": "commit", "name": commit}
 
         refs = [
-            f"refs/heads/{target_ref}",
             f"refs/tags/{target_ref}",
             f"refs/tags/{target_ref}^{{}}",
+            f"refs/heads/{target_ref}",
         ]
-
         try:
             result = subprocess.run(
                 ["git", "ls-remote", repository, *refs],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=60,
+                capture_output=True, text=True, check=True, timeout=60,
             )
-
         except subprocess.TimeoutExpired as exc:
             raise ManifestError(
                 f"Git reference resolution timed out: {repository}"
             ) from exc
-
         except subprocess.CalledProcessError as exc:
             raise ManifestError(
                 f"Unable to resolve Git reference '{target_ref}' "
@@ -321,43 +391,67 @@ class ManifestLoader:
             ) from exc
 
         resolved = {}
-
         for line in result.stdout.splitlines():
             sha, ref = line.split("\t", 1)
             resolved[ref] = sha
 
-        branch_ref = f"refs/heads/{target_ref}"
         tag_ref = f"refs/tags/{target_ref}"
         peeled_tag_ref = f"refs/tags/{target_ref}^{{}}"
-
-        if branch_ref in resolved:
-            return resolved[branch_ref]
+        branch_ref = f"refs/heads/{target_ref}"
 
         if peeled_tag_ref in resolved:
-            return resolved[peeled_tag_ref]
-
+            return {"sha": resolved[peeled_tag_ref], "kind": "tag", "name": tag_ref}
         if tag_ref in resolved:
-            return resolved[tag_ref]
-
+            return {"sha": resolved[tag_ref], "kind": "tag", "name": tag_ref}
+        if branch_ref in resolved:
+            return {"sha": resolved[branch_ref], "kind": "branch", "name": branch_ref}
         raise ManifestError(f"Git reference '{target_ref}' not found in {repository}")
 
-    def resolve_application_refs(self, applications: list) -> list:
-        """Resolve all application Git references to immutable commits."""
-
+    def resolve_application_refs(
+        self,
+        applications: list,
+        policy: dict[str, bool],
+    ) -> list:
+        """Resolve required application refs and enforce effective policy."""
+        errors = []
         for app in applications:
             repository = app.get("repository")
             target_ref = app.get("target_ref")
-
             if not repository or not target_ref:
                 raise ManifestError(
-                    f"Application '{app['name']}' is missing "
-                    "repository or target_ref."
+                    f"Application '{app['name']}' is missing repository or target_ref."
                 )
 
-            app["ref"] = self.resolve_git_ref(repository, target_ref)
+            status = str(app.get("compatibility_status", "")).strip().lower()
+            if policy["fail_on_unverified_compatibility"] and status != "verified":
+                errors.append(
+                    f"{app['name']}: compatibility_status="
+                    f"{status or '<missing>'}"
+                )
 
-            print(f"Resolved {app['name']}: " f"{target_ref} -> {app['ref']}")
+            resolved = self.resolve_git_ref(repository, target_ref)
+            commit = resolved["sha"]
+            if policy["require_immutable_commit"] and not re.fullmatch(
+                r"[a-fA-F0-9]{40}", commit
+            ):
+                errors.append(
+                    f"{app['name']}: resolved source is not a full "
+                    "immutable commit SHA"
+                )
 
+            app["ref"] = commit
+            app["_reference_kind"] = resolved["kind"]
+            app["_resolved_ref"] = resolved["name"]
+            print(
+                f"Resolved {app['name']}: {target_ref} -> {commit} "
+                f"({resolved['kind']}: {resolved['name']})"
+            )
+
+        if errors:
+            raise ManifestError(
+                "Manifest resolution policy validation failed:\n"
+                + "\n".join(f"  - {error}" for error in errors)
+            )
         return applications
 
     def build_lock_data(
@@ -397,11 +491,32 @@ class ManifestLoader:
 
         collect_manifests(manifest)
 
+        policy = self.resolve_policy(manifest)
+        framework_application = next(
+            (app for app in applications if app["name"] == "frappe"),
+            None,
+        )
+        if framework_application is None:
+            raise ManifestError(
+                "Resolved application composition does not contain Frappe."
+            )
+
+        framework = dict(manifest["framework"])
+        framework.update(
+            {
+                "target_ref": framework_application["target_ref"],
+                "ref": framework_application["ref"],
+                "reference_kind": framework_application.get("_reference_kind"),
+                "resolved_ref": framework_application.get("_resolved_ref"),
+            }
+        )
+
         return {
-            "lock_version": 1,
+            "lock_version": 2,
+            "resolution_policy": policy,
             "resolver": {
                 "name": "ndf-manifest-resolver",
-                "version": "1.0.0",
+                "version": "1.1.0",
             },
             "product": {
                 "id": manifest["id"],
@@ -409,7 +524,7 @@ class ManifestLoader:
                 "manifest_version": manifest["manifest_version"],
                 "profile": manifest["profile"],
             },
-            "framework": manifest["framework"],
+            "framework": framework,
             "manifests": loaded_manifests,
             "applications": [
                 {
@@ -417,6 +532,9 @@ class ManifestLoader:
                     "repository": app["repository"],
                     "target_ref": app["target_ref"],
                     "ref": app["ref"],
+                    "reference_kind": app.get("_reference_kind"),
+                    "resolved_ref": app.get("_resolved_ref"),
+                    "compatibility_status": app.get("compatibility_status"),
                     "dependencies": app.get("dependencies", []),
                     "installation_order": index,
                 }
@@ -477,8 +595,25 @@ class ManifestLoader:
             raise ManifestError("Lock file must contain a JSON object.")
 
         # 1. Lock format version
-        if lock.get("lock_version") != 1:
+        if lock.get("lock_version") != 2:
             raise ManifestError(f"Unsupported lock version: {lock.get('lock_version')}")
+
+        policy = lock.get("resolution_policy")
+        policy_keys = {
+            "require_immutable_commit",
+            "fail_on_unverified_compatibility",
+        }
+        if (
+            not isinstance(policy, dict)
+            or set(policy) != policy_keys
+            or any(not isinstance(policy[key], bool) for key in policy_keys)
+        ):
+            raise ManifestError("Lock file has an invalid effective resolution policy.")
+        if policy != self.resolve_policy(expected_manifest):
+            raise ManifestError(
+                "Lock file effective resolution policy does not match "
+                "the source manifests."
+            )
 
         # 2. Product identity
         product = lock.get("product")
@@ -577,6 +712,9 @@ class ManifestLoader:
             repository = app.get("repository")
             target_ref = app.get("target_ref")
             commit = app.get("ref")
+            reference_kind = app.get("reference_kind")
+            resolved_ref = app.get("resolved_ref")
+            compatibility_status = app.get("compatibility_status")
             order = app.get("installation_order")
             dependencies = app.get("dependencies")
 
@@ -597,6 +735,41 @@ class ManifestLoader:
             ):
                 raise ManifestError(
                     f"Application '{name}' has an invalid Git commit SHA."
+                )
+
+            if reference_kind not in {"branch", "tag", "commit"}:
+                raise ManifestError(
+                    f"Application '{name}' has invalid reference provenance."
+                )
+            expected_ref_name = (
+                target_ref
+                if reference_kind == "commit"
+                else (
+                    f"refs/heads/{target_ref}"
+                    if reference_kind == "branch"
+                    else f"refs/tags/{target_ref}"
+                )
+            )
+            if resolved_ref != expected_ref_name:
+                raise ManifestError(
+                    f"Application '{name}' has inconsistent resolved ref provenance."
+                )
+            if not isinstance(resolved_ref, str) or not resolved_ref:
+                raise ManifestError(
+                    f"Application '{name}' has no resolved Git reference name."
+                )
+            if policy["require_immutable_commit"] and not re.fullmatch(
+                r"[a-fA-F0-9]{40}", commit
+            ):
+                raise ManifestError(
+                    f"Application '{name}' is not locked to an immutable commit SHA."
+                )
+            if (
+                policy["fail_on_unverified_compatibility"]
+                and str(compatibility_status or "").strip().lower() != "verified"
+            ):
+                raise ManifestError(
+                    f"Application '{name}' has unverified compatibility status."
                 )
 
             if (
@@ -639,6 +812,86 @@ class ManifestLoader:
 
             installed_apps.add(name)
 
+        # When validating a build lock against unchanged source manifests,
+        # prove that the lock inventories the complete loaded manifest graph
+        # and the exact required application composition. Structural checks
+        # alone would allow a valid-looking lock to omit or substitute apps.
+        # Lock comparison disables this check while comparing an older lock
+        # against a changed manifest; it still performs structural validation.
+        if verify_manifest_checksums:
+            expected_manifest_entries = {}
+
+            def collect_expected_manifests(current: dict):
+                source_path = Path(current["_source_path"]).resolve()
+                relative_path = source_path.relative_to(
+                    self.manifests_dir
+                ).as_posix()
+                expected_manifest_entries[relative_path] = current["id"]
+                for child in current.get("_loaded_includes", []):
+                    collect_expected_manifests(child)
+
+            collect_expected_manifests(expected_manifest)
+            actual_manifest_entries = {
+                entry["path"]: entry["id"] for entry in manifests
+            }
+            if actual_manifest_entries != expected_manifest_entries:
+                raise ManifestError(
+                    "Lock file manifest inventory does not match the "
+                    "loaded source manifest graph."
+                )
+
+            expected_applications = self.compose_applications(expected_manifest)
+            if expected_applications:
+                self.validate_dependencies(expected_applications)
+                expected_order = self.resolve_install_order(expected_applications)
+                if len(expected_order) != len(applications):
+                    raise ManifestError(
+                        "Lock file application inventory does not match "
+                        "the required source manifest composition."
+                    )
+
+                composition_fields = (
+                    "name",
+                    "repository",
+                    "target_ref",
+                    "dependencies",
+                    "compatibility_status",
+                )
+                for index, (expected_app, locked_app) in enumerate(
+                    zip(expected_order, applications, strict=True),
+                    start=1,
+                ):
+                    mismatches = [
+                        field
+                        for field in composition_fields
+                        if locked_app.get(field) != expected_app.get(field)
+                    ]
+                    if (
+                        mismatches
+                        or locked_app.get("installation_order") != index
+                    ):
+                        raise ManifestError(
+                            "Lock file application composition does not match "
+                            f"the source manifests at position {index}: "
+                            f"{locked_app.get('name')} "
+                            f"(mismatched fields: {mismatches or ['installation_order']})."
+                        )
+
+        frappe_app = available_apps.get("frappe")
+        framework = lock.get("framework")
+        if not isinstance(framework, dict) or frappe_app is None:
+            raise ManifestError("Lock file has no valid locked Frappe framework entry.")
+        if (
+            framework.get("target_ref") != frappe_app.get("target_ref")
+            or framework.get("ref") != frappe_app.get("ref")
+            or framework.get("reference_kind") != frappe_app.get("reference_kind")
+            or framework.get("resolved_ref") != frappe_app.get("resolved_ref")
+        ):
+            raise ManifestError(
+                "Framework source identity does not match the locked "
+                "Frappe application."
+            )
+
         return True
 
     def compare_lock_files(
@@ -658,6 +911,14 @@ class ManifestLoader:
             raise ManifestError(
                 f"Unable to read previous lock file " f"{previous_lock_path}: {exc}"
             ) from exc
+
+        # Version 1 locks predate enforced policy and reference provenance.
+        # Treat them as migration inputs, not valid version 2 locks.
+        previous_version = previous_lock.get("lock_version")
+        if previous_version == 1:
+            return ["Lock format upgrade required: 1 -> 2"]
+        if previous_version != 2:
+            raise ManifestError(f"Unsupported lock version: {previous_version}")
 
         # Validate structure, but allow source checksum changes.
         self.validate_lock_file(
@@ -722,6 +983,9 @@ class ManifestLoader:
             "ref",
             "dependencies",
             "installation_order",
+            "reference_kind",
+            "resolved_ref",
+            "compatibility_status",
         )
 
         for app_name in sorted(old_apps.keys() & new_apps.keys()):
@@ -784,8 +1048,13 @@ def main():
 
     print(f"\nTotal unique manifests loaded: {len(loader.loaded)}")
 
-    # 2. Compose applications
+    # 2. Compute effective policy and compose applications
     try:
+        effective_policy = loader.resolve_policy(manifest)
+        print(
+            "\nEffective resolution policy: "
+            f"{json.dumps(effective_policy, sort_keys=True)}"
+        )
         applications = loader.compose_applications(manifest)
 
         loader.validate_dependencies(applications)
@@ -812,7 +1081,10 @@ def main():
 
     # 4. Resolve immutable Git references
     try:
-        ordered_applications = loader.resolve_application_refs(ordered_applications)
+        ordered_applications = loader.resolve_application_refs(
+            ordered_applications,
+            effective_policy,
+        )
 
     except ManifestError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

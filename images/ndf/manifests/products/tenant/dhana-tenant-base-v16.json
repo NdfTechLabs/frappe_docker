@@ -18,7 +18,6 @@
   "resolution": {
     "strategy": "locked",
     "require_immutable_commit": true,
-    "allow_development_branches": false,
     "fail_on_unverified_compatibility": true,
     "notes": [
       "Tenant-specific application bundle layered on top of dhana-base-v16.",

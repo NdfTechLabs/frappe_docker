@@ -54,8 +54,7 @@ def write_test_manifest(
         },
         "resolution": {
             "strategy": "locked",
-            "immutable_commit": True,
-            "allow_development_branches": False,
+            "require_immutable_commit": True,
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
@@ -73,7 +72,7 @@ def write_test_manifest(
                     "install_order": 0,
                     "dependencies": [],
                     "ref": None,
-                    "compatibility_status": "pending",
+                    "compatibility_status": "verified",
                 }
             ]
         ),
@@ -97,6 +96,8 @@ def shared_test_application():
         "dependencies": [],
         "ref": "a" * 40,
         "compatibility_status": "verified",
+        "_reference_kind": "tag",
+        "_resolved_ref": "refs/tags/version-16",
     }
 
 
@@ -167,6 +168,9 @@ def sample_applications():
             "target_ref": "version-16",
             "ref": "a" * 40,
             "dependencies": [],
+            "compatibility_status": "verified",
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-16",
         }
     ]
 
@@ -272,7 +276,7 @@ def cli_environment(tmp_path):
             "name": "frappe",
             "version": "16",
             "release_channel": "stable",
-            "target_ref": "version-16",
+            "target_ref": "main",
         },
         "profile": {
             "type": "product",
@@ -281,20 +285,29 @@ def cli_environment(tmp_path):
         },
         "resolution": {
             "strategy": "locked",
-            "immutable_commit": True,
-            "allow_development_branches": False,
+            "require_immutable_commit": True,
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
         "validation": {},
         "applications": [
             {
+                "name": "frappe",
+                "repository": repository_url,
+                "target_ref": "main",
+                "required": True,
+                "install_order": 0,
+                "dependencies": [],
+                "ref": None,
+                "compatibility_status": "verified",
+            },
+            {
                 "name": "test_app",
                 "repository": repository_url,
                 "target_ref": "main",
                 "required": True,
                 "install_order": 1,
-                "dependencies": [],
+                "dependencies": ["frappe"],
                 "ref": None,
                 "compatibility_status": "verified",
             }
@@ -322,6 +335,174 @@ def cli_environment(tmp_path):
 # ---------------------------------------------------------
 
 
+class TestResolutionPolicy:
+
+    def test_policy_is_aggregated_restrictively_across_includes(self, loader):
+        manifest = {
+            "resolution": {
+                "require_immutable_commit": True,
+                "fail_on_unverified_compatibility": True,
+            },
+            "_loaded_includes": [
+                {
+                    "resolution": {
+                        "require_immutable_commit": False,
+                        "fail_on_unverified_compatibility": False,
+                    },
+                    "_loaded_includes": [],
+                }
+            ],
+        }
+
+        assert loader.resolve_policy(manifest) == {
+            "require_immutable_commit": True,
+            "fail_on_unverified_compatibility": True,
+        }
+
+    def test_invalid_policy_type_is_rejected(self, loader):
+        with pytest.raises(ManifestError, match="must be a boolean"):
+            loader.resolve_policy({
+                "resolution": {"require_immutable_commit": "true"},
+                "_loaded_includes": [],
+            })
+
+
+class TestReferencePolicyEnforcement:
+
+    @pytest.mark.parametrize("target_ref", ["main", "master", "develop", "version-16"])
+    def test_branch_refs_are_accepted_when_sha_and_compatibility_are_valid(
+        self, loader, monkeypatch, target_ref
+    ):
+        commit = "a" * 40
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, ref: {
+                "sha": commit,
+                "kind": "branch",
+                "name": f"refs/heads/{ref}",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": target_ref,
+            "compatibility_status": "verified",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        resolved = loader.resolve_application_refs(apps, policy)
+
+        assert resolved[0]["ref"] == commit
+        assert resolved[0]["_reference_kind"] == "branch"
+        assert resolved[0]["_resolved_ref"] == f"refs/heads/{target_ref}"
+
+    def test_unverified_compatibility_is_rejected(self, loader, monkeypatch):
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "a" * 40,
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": "version-16",
+            "compatibility_status": "pending",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        with pytest.raises(ManifestError, match="compatibility_status=pending"):
+            loader.resolve_application_refs(apps, policy)
+
+    def test_missing_compatibility_status_is_rejected(self, loader, monkeypatch):
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "a" * 40,
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": "version-16",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        with pytest.raises(ManifestError, match="<missing>"):
+            loader.resolve_application_refs(apps, policy)
+
+    def test_non_commit_resolution_is_rejected_by_immutable_policy(
+        self, loader, monkeypatch
+    ):
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "not-a-commit",
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": "version-16",
+            "compatibility_status": "verified",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        with pytest.raises(ManifestError, match="immutable commit SHA"):
+            loader.resolve_application_refs(apps, policy)
+
+    def test_verified_release_tag_is_accepted_and_provenance_is_retained(
+        self, loader, monkeypatch
+    ):
+        commit = "a" * 40
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": commit,
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "frappe",
+            "repository": "https://example.com/frappe.git",
+            "target_ref": "version-16",
+            "compatibility_status": "verified",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        resolved = loader.resolve_application_refs(apps, policy)
+        assert resolved[0]["ref"] == commit
+        assert resolved[0]["_reference_kind"] == "tag"
+        assert resolved[0]["_resolved_ref"] == "refs/tags/version-16"
+
+
 class TestLockGeneration:
 
     def test_build_lock_data(self, loader, sample_manifest, sample_applications):
@@ -330,10 +511,25 @@ class TestLockGeneration:
             sample_applications,
         )
 
-        assert lock_data["lock_version"] == 1
+        assert lock_data["lock_version"] == 2
         assert lock_data["product"]["id"] == "test-product"
         assert len(lock_data["applications"]) == 1
-        assert lock_data["applications"][0]["name"] == "frappe"
+
+        # A01: the generated lock must persist the complete requested-source
+        # identity, not merely prove that the resolver returned a SHA.
+        frappe_lock = lock_data["applications"][0]
+        assert frappe_lock["name"] == "frappe"
+        assert frappe_lock["target_ref"] == "version-16"
+        assert frappe_lock["ref"] == "a" * 40
+        assert frappe_lock["reference_kind"] == "tag"
+        assert frappe_lock["resolved_ref"] == "refs/tags/version-16"
+        assert frappe_lock["compatibility_status"] == "verified"
+
+        # The framework identity must be bound to the same Frappe source.
+        assert lock_data["framework"]["target_ref"] == frappe_lock["target_ref"]
+        assert lock_data["framework"]["ref"] == frappe_lock["ref"]
+        assert lock_data["framework"]["reference_kind"] == frappe_lock["reference_kind"]
+        assert lock_data["framework"]["resolved_ref"] == frappe_lock["resolved_ref"]
 
     def test_lock_generation_is_deterministic(
         self,
@@ -379,6 +575,61 @@ class TestLockGeneration:
 # ---------------------------------------------------------
 # Lock validation
 # ---------------------------------------------------------
+
+
+class TestGitReferenceResolution:
+
+    def test_explicit_commit_reference_is_verified(self, loader, monkeypatch):
+        commit = "d" * 40
+
+        def fake_run(args, **kwargs):
+            output = commit + "\n" if args[-1] == "FETCH_HEAD" else ""
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout=output,
+                stderr="",
+            )
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        resolved = loader.resolve_git_ref(
+            "https://example.com/frappe.git",
+            commit,
+        )
+
+        assert resolved == {
+            "sha": commit,
+            "kind": "commit",
+            "name": commit,
+        }
+
+    def test_exact_tag_is_preferred_over_same_named_branch(self, loader, monkeypatch):
+        tag_object = "b" * 40
+        peeled_commit = "a" * 40
+        branch_commit = "c" * 40
+        output = (
+            f"{tag_object}\trefs/tags/version-16\n"
+            f"{peeled_commit}\trefs/tags/version-16^{{}}\n"
+            f"{branch_commit}\trefs/heads/version-16\n"
+        )
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(
+                args=args[0], returncode=0, stdout=output, stderr=""
+            ),
+        )
+
+        resolved = loader.resolve_git_ref(
+            "https://example.com/frappe.git",
+            "version-16",
+        )
+
+        assert resolved == {
+            "sha": peeled_commit,
+            "kind": "tag",
+            "name": "refs/tags/version-16",
+        }
 
 
 class TestLockValidation:
@@ -441,6 +692,120 @@ class TestLockValidation:
             )
             is True
         )
+
+    def test_missing_resolution_policy_is_rejected(
+        self, loader, sample_manifest, generated_lock
+    ):
+        lock_path, lock_data = generated_lock
+        lock_data.pop("resolution_policy")
+        lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+
+        with pytest.raises(ManifestError, match="effective resolution policy"):
+            loader.validate_lock_file(lock_path, sample_manifest)
+
+    def test_lock_cannot_omit_required_application_from_source_manifest(
+        self, loader, tmp_path
+    ):
+        manifest_path = write_test_manifest(
+            loader.manifests_dir,
+            "product.json",
+            "test-product",
+            applications=[
+                {
+                    "name": "frappe",
+                    "repository": "https://github.com/frappe/frappe",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 0,
+                    "dependencies": [],
+                    "compatibility_status": "verified",
+                },
+                {
+                    "name": "erpnext",
+                    "repository": "https://github.com/frappe/erpnext",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 1,
+                    "dependencies": ["frappe"],
+                    "compatibility_status": "verified",
+                },
+            ],
+        )
+        manifest = loader.load("product.json")
+        resolved_apps = [
+            {
+                **app,
+                "ref": ("a" if app["name"] == "frappe" else "b") * 40,
+                "_reference_kind": "tag",
+                "_resolved_ref": "refs/tags/version-16",
+            }
+            for app in loader.resolve_install_order(
+                loader.compose_applications(manifest)
+            )
+        ]
+        lock_data = loader.build_lock_data(manifest, resolved_apps)
+        lock_path = tmp_path / "product.lock.json"
+        lock_data["applications"] = [
+            app for app in lock_data["applications"] if app["name"] != "erpnext"
+        ]
+        lock_data["applications"][0]["installation_order"] = 1
+        loader.write_lock_file(lock_data, lock_path)
+
+        with pytest.raises(
+            ManifestError,
+            match="application inventory does not match",
+        ):
+            loader.validate_lock_file(lock_path, manifest)
+
+    def test_lock_cannot_substitute_application_repository(
+        self, loader, tmp_path
+    ):
+        write_test_manifest(
+            loader.manifests_dir,
+            "product.json",
+            "test-product",
+            applications=[
+                {
+                    "name": "frappe",
+                    "repository": "https://github.com/frappe/frappe",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 0,
+                    "dependencies": [],
+                    "compatibility_status": "verified",
+                }
+            ],
+        )
+        manifest = loader.load("product.json")
+        app = {
+            **loader.compose_applications(manifest)[0],
+            "ref": "a" * 40,
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-16",
+        }
+        lock_data = loader.build_lock_data(manifest, [app])
+        lock_data["applications"][0]["repository"] = (
+            "https://example.com/attacker/frappe.git"
+        )
+        lock_path = tmp_path / "product.lock.json"
+        loader.write_lock_file(lock_data, lock_path)
+
+        with pytest.raises(
+            ManifestError,
+            match="application composition does not match",
+        ):
+            loader.validate_lock_file(lock_path, manifest)
+
+
+    def test_framework_commit_must_match_frappe_application(
+        self, loader, sample_manifest, generated_lock
+    ):
+        lock_path, lock_data = generated_lock
+        lock_data["framework"]["ref"] = "b" * 40
+        lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+
+        with pytest.raises(ManifestError, match="Framework source identity"):
+            loader.validate_lock_file(lock_path, sample_manifest)
 
     def test_invalid_lock_json_is_rejected(
         self,
@@ -577,21 +942,34 @@ class TestLockComparison:
         self,
         loader,
         sample_manifest,
+        sample_applications,
         generated_lock,
     ):
         lock_path, _ = generated_lock
 
+        # The previous composition contains Frappe and ERPNext.
+        previous_applications = sample_applications + [
+            {
+                "name": "erpnext",
+                "repository": "https://github.com/frappe/erpnext",
+                "target_ref": "version-16",
+                "ref": "b" * 40,
+                "dependencies": ["frappe"],
+                "compatibility_status": "verified",
+                "_reference_kind": "tag",
+                "_resolved_ref": "refs/tags/version-16",
+            }
+        ]
+        previous_lock_data = loader.build_lock_data(
+            sample_manifest,
+            previous_applications,
+        )
+        loader.write_lock_file(previous_lock_data, lock_path)
+
+        # Frappe remains in the valid composition; ERPNext is removed.
         new_lock_data = loader.build_lock_data(
             sample_manifest,
-            [
-                {
-                    "name": "erpnext",
-                    "repository": "https://github.com/frappe/erpnext",
-                    "target_ref": "version-16",
-                    "ref": "b" * 40,
-                    "dependencies": [],
-                }
-            ],
+            sample_applications,
         )
 
         changes = loader.compare_lock_files(
@@ -600,7 +978,7 @@ class TestLockComparison:
             sample_manifest,
         )
 
-        assert any("Removed application: frappe" in change for change in changes)
+        assert any("Removed application: erpnext" in change for change in changes)
 
     def test_missing_previous_lock_is_reported(
         self,
@@ -624,6 +1002,25 @@ class TestLockComparison:
 
         assert changes
         assert any("No previous lock file found" in change for change in changes)
+
+    def test_version_one_lock_is_reported_for_migration(
+        self,
+        loader,
+        sample_manifest,
+        sample_applications,
+        tmp_path,
+    ):
+        lock_path = tmp_path / "legacy.lock.json"
+        lock_path.write_text(json.dumps({"lock_version": 1}), encoding="utf-8")
+        new_lock_data = loader.build_lock_data(sample_manifest, sample_applications)
+
+        changes = loader.compare_lock_files(
+            lock_path,
+            new_lock_data,
+            sample_manifest,
+        )
+
+        assert changes == ["Lock format upgrade required: 1 -> 2"]
 
     def test_invalid_previous_lock_is_rejected_without_modification(
         self,
@@ -721,7 +1118,6 @@ class TestCheckMode:
         current_lock = environment["lock_path"].read_bytes()
 
         assert current_lock == original_lock
-
     def test_normal_execution_updates_outdated_lock(self, cli_environment):
         environment = cli_environment
 

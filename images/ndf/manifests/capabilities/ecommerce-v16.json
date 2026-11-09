@@ -18,7 +18,6 @@
   "resolution": {
     "strategy": "locked",
     "require_immutable_commit": true,
-    "allow_development_branches": false,
     "fail_on_unverified_compatibility": true,
     "notes": [
       "Optional ecommerce capability layered on top of dhana-base-v16.",

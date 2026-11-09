@@ -1,4 +1,3 @@
-import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -9,6 +8,7 @@ from scripts.prepare_build import (
     build_apps_json,
     prepare_build,
 )
+from scripts.resolve_manifest import ManifestLoader
 
 
 @pytest.fixture
@@ -34,6 +34,39 @@ def build_project(tmp_path):
             schemas_dir / schema_name,
         )
 
+    applications = [
+        {
+            "name": "frappe",
+            "repository": "https://github.com/frappe/frappe",
+            "target_ref": "version-16",
+            "ref": "a" * 40,
+            "compatibility_status": "verified",
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-16",
+            "dependencies": [],
+        },
+        {
+            "name": "erpnext",
+            "repository": "https://github.com/frappe/erpnext",
+            "target_ref": "version-16",
+            "ref": "b" * 40,
+            "compatibility_status": "verified",
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-16",
+            "dependencies": ["frappe"],
+        },
+        {
+            "name": "dt_example",
+            "repository": "https://github.com/NdfTechLabs/dt_example",
+            "target_ref": "version-1",
+            "ref": "c" * 40,
+            "compatibility_status": "verified",
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-1",
+            "dependencies": ["frappe", "erpnext"],
+        },
+    ]
+
     manifest = {
         "manifest_version": "1.0.0",
         "id": "test-product-v16",
@@ -52,7 +85,6 @@ def build_project(tmp_path):
         "resolution": {
             "strategy": "locked",
             "require_immutable_commit": True,
-            "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
@@ -65,64 +97,14 @@ def build_project(tmp_path):
         encoding="utf-8",
     )
 
-    applications = [
-        {
-            "name": "frappe",
-            "repository": "https://github.com/frappe/frappe",
-            "target_ref": "version-16",
-            "ref": "a" * 40,
-            "dependencies": [],
-            "installation_order": 1,
-        },
-        {
-            "name": "erpnext",
-            "repository": "https://github.com/frappe/erpnext",
-            "target_ref": "version-16",
-            "ref": "b" * 40,
-            "dependencies": ["frappe"],
-            "installation_order": 2,
-        },
-        {
-            "name": "dt_example",
-            "repository": "https://github.com/NdfTechLabs/dt_example",
-            "target_ref": "version-1",
-            "ref": "c" * 40,
-            "dependencies": ["frappe", "erpnext"],
-            "installation_order": 3,
-        },
-    ]
-
-    lock = {
-        "lock_version": 1,
-        "product": {
-            "id": manifest["id"],
-            "manifest_version": manifest["manifest_version"],
-            "name": manifest["name"],
-            "profile": manifest["profile"],
-        },
-        "framework": {
-            "name": "frappe",
-            "version": "16",
-            "release_channel": "stable",
-            "target_ref": "version-16",
-        },
-        "manifests": [
-            {
-                "id": manifest["id"],
-                "path": "products/test-product-v16.json",
-                "sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
-            }
-        ],
-        "applications": applications,
-        "resolver": {
-            "name": "ndf-manifest-resolver",
-            "version": "1.0.0",
-        },
-    }
-
-    (locks_dir / "test-product-v16.lock.json").write_text(
-        json.dumps(lock, indent=2),
-        encoding="utf-8",
+    # Generate the fixture lock through the current resolver contract.
+    # This keeps the test aligned with lock v2 policy and provenance fields.
+    loader = ManifestLoader(ndf_dir / "manifests")
+    loaded_manifest = loader.load("products/test-product-v16.json")
+    lock_data = loader.build_lock_data(loaded_manifest, applications)
+    loader.write_lock_file(
+        lock_data,
+        locks_dir / "test-product-v16.lock.json",
     )
 
     definitions = {
@@ -197,7 +179,6 @@ def test_prepare_build_generates_bench_inputs_and_metadata(
         image_id="test-product-v16",
         output_dir=output_dir,
     )
-
     apps_json = json.loads(result["apps_json_path"].read_text(encoding="utf-8"))
     metadata = json.loads(result["metadata_path"].read_text(encoding="utf-8"))
 
@@ -258,7 +239,7 @@ def test_prepare_build_rejects_framework_ref_mismatch(build_project):
 
     with pytest.raises(
         BuildPreparationError,
-        match="Framework target_ref does not match",
+        match="Framework source identity does not match the locked Frappe application.",
     ):
         prepare_build(
             ndf_dir=build_project,
