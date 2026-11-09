@@ -10,6 +10,11 @@
     "release_channel": "stable",
     "target_ref": "version-16"
   },
+  "target_runtime": {
+    "frappe": "16.0.0",
+    "python": "3.14.3",
+    "erpnext": "16.0.0"
+  },
   "profile": {
     "type": "product",
     "required": true,
