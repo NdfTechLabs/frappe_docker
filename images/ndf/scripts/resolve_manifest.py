@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -339,7 +340,44 @@ class ManifestLoader:
         return ordered
 
     def resolve_git_ref(self, repository: str, target_ref: str) -> dict[str, str]:
-        """Resolve a Git tag or branch and retain selected ref provenance."""
+        """Resolve a Git commit, tag or branch and retain selected ref provenance."""
+        if re.fullmatch(r"[a-fA-F0-9]{40}", target_ref):
+            try:
+                with tempfile.TemporaryDirectory(prefix="ndf-git-ref-") as temp_dir:
+                    subprocess.run(
+                        ["git", "init", temp_dir],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=30,
+                    )
+                    subprocess.run(
+                        ["git", "-C", temp_dir, "fetch", "--depth=1", repository, target_ref],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=60,
+                    )
+                    result = subprocess.run(
+                        ["git", "-C", temp_dir, "rev-parse", "FETCH_HEAD"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=30,
+                    )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+                detail = getattr(exc, "stderr", "") or str(exc)
+                raise ManifestError(
+                    f"Unable to verify commit '{target_ref}' from {repository}: {detail}"
+                ) from exc
+
+            commit = result.stdout.strip()
+            if not re.fullmatch(r"[a-fA-F0-9]{40}", commit):
+                raise ManifestError(
+                    f"Git did not resolve '{target_ref}' to a full commit SHA."
+                )
+            return {"sha": commit, "kind": "commit", "name": commit}
+
         refs = [
             f"refs/tags/{target_ref}",
             f"refs/tags/{target_ref}^{{}}",
@@ -703,14 +741,18 @@ class ManifestLoader:
                     f"Application '{name}' has an invalid Git commit SHA."
                 )
 
-            if reference_kind not in {"branch", "tag"}:
+            if reference_kind not in {"branch", "tag", "commit"}:
                 raise ManifestError(
                     f"Application '{name}' has invalid reference provenance."
                 )
             expected_ref_name = (
-                f"refs/heads/{target_ref}"
-                if reference_kind == "branch"
-                else f"refs/tags/{target_ref}"
+                target_ref
+                if reference_kind == "commit"
+                else (
+                    f"refs/heads/{target_ref}"
+                    if reference_kind == "branch"
+                    else f"refs/tags/{target_ref}"
+                )
             )
             if resolved_ref != expected_ref_name:
                 raise ManifestError(
