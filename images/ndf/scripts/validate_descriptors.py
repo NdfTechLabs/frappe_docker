@@ -339,6 +339,15 @@ def collect_production_metadata_issues(
                 )
             elif policy not in {"constraint", "latest_compatible"}:
                 issues.append(f"{label}: missing explicit version_policy")
+            elif (
+                ecosystem != "bench_apps"
+                and dependency.get("disposition") == "base"
+                and policy == "latest_compatible"
+            ):
+                issues.append(
+                    f"{label}: base dependencies require a version constraint; "
+                    "the base image cannot select a replacement version"
+                )
             elif policy == "latest_compatible" and not version:
                 # Explicit policy is complete metadata; M4.2.3 must still
                 # resolve and lock the exact selected version.
