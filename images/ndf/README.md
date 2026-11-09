@@ -75,8 +75,9 @@ The central implementation priority is to prove exactly what source revisions we
 - [M4.2 Implementation Plan](M4.2-IMPLEMENTATION-PLAN.md) — readiness conclusions, approved scope, work packages, deliverables, dependency order, acceptance criteria, boundaries and authorization.
 - [M4.2 Implementation Tracker](M4.2-IMPLEMENTATION-TRACKER.md) — work-package status, acceptance evidence and execution log.
 - [M4.2.1 Resolver Implementation](M4.2.1-RESOLVER-IMPLEMENTATION.md) — baseline findings, source-reference policy, resolution-time SHA/provenance, lock v2 contract and focused test requirements.
+- [M4.2.2 Application Descriptor Contract](M4.2.2-APPLICATION-DESCRIPTOR.md) — descriptor/composition ownership, schema versioning, typed dependencies, compatibility evidence and migration boundaries.
 
-**Current execution:** M4.2.1 — Build Foundation and Resolver Correction is Complete (2026-11-10). Its final user-run validation passed: 47 resolver tests and 88 full NDF tests. The feature branch has a pull request into `main`; the tracker records its URL and closure evidence. M4.2.2 — Application and Dependency Descriptors is In Progress. The resolver does not classify branch names as development-only.
+**Current execution:** M4.2.1 — Build Foundation and Resolver Correction is Complete (2026-11-10). Its final user-run validation passed: 47 resolver tests and 88 full NDF tests. The feature branch has a pull request into `main`; the tracker records its URL and closure evidence. M4.2.2 — Application and Dependency Descriptors is In Progress. The reusable descriptor/composition relationship and initial versioned schemas are defined; schema validation fixtures and resolver integration remain pending. The resolver does not classify branch names as development-only.
 
 Approved work packages:
 
