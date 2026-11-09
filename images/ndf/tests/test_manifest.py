@@ -1746,8 +1746,16 @@ class TestDescriptorResolutionPrimitives:
             descriptor,
             {
                 "package_versions": {
-                    "python:requests": "2.32.3",
-                    "node:vite": "6.0.0",
+                    "python:requests": {
+                        "version": "2.32.3",
+                        "source": "https://pypi.org/simple",
+                        "resolver": "pip",
+                    },
+                    "node:vite": {
+                        "version": "6.0.0",
+                        "source": "https://registry.npmjs.org",
+                        "resolver": "npm",
+                    },
                 }
             },
             set(),
