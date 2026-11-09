@@ -529,9 +529,9 @@ class ManifestLoader:
         framework = dict(manifest["framework"])
         framework.update(
             {
-            "target_ref": framework_application["target_ref"],
-            "ref": framework_application["ref"],
-            "reference_kind": framework_application.get("_reference_kind"),
+                "target_ref": framework_application["target_ref"],
+                "ref": framework_application["ref"],
+                "reference_kind": framework_application.get("_reference_kind"),
                 "resolved_ref": framework_application.get("_resolved_ref"),
             }
         )
