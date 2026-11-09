@@ -74,6 +74,9 @@ The central implementation priority is to ensure that the actual image contains 
 
 - [M4.2 Implementation Plan](M4.2-IMPLEMENTATION-PLAN.md) — readiness conclusions, approved scope, work packages, deliverables, dependency order, acceptance criteria, boundaries and authorization.
 - [M4.2 Implementation Tracker](M4.2-IMPLEMENTATION-TRACKER.md) — work-package status, acceptance evidence and execution log.
+- [M4.2.1 Resolver Implementation](M4.2.1-RESOLVER-IMPLEMENTATION.md) — baseline findings, effective policy rules, immutable ref handling, lock v2 contract and focused test requirements.
+
+**Current execution:** M4.2.1 is In Progress on feature branch `feat/m4.2.1-resolver-lock-correction`. Implementation changes are committed to that branch; automated validation remains pending.
 
 Approved work packages:
 
