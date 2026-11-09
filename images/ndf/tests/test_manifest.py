@@ -383,6 +383,88 @@ class TestResolutionPolicy:
         assert loader.is_development_branch(name) is False
 
 
+class TestReferencePolicyEnforcement:
+
+    def test_development_branch_is_rejected_when_policy_disallows_it(self, loader, monkeypatch):
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "a" * 40,
+                "kind": "branch",
+                "name": "refs/heads/develop",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": "develop",
+            "compatibility_status": "verified",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "allow_development_branches": False,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        with pytest.raises(ManifestError, match="development branch"):
+            loader.resolve_application_refs(apps, policy)
+
+    def test_unverified_compatibility_is_rejected(self, loader, monkeypatch):
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "a" * 40,
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": "version-16",
+            "compatibility_status": "pending",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "allow_development_branches": False,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        with pytest.raises(ManifestError, match="compatibility_status=pending"):
+            loader.resolve_application_refs(apps, policy)
+
+    def test_verified_release_tag_is_accepted_and_provenance_is_retained(self, loader, monkeypatch):
+        commit = "a" * 40
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": commit,
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "frappe",
+            "repository": "https://example.com/frappe.git",
+            "target_ref": "version-16",
+            "compatibility_status": "verified",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "allow_development_branches": False,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        resolved = loader.resolve_application_refs(apps, policy)
+
+        assert resolved[0]["ref"] == commit
+        assert resolved[0]["_reference_kind"] == "tag"
+        assert resolved[0]["_resolved_ref"] == "refs/tags/version-16"
+
+
 class TestLockGeneration:
 
     def test_build_lock_data(self, loader, sample_manifest, sample_applications):
