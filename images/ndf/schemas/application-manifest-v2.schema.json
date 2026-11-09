@@ -43,7 +43,16 @@
         "package_versions": {
           "type": "object",
           "description": "Exact package versions supplied by the target image/package-manager resolution context.",
-          "additionalProperties": {"type": "string", "minLength": 1}
+          "additionalProperties": {
+            "type": "object",
+            "required": ["version", "source", "resolver"],
+            "properties": {
+              "version": {"type": "string", "minLength": 1},
+              "source": {"type": "string", "minLength": 1},
+              "resolver": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false
