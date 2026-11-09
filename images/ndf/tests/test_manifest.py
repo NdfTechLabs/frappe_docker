@@ -703,6 +703,100 @@ class TestLockValidation:
         with pytest.raises(ManifestError, match="effective resolution policy"):
             loader.validate_lock_file(lock_path, sample_manifest)
 
+    def test_lock_cannot_omit_required_application_from_source_manifest(
+        self, loader, tmp_path
+    ):
+        manifest_path = write_test_manifest(
+            loader.manifests_dir,
+            "product.json",
+            "test-product",
+            applications=[
+                {
+                    "name": "frappe",
+                    "repository": "https://github.com/frappe/frappe",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 0,
+                    "dependencies": [],
+                    "compatibility_status": "verified",
+                },
+                {
+                    "name": "erpnext",
+                    "repository": "https://github.com/frappe/erpnext",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 1,
+                    "dependencies": ["frappe"],
+                    "compatibility_status": "verified",
+                },
+            ],
+        )
+        manifest = loader.load("product.json")
+        resolved_apps = [
+            {
+                **app,
+                "ref": ("a" if app["name"] == "frappe" else "b") * 40,
+                "_reference_kind": "tag",
+                "_resolved_ref": "refs/tags/version-16",
+            }
+            for app in loader.resolve_install_order(
+                loader.compose_applications(manifest)
+            )
+        ]
+        lock_data = loader.build_lock_data(manifest, resolved_apps)
+        lock_path = tmp_path / "product.lock.json"
+        lock_data["applications"] = [
+            app for app in lock_data["applications"] if app["name"] != "erpnext"
+        ]
+        lock_data["applications"][0]["installation_order"] = 1
+        loader.write_lock_file(lock_data, lock_path)
+
+        with pytest.raises(
+            ManifestError,
+            match="application inventory does not match",
+        ):
+            loader.validate_lock_file(lock_path, manifest)
+
+    def test_lock_cannot_substitute_application_repository(
+        self, loader, tmp_path
+    ):
+        write_test_manifest(
+            loader.manifests_dir,
+            "product.json",
+            "test-product",
+            applications=[
+                {
+                    "name": "frappe",
+                    "repository": "https://github.com/frappe/frappe",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 0,
+                    "dependencies": [],
+                    "compatibility_status": "verified",
+                }
+            ],
+        )
+        manifest = loader.load("product.json")
+        app = {
+            **loader.compose_applications(manifest)[0],
+            "ref": "a" * 40,
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-16",
+        }
+        lock_data = loader.build_lock_data(manifest, [app])
+        lock_data["applications"][0]["repository"] = (
+            "https://example.com/attacker/frappe.git"
+        )
+        lock_path = tmp_path / "product.lock.json"
+        loader.write_lock_file(lock_data, lock_path)
+
+        with pytest.raises(
+            ManifestError,
+            match="application composition does not match",
+        ):
+            loader.validate_lock_file(lock_path, manifest)
+
+
     def test_framework_commit_must_match_frappe_application(
         self, loader, sample_manifest, generated_lock
     ):
