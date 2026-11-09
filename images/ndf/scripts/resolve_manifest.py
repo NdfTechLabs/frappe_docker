@@ -465,7 +465,16 @@ class ManifestLoader:
             raise ManifestError(
                 "v2 composition requires an explicit target_runtime matrix."
             )
-        selected_optional = set(manifest.get("selected_optional_dependencies", []))
+        raw_selected_optional = manifest.get("selected_optional_dependencies", [])
+        if (
+            not isinstance(raw_selected_optional, list)
+            or any(not isinstance(item, str) or not item for item in raw_selected_optional)
+            or len(raw_selected_optional) != len(set(raw_selected_optional))
+        ):
+            raise ManifestError(
+                "selected_optional_dependencies must be a unique array of non-empty strings."
+            )
+        selected_optional = set(raw_selected_optional)
         try:
             selected_frappe = SemVerVersion(target_runtime["frappe"])
             framework_major = int(str(manifest["framework"]["version"]).split(".", 1)[0])
@@ -484,6 +493,7 @@ class ManifestLoader:
         app_ids: dict[str, str] = {}
         source_owners: dict[str, str] = {}
         pending_descriptors: list[tuple[dict, str, str, dict]] = []
+        known_optional: set[str] = set()
 
         def add_legacy(current: dict) -> None:
             for app in current.get("applications", []):
@@ -538,6 +548,11 @@ class ManifestLoader:
             if not isinstance(target_ref, str) or not target_ref:
                 raise ManifestError(f"{app_id}: no target_ref or descriptor default_ref.")
             dependencies = []
+            for ecosystem in ("bench_apps", "python", "node", "os"):
+                for dependency in descriptor.get("dependencies", {}).get(ecosystem, []):
+                    if not dependency.get("required", True):
+                        identity = dependency.get("app_id", dependency.get("name", ""))
+                        known_optional.add(f"{ecosystem}:{identity}")
             for dependency in descriptor.get("dependencies", {}).get("bench_apps", []):
                 dep_id = dependency["app_id"]
                 selected = dependency.get("required", True) or (
@@ -641,6 +656,12 @@ class ManifestLoader:
                     parent["dependencies"].append(dep_name)
             index += 1
 
+        unknown_optional = selected_optional - known_optional
+        if unknown_optional:
+            raise ManifestError(
+                "Unknown optional dependency selections: "
+                + ", ".join(sorted(unknown_optional))
+            )
         return list(applications.values())
 
     def compose_applications(self, manifest: dict) -> list:
@@ -1383,6 +1404,41 @@ class ManifestLoader:
             ):
                 raise ManifestError(f"Invalid dependencies for application '{name}'.")
 
+            if "descriptor" in app:
+                if (
+                    not isinstance(app.get("app_id"), str)
+                    or not app["app_id"]
+                    or not isinstance(app.get("descriptor"), str)
+                    or not isinstance(app.get("descriptor_sha256"), str)
+                    or not re.fullmatch(r"[a-fA-F0-9]{64}", app["descriptor_sha256"])
+                ):
+                    raise ManifestError(
+                        f"Application '{name}' has incomplete Marketplace descriptor identity."
+                    )
+                release_version = app.get("release_version")
+                if release_version is not None:
+                    try:
+                        SemVerVersion(release_version)
+                    except (TypeError, ValueError) as exc:
+                        raise ManifestError(
+                            f"Application '{name}' has an invalid declared release version."
+                        ) from exc
+                package_dependencies = app.get("package_dependencies", [])
+                if not isinstance(package_dependencies, list):
+                    raise ManifestError(
+                        f"Application '{name}' has invalid package dependency selections."
+                    )
+                for package in package_dependencies:
+                    if (
+                        not isinstance(package, dict)
+                        or not all(
+                            isinstance(package.get(field), str) and package[field]
+                            for field in ("ecosystem", "name", "version")
+                        )
+                    ):
+                        raise ManifestError(
+                            f"Application '{name}' has an incomplete package selection."
+                        )
             available_apps[name] = app
             previous_order = order
 
@@ -1423,6 +1479,38 @@ class ManifestLoader:
                     raise ManifestError(f"Invalid descriptor checksum for {service_id}.")
                 if not isinstance(entry.get("descriptor"), str):
                     raise ManifestError(f"Missing descriptor path for {service_id}.")
+                expected_kind = "container" if section == "services" else "external"
+                if entry.get("service_kind") != expected_kind:
+                    raise ManifestError(
+                        f"{section} entry '{service_id}' has an invalid service kind."
+                    )
+                if expected_kind == "container":
+                    image = entry.get("artifact", {}).get("image")
+                    if not isinstance(image, str) or not re.fullmatch(
+                        r"[^@\\s]+@sha256:[a-fA-F0-9]{64}", image
+                    ):
+                        raise ManifestError(
+                            f"Container service '{service_id}' is not pinned to an OCI digest."
+                        )
+                    if entry.get("provider") is not None:
+                        raise ManifestError(
+                            f"Container service '{service_id}' contains external provider data."
+                        )
+                else:
+                    provider = entry.get("provider")
+                    if not isinstance(provider, dict) or not provider.get("name") or not provider.get("requirement"):
+                        raise ManifestError(
+                            f"External requirement '{service_id}' has invalid provider metadata."
+                        )
+                    if entry.get("artifact") is not None:
+                        raise ManifestError(
+                            f"External requirement '{service_id}' contains container artifact data."
+                        )
+                if (
+                    not isinstance(entry.get("depends_on", []), list)
+                    or any(not isinstance(item, str) or not item for item in entry.get("depends_on", []))
+                ):
+                    raise ManifestError(f"Invalid dependency list for {service_id}.")
                 seen_service_ids.add(service_id)
 
         # When validating a build lock against unchanged source manifests,
