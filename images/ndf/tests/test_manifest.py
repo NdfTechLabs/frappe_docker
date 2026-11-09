@@ -226,6 +226,10 @@ def cli_environment(tmp_path):
         project_ndf_dir / "scripts" / "resolve_manifest.py",
         scripts_dir / "resolve_manifest.py",
     )
+    shutil.copy2(
+        project_ndf_dir / "scripts" / "validate_descriptors.py",
+        scripts_dir / "validate_descriptors.py",
+    )
 
     shutil.copy2(
         project_ndf_dir / "schemas" / "application-manifest-v1.schema.json",
