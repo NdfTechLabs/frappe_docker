@@ -114,12 +114,19 @@ def loader(tmp_path):
     # Copy the actual project schema into the temporary environment.
     project_ndf_dir = Path(__file__).resolve().parents[1]
 
-    shutil.copy2(
-        project_ndf_dir / "schemas" / "application-manifest-v1.schema.json",
-        schemas_dir / "application-manifest-v1.schema.json",
-    )
+    for schema_name in (
+        "application-manifest-v1.schema.json",
+        "application-manifest-v2.schema.json",
+        "service-descriptor-v1.schema.json",
+    ):
+        shutil.copy2(
+            project_ndf_dir / "schemas" / schema_name,
+            schemas_dir / schema_name,
+        )
 
-    return ManifestLoader(manifests_dir)
+    instance = ManifestLoader(manifests_dir)
+    instance.repository_root = tmp_path
+    return instance
 
 
 @pytest.fixture
@@ -1576,3 +1583,386 @@ class TestApplicationDependencies:
         assert ordered_names.index("dt_recomendations") < ordered_names.index(
             "dt_dalali_ecommerce"
         )
+
+class TestV2CompositionAndCapabilityLoading:
+    def _manifest(self, manifest_id, **overrides):
+        value = {
+            "manifest_version": "2.0.0",
+            "id": manifest_id,
+            "name": manifest_id,
+            "framework": {
+                "name": "frappe",
+                "version": "16",
+                "release_channel": "stable",
+                "target_ref": "version-16",
+            },
+            "target_runtime": {"frappe": "16.0.0", "python": "3.14.3"},
+            "profile": {
+                "type": "product",
+                "required": True,
+                "install_by_default": True,
+            },
+            "resolution": {
+                "strategy": "locked",
+                "require_immutable_commit": True,
+                "fail_on_unverified_compatibility": True,
+            },
+            "validation": {},
+        }
+        value.update(overrides)
+        return value
+
+    def test_v2_schema_is_selected_by_manifest_version(self, loader):
+        manifest = self._manifest("v2-schema-test")
+        loader.validate(manifest, loader.manifests_dir / "product-v2.json")
+
+    def test_optional_capability_requires_explicit_boolean_selection(self, loader):
+        path = loader.manifests_dir / "product.json"
+        path.write_text(
+            json.dumps(
+                self._manifest(
+                    "product",
+                    capabilities=[{"manifest": "capability.json", "required": False}],
+                )
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(ManifestError, match="Schema validation failed"):
+            loader.load("product.json")
+
+    def test_optional_capability_is_not_loaded_when_explicitly_unselected(self, loader):
+        capability = self._manifest(
+            "optional-ai",
+            profile={"type": "capability", "required": False, "install_by_default": False},
+        )
+        (loader.manifests_dir / "optional-ai.json").write_text(
+            json.dumps(capability), encoding="utf-8"
+        )
+        product = self._manifest(
+            "product",
+            capabilities=[
+                {"manifest": "optional-ai.json", "required": False, "selected": False}
+            ],
+        )
+        (loader.manifests_dir / "product.json").write_text(
+            json.dumps(product), encoding="utf-8"
+        )
+
+        loaded = loader.load("product.json")
+
+        assert loaded["_loaded_capabilities"] == []
+        assert loaded["_capability_selections"] == [
+            {"manifest": "optional-ai.json", "required": False, "selected": False}
+        ]
+
+    def test_selected_optional_capability_is_loaded_into_graph(self, loader):
+        capability = self._manifest(
+            "optional-ai",
+            profile={"type": "capability", "required": False, "install_by_default": False},
+        )
+        (loader.manifests_dir / "optional-ai.json").write_text(
+            json.dumps(capability), encoding="utf-8"
+        )
+        product = self._manifest(
+            "product",
+            capabilities=[
+                {"manifest": "optional-ai.json", "required": False, "selected": True}
+            ],
+        )
+        (loader.manifests_dir / "product.json").write_text(
+            json.dumps(product), encoding="utf-8"
+        )
+
+        loaded = loader.load("product.json")
+
+        assert [item["id"] for item in loaded["_loaded_capabilities"]] == ["optional-ai"]
+
+    def test_v1_capability_declarations_keep_legacy_non_loading_behaviour(self, loader):
+        product_path = write_test_manifest(loader.manifests_dir, "product.json", "product")
+        product = json.loads(product_path.read_text(encoding="utf-8"))
+        product["capabilities"] = [
+            {"manifest": "legacy-capability.json", "required": False, "install_by_default": False}
+        ]
+        product_path.write_text(json.dumps(product), encoding="utf-8")
+
+        loaded = loader.load("product.json")
+
+        assert loaded["_loaded_capabilities"] == []
+
+
+class TestDescriptorResolutionPrimitives:
+    def test_target_runtime_compatibility_uses_ecosystem_semantics(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "compatibility": {
+                "frappe": ">=16.0.0 <17.0.0",
+                "python": ">=3.12,<3.15",
+                "erpnext": "^16.0.0",
+            },
+            "dependencies": {
+                "bench_apps": [{"app_id": "erpnext", "required": True}]
+            },
+        }
+        loader._validate_descriptor_target(
+            descriptor,
+            {"frappe": "16.2.0", "python": "3.14.3", "erpnext": "16.1.0"},
+            set(),
+        )
+        with pytest.raises(ManifestError, match="does not satisfy"):
+            loader._validate_descriptor_target(
+                descriptor,
+                {"frappe": "17.0.0", "python": "3.14.3", "erpnext": "16.1.0"},
+                set(),
+            )
+
+    def test_package_constraints_resolve_to_exact_target_versions(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "dependencies": {
+                "python": [
+                    {
+                        "name": "requests",
+                        "required": True,
+                        "version_policy": "constraint",
+                        "version": ">=2.30,<3.0",
+                        "disposition": "runtime_compatible",
+                    }
+                ],
+                "node": [
+                    {
+                        "name": "vite",
+                        "required": True,
+                        "version_policy": "latest_compatible",
+                        "disposition": "runtime_compatible",
+                    }
+                ],
+            },
+        }
+        result = loader._resolve_descriptor_packages(
+            descriptor,
+            {
+                "package_versions": {
+                    "python:requests": "2.32.3",
+                    "node:vite": "6.0.0",
+                }
+            },
+            set(),
+        )
+        assert [(item["ecosystem"], item["name"], item["version"]) for item in result] == [
+            ("node", "vite", "6.0.0"),
+            ("python", "requests", "2.32.3"),
+        ]
+
+    def test_os_package_versions_require_exact_native_selection_and_matching_target(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "dependencies": {
+                "os": [
+                    {
+                        "name": "libpq-dev",
+                        "required": True,
+                        "version_policy": "constraint",
+                        "version": "16.4-1",
+                        "disposition": "environment_level",
+                        "distribution_family": "debian",
+                        "package_manager": "apt",
+                    }
+                ]
+            },
+        }
+        result = loader._resolve_descriptor_packages(
+            descriptor,
+            {
+                "os": {"distribution_family": "debian", "package_manager": "apt"},
+                "package_versions": {"os:libpq-dev": "16.4-1"},
+            },
+            set(),
+        )
+        assert result[0]["install"] is True
+        assert result[0]["disposition"] == "environment_level"
+
+    def test_missing_exact_package_selection_fails_closed(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "dependencies": {
+                "python": [
+                    {
+                        "name": "requests",
+                        "required": True,
+                        "version_policy": "latest_compatible",
+                        "disposition": "runtime_compatible",
+                    }
+                ]
+            },
+        }
+        with pytest.raises(ManifestError, match="must provide an exact selection"):
+            loader._resolve_descriptor_packages(descriptor, {"package_versions": {}}, set())
+
+
+class TestIndependentServiceComposition:
+    def _write_service(self, loader, service_id, descriptor):
+        path = (
+            loader.repository_root
+            / "images" / "ndf" / "descriptors" / "services"
+            / f"{service_id}.json"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(descriptor), encoding="utf-8")
+        return f"images/ndf/descriptors/services/{service_id}.json"
+
+    def test_container_services_and_external_requirements_are_separate(self, loader):
+        service_path = self._write_service(
+            loader,
+            "search",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "search",
+                "name": "Search service",
+                "service_kind": "container",
+                "artifact": {
+                    "image": "ghcr.io/example/search@sha256:" + "a" * 64
+                },
+            },
+        )
+        external_path = self._write_service(
+            loader,
+            "payments_api",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "payments_api",
+                "name": "Payments API",
+                "service_kind": "external",
+                "provider": {
+                    "name": "Example Payments",
+                    "requirement": "Merchant API v1",
+                },
+            },
+        )
+        source = loader.manifests_dir / "product.json"
+        source.write_text("{}", encoding="utf-8")
+        manifest = {
+            "id": "product",
+            "_source_path": str(source),
+            "_loaded_includes": [],
+            "_loaded_capabilities": [],
+            "services": [{"descriptor": service_path, "required": True}],
+            "external_requirements": [
+                {"descriptor": external_path, "required": True}
+            ],
+        }
+
+        services, external = loader.compose_services(manifest)
+
+        assert [item["service_id"] for item in services] == ["search"]
+        assert [item["service_id"] for item in external] == ["payments_api"]
+        assert services[0]["artifact"]["image"].endswith("a" * 64)
+        assert external[0]["provider"]["requirement"] == "Merchant API v1"
+
+    def test_container_service_rejects_mutable_tag(self, loader):
+        service_path = self._write_service(
+            loader,
+            "search",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "search",
+                "name": "Search service",
+                "service_kind": "container",
+                "artifact": {"image": "ghcr.io/example/search:latest"},
+            },
+        )
+        source = loader.manifests_dir / "product.json"
+        source.write_text("{}", encoding="utf-8")
+        manifest = {
+            "id": "product",
+            "_source_path": str(source),
+            "_loaded_includes": [],
+            "_loaded_capabilities": [],
+            "services": [{"descriptor": service_path, "required": True}],
+        }
+        with pytest.raises(ManifestError, match="Invalid service descriptor"):
+            loader.compose_services(manifest)
+
+    def test_service_dependency_cycles_are_rejected(self, loader):
+        first = self._write_service(
+            loader,
+            "first",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "first",
+                "name": "First",
+                "service_kind": "container",
+                "artifact": {"image": "registry.example/first@sha256:" + "1" * 64},
+                "depends_on": ["second"],
+            },
+        )
+        second = self._write_service(
+            loader,
+            "second",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "second",
+                "name": "Second",
+                "service_kind": "container",
+                "artifact": {"image": "registry.example/second@sha256:" + "2" * 64},
+                "depends_on": ["first"],
+            },
+        )
+        source = loader.manifests_dir / "product.json"
+        source.write_text("{}", encoding="utf-8")
+        manifest = {
+            "id": "product",
+            "_source_path": str(source),
+            "_loaded_includes": [],
+            "_loaded_capabilities": [],
+            "services": [
+                {"descriptor": first, "required": True},
+                {"descriptor": second, "required": True},
+            ],
+        }
+        with pytest.raises(ManifestError, match="Circular service dependency"):
+            loader.compose_services(manifest)
+
+
+class TestDescriptorLockIdentity:
+    def test_app_id_release_and_git_ref_provenance_remain_distinct(self, loader, sample_manifest):
+        applications = [
+            {
+                "name": "frappe",
+                "repository": "https://github.com/frappe/frappe",
+                "target_ref": "version-16",
+                "ref": "a" * 40,
+                "dependencies": [],
+                "compatibility_status": "verified",
+                "_reference_kind": "tag",
+                "_resolved_ref": "refs/tags/version-16",
+            },
+            {
+                "name": "example_app",
+                "repository": "https://github.com/example/example_app",
+                "target_ref": "release-4",
+                "ref": "b" * 40,
+                "dependencies": ["frappe"],
+                "compatibility_status": "verified",
+                "_reference_kind": "tag",
+                "_resolved_ref": "refs/tags/release-4",
+                "_app_id": "example_app",
+                "_release_version": "4.2.1",
+                "_descriptor_path": "images/ndf/descriptors/apps/example_app.json",
+                "_descriptor_sha256": "c" * 64,
+                "app_id": "example_app",
+                "release_version": "4.2.1",
+                "descriptor": "images/ndf/descriptors/apps/example_app.json",
+                "descriptor_sha256": "c" * 64,
+                "package_dependencies": [],
+            },
+        ]
+        lock = loader.build_lock_data(sample_manifest, applications)
+        locked = next(item for item in lock["applications"] if item["name"] == "example_app")
+
+        assert locked["app_id"] == "example_app"
+        assert locked["release_version"] == "4.2.1"
+        assert locked["target_ref"] == "release-4"
+        assert locked["ref"] == "b" * 40
+        assert locked["reference_kind"] == "tag"
+        assert locked["resolved_ref"] == "refs/tags/release-4"
+        assert locked["descriptor_sha256"] == "c" * 64
