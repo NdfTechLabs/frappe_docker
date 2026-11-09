@@ -385,7 +385,9 @@ class TestResolutionPolicy:
 
 class TestReferencePolicyEnforcement:
 
-    def test_development_branch_is_rejected_when_policy_disallows_it(self, loader, monkeypatch):
+    def test_development_branch_is_rejected_when_policy_disallows_it(
+        self, loader, monkeypatch
+    ):
         monkeypatch.setattr(
             loader,
             "resolve_git_ref",
@@ -435,7 +437,9 @@ class TestReferencePolicyEnforcement:
         with pytest.raises(ManifestError, match="compatibility_status=pending"):
             loader.resolve_application_refs(apps, policy)
 
-    def test_verified_release_tag_is_accepted_and_provenance_is_retained(self, loader, monkeypatch):
+    def test_verified_release_tag_is_accepted_and_provenance_is_retained(
+        self, loader, monkeypatch
+    ):
         commit = "a" * 40
         monkeypatch.setattr(
             loader,
@@ -640,7 +644,9 @@ class TestLockValidation:
             is True
         )
 
-    def test_missing_resolution_policy_is_rejected(self, loader, sample_manifest, generated_lock):
+    def test_missing_resolution_policy_is_rejected(
+        self, loader, sample_manifest, generated_lock
+    ):
         lock_path, lock_data = generated_lock
         lock_data.pop("resolution_policy")
         lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
@@ -648,7 +654,9 @@ class TestLockValidation:
         with pytest.raises(ManifestError, match="effective resolution policy"):
             loader.validate_lock_file(lock_path, sample_manifest)
 
-    def test_framework_commit_must_match_frappe_application(self, loader, sample_manifest, generated_lock):
+    def test_framework_commit_must_match_frappe_application(
+        self, loader, sample_manifest, generated_lock
+    ):
         lock_path, lock_data = generated_lock
         lock_data["framework"]["ref"] = "b" * 40
         lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
