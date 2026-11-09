@@ -133,6 +133,14 @@ class TestMarketplaceDescriptorSchemas:
         with pytest.raises(DescriptorValidationError, match="Invalid PEP 440"):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_invalid_application_release_version_is_rejected(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["release"] = {"version": "release-sixteen"}
+        with pytest.raises(
+            DescriptorValidationError, match="Invalid SemVer application release version"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_valid_ecosystem_constraints_are_accepted(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"].update(
@@ -327,7 +335,16 @@ class TestMarketplaceDescriptorSchemas:
             }
         )
         for dependency in descriptor["dependencies"]["bench_apps"]:
-            dependency["version_policy"] = "latest_compatible"
+            dependency["version_policy"] = "constraint"
+            dependency["version"] = "^16.0.0"
+        descriptor["dependencies"]["python"] = [
+            {
+                "name": "example-python-package",
+                "required": True,
+                "disposition": "runtime_compatible",
+                "version_policy": "latest_compatible",
+            }
+        ]
         assert collect_production_metadata_issues(descriptor) == []
 
     def test_selected_optional_dependency_is_subject_to_metadata_gate(self):
@@ -347,6 +364,16 @@ class TestMarketplaceDescriptorSchemas:
         descriptor["dependencies"]["bench_apps"][0]["version_policy"] = "constraint"
         issues = collect_production_metadata_issues(descriptor)
         assert any("constraint policy requires a version" in item for item in issues)
+
+    def test_bench_app_dependency_cannot_use_latest_compatible(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["dependencies"]["bench_apps"][0]["version_policy"] = (
+            "latest_compatible"
+        )
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor schema validation failed"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
 
     def test_base_dependency_requires_a_fixed_constraint(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
