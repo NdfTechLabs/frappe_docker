@@ -7,7 +7,7 @@ schema and composition-reference validation before resolver integration.
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -37,7 +37,11 @@ def _schema_errors(instance: dict[str, Any], schema_path: Path,
     registry = Registry().with_resource(
         dependency_schema["$id"], Resource.from_contents(dependency_schema)
     )
-    validator = Draft202012Validator(schema, registry=registry)
+    validator = Draft202012Validator(
+        schema,
+        registry=registry,
+        format_checker=Draft202012Validator.FORMAT_CHECKER,
+    )
     errors = sorted(
         validator.iter_errors(instance),
         key=lambda error: (list(error.absolute_path), error.message),
@@ -85,9 +89,15 @@ def validate_composition_descriptors(
             # Legacy entries are schema-valid in v2 during the transition.
             continue
         relative = entry["descriptor"]
-        if not isinstance(relative, str) or not relative:
+        if (
+            not isinstance(relative, str)
+            or not relative.strip()
+            or "\\" in relative
+            or PurePosixPath(relative).is_absolute()
+            or ".." in PurePosixPath(relative).parts
+        ):
             raise DescriptorValidationError(
-                f"applications[{index}].descriptor must be a non-empty path"
+                f"applications[{index}].descriptor must be a normalized repository-relative POSIX path"
             )
         candidate = (root / relative).resolve()
         if not candidate.is_relative_to(root):
@@ -108,7 +118,7 @@ def validate_composition_descriptors(
         seen_ids[app_id] = relative
 
         selected_ref = entry.get("target_ref") or descriptor.get("source", {}).get("default_ref")
-        if not selected_ref:
+        if not isinstance(selected_ref, str) or not selected_ref.strip():
             raise DescriptorValidationError(
                 f"Missing source reference for application '{app_id}': "
                 "set composition target_ref or descriptor source.default_ref"
