@@ -93,6 +93,7 @@ class TestMarketplaceDescriptorSchemas:
         descriptor["dependencies"]["python"] = [
             {
                 "name": "example-package",
+                "required": True,
                 "disposition": "install_anywhere",
             }
         ]
@@ -106,6 +107,7 @@ class TestMarketplaceDescriptorSchemas:
         descriptor["dependencies"]["node"] = [
             {
                 "name": "example-package",
+                "required": True,
                 "package_manager": "npm",
                 "scope": "build",
                 "disposition": "runtime_compatible",
