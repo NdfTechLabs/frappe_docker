@@ -2245,3 +2245,19 @@ class TestDescriptorCompositionClosureAndLock:
         assert locked_root["resolved_ref"] == "refs/tags/git-ref-root_app"
         assert locked_root["descriptor"] == "images/ndf/descriptors/apps/root_app.json"
         assert locked_root["descriptor_sha256"]
+
+        lock_path = tmp_path / "descriptor-product.lock.json"
+        loader.write_lock_file(lock, lock_path)
+        assert loader.validate_lock_file(lock_path, loaded) is True
+
+        tampered = json.loads(lock_path.read_text(encoding="utf-8"))
+        tampered_root = next(
+            item for item in tampered["applications"] if item["name"] == "root_app"
+        )
+        tampered_root["release_version"] = "9.9.9"
+        loader.write_lock_file(tampered, lock_path)
+        with pytest.raises(
+            ManifestError,
+            match="application composition does not match",
+        ):
+            loader.validate_lock_file(lock_path, loaded)
