@@ -214,7 +214,8 @@
                     "kind",
                     "authority",
                     "result",
-                    "tested_versions"
+                    "tested_versions",
+                    "tested_at"
                   ],
                   "properties": {
                     "authority": {
@@ -245,6 +246,10 @@
                         "automated_test",
                         "manual_test"
                       ]
+                    },
+                    "tested_at": {
+                      "type": "string",
+                      "format": "date-time"
                     }
                   }
                 }
