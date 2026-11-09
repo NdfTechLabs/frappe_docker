@@ -815,6 +815,25 @@ class TestLockComparison:
         assert changes
         assert any("No previous lock file found" in change for change in changes)
 
+    def test_version_one_lock_is_reported_for_migration(
+        self,
+        loader,
+        sample_manifest,
+        sample_applications,
+        tmp_path,
+    ):
+        lock_path = tmp_path / "legacy.lock.json"
+        lock_path.write_text(json.dumps({"lock_version": 1}), encoding="utf-8")
+        new_lock_data = loader.build_lock_data(sample_manifest, sample_applications)
+
+        changes = loader.compare_lock_files(
+            lock_path,
+            new_lock_data,
+            sample_manifest,
+        )
+
+        assert changes == ["Lock format upgrade required: 1 -> 2"]
+
     def test_invalid_previous_lock_is_rejected_without_modification(
         self,
         loader,
