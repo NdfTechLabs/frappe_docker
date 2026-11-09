@@ -68,15 +68,15 @@ M4.1 defined and approved the NDF contracts consumed by DT Master.
 
 The read-only implementation readiness review found the repository and existing pipeline ready for implementation planning. The platform owner approved the M4.2 scope, nine work packages, deliverables, dependency order and 20 acceptance criteria, and explicitly authorized implementation on 9 November 2026.
 
-The central implementation priority is to ensure that the actual image contains exactly the immutable source composition recorded in its lock. M4.2 extends the existing resolver, build and validation pipeline; it does not replace the upstream Frappe Docker foundation or create a competing image builder.
+The central implementation priority is to prove exactly what source revisions were acquired into each image while preserving upstream Bench acquisition. The composition lock records requested refs and resolution-time SHA evidence; the build inventory records the actual commits acquired by Bench; image verification validates that inventory; and the Product Deployment Descriptor binds the verified inventory to the published image digest. M4.2 extends the existing resolver, build and validation pipeline; it does not replace the upstream Frappe Docker foundation or create a competing image builder.
 
 **Authoritative M4.2 records:**
 
 - [M4.2 Implementation Plan](M4.2-IMPLEMENTATION-PLAN.md) — readiness conclusions, approved scope, work packages, deliverables, dependency order, acceptance criteria, boundaries and authorization.
 - [M4.2 Implementation Tracker](M4.2-IMPLEMENTATION-TRACKER.md) — work-package status, acceptance evidence and execution log.
-- [M4.2.1 Resolver Implementation](M4.2.1-RESOLVER-IMPLEMENTATION.md) — baseline findings, effective policy rules, immutable ref handling, lock v2 contract and focused test requirements.
+- [M4.2.1 Resolver Implementation](M4.2.1-RESOLVER-IMPLEMENTATION.md) — baseline findings, source-reference policy, resolution-time SHA/provenance, lock v2 contract and focused test requirements.
 
-**Current execution:** M4.2.1 is In Progress on feature branch `feat/m4.2.1-resolver-lock-correction`. Implementation changes are committed to that branch; automated validation remains pending.
+**Current execution:** M4.2.1 is In Progress on feature branch `feat/m4.2.1-resolver-lock-correction`. The resolver no longer classifies branch names as development-only. Automated validation remains pending.
 
 Approved work packages:
 
@@ -112,7 +112,7 @@ Current relevant components include:
 
 1. A deployment descriptor must identify the exact OCI image digest it describes.
 2. The descriptor must record the resolved application inventory and runtime/dependency composition.
-3. Manifest, lock, source commit and build provenance must be traceable.
+3. Requested refs and resolution-time SHA observations must be traceable separately from the actual post-acquisition source commit inventory and build provenance.
 4. DT Master validates the descriptor and image digest before deployment.
 5. GHCR distributes artifacts; DT Master records the operational deployment state.
 6. NDF build credentials remain in NDF/GitHub Actions. DT Master submits authorized build requests and does not receive unrestricted publishing credentials.
