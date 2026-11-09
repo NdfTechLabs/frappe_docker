@@ -9,13 +9,65 @@
     "$schema": {"type": "string"},
     "manifest_version": {"const": "2.0.0"},
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-    "name": {"type": "string"},
+    "name": {"type": "string", "minLength": 1},
     "description": {"type": "string"},
-    "framework": {"type": "object"},
-    "profile": {"type": "object"},
-    "resolution": {"type": "object"},
-    "includes": {"type": "array", "items": {"type": "object"}},
-    "capabilities": {"type": "array", "items": {"type": "object"}},
+    "framework": {
+      "type": "object",
+      "required": ["name", "version", "release_channel", "target_ref"],
+      "properties": {
+        "name": {"const": "frappe"},
+        "version": {"type": "string", "minLength": 1},
+        "release_channel": {"enum": ["stable", "development"]},
+        "target_ref": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "profile": {
+      "type": "object",
+      "required": ["type", "required", "install_by_default"],
+      "properties": {
+        "type": {"enum": ["base", "capability", "product"]},
+        "required": {"type": "boolean"},
+        "install_by_default": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "resolution": {
+      "type": "object",
+      "properties": {
+        "strategy": {"enum": ["locked", "latest-compatible"]},
+        "require_immutable_commit": {"type": "boolean"},
+        "fail_on_unverified_compatibility": {"type": "boolean"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "includes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["manifest"],
+        "properties": {
+          "manifest": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["manifest"],
+        "properties": {
+          "manifest": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"},
+          "install_by_default": {"type": "boolean"},
+          "description": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
     "applications": {
       "type": "array",
       "items": {
@@ -24,10 +76,14 @@
             "type": "object",
             "required": ["descriptor", "required"],
             "properties": {
-              "descriptor": {"type": "string", "description": "Repository-relative path to a Marketplace App Descriptor JSON file."},
+              "descriptor": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Normalized repository-relative POSIX path to a Marketplace App Descriptor JSON file."
+              },
               "required": {"type": "boolean"},
-              "target_ref": {"type": "string", "description": "Product/capability-specific source ref override; when omitted, descriptor source.default_ref is used."},
-              "ref": {"type": ["string", "null"], "description": "Legacy compatibility field; resolver migration defines its semantics."},
+              "target_ref": {"type": "string", "minLength": 1},
+              "ref": {"type": ["string", "null"], "description": "Temporary migration field; not an authoritative source pin."},
               "install_order": {"type": "integer", "minimum": 0},
               "notes": {"type": "string"}
             },
@@ -36,7 +92,7 @@
           {
             "type": "object",
             "required": ["name", "repository", "target_ref", "required", "install_order", "dependencies"],
-            "description": "Legacy v1 application entry retained only for transition/read compatibility.",
+            "description": "Legacy v1 embedded application entry retained only for transition/read compatibility.",
             "properties": {
               "name": {"type": "string"},
               "repository": {"type": "string", "format": "uri"},
@@ -53,8 +109,14 @@
         ]
       }
     },
-    "services": {"type": "array"},
-    "validation": {"type": "object"},
+    "services": {"type": "array", "items": {"type": "object"}},
+    "validation": {
+      "type": "object",
+      "properties": {
+        "required_checks": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
     "deployment": {"type": "object"}
   },
   "additionalProperties": true
