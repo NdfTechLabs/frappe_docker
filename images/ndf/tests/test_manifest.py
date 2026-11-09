@@ -437,6 +437,58 @@ class TestReferencePolicyEnforcement:
         with pytest.raises(ManifestError, match="compatibility_status=pending"):
             loader.resolve_application_refs(apps, policy)
 
+    def test_missing_compatibility_status_is_rejected(self, loader, monkeypatch):
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "a" * 40,
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": "version-16",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "allow_development_branches": False,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        with pytest.raises(ManifestError, match="<missing>"):
+            loader.resolve_application_refs(apps, policy)
+
+    def test_non_commit_resolution_is_rejected_by_immutable_policy(
+        self, loader, monkeypatch
+    ):
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "not-a-commit",
+                "kind": "tag",
+                "name": "refs/tags/version-16",
+            },
+        )
+        apps = [{
+            "name": "test_app",
+            "repository": "https://example.com/test.git",
+            "target_ref": "version-16",
+            "compatibility_status": "verified",
+        }]
+        policy = {
+            "require_immutable_commit": True,
+            "allow_development_branches": False,
+            "fail_on_unverified_compatibility": True,
+        }
+
+        with pytest.raises(ManifestError, match="immutable commit SHA"):
+            loader.resolve_application_refs(apps, policy)
+
+
     def test_verified_release_tag_is_accepted_and_provenance_is_retained(
         self, loader, monkeypatch
     ):
