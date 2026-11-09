@@ -96,6 +96,15 @@ def _validate_pep440(value: str, location: str) -> None:
 
 
 def _validate_version_syntax(descriptor: dict[str, Any]) -> None:
+    release_version = descriptor.get("release", {}).get("version")
+    if release_version is not None:
+        try:
+            SemVerVersion(release_version)
+        except (TypeError, ValueError) as exc:
+            raise DescriptorValidationError(
+                f"Invalid SemVer application release version: {release_version!r}"
+            ) from exc
+
     compatibility = descriptor.get("compatibility", {})
     for field in ("frappe", "erpnext", "node"):
         value = compatibility.get(field)
@@ -336,6 +345,11 @@ def collect_production_metadata_issues(
             elif policy == "latest_compatible" and version:
                 issues.append(
                     f"{label}: latest_compatible policy cannot also declare a version"
+                )
+            elif ecosystem == "bench_apps" and policy == "latest_compatible":
+                issues.append(
+                    f"{label}: Bench app dependencies require a SemVer constraint; "
+                    "source selection belongs to the composition manifest"
                 )
             elif policy not in {"constraint", "latest_compatible"}:
                 issues.append(f"{label}: missing explicit version_policy")
