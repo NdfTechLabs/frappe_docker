@@ -190,6 +190,25 @@ class TestMarketplaceDescriptorSchemas:
         }
         validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_invalid_tested_version_in_compatibility_evidence_is_rejected(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"]["evidence"] = [
+            {
+                "kind": "automated_test",
+                "authority": "publisher",
+                "reference": "https://example.com/test-report",
+                "result": "passed",
+                "tested_versions": {
+                    "frappe": "sixteen",
+                    "python": "3.14.3",
+                },
+            }
+        ]
+        with pytest.raises(
+            DescriptorValidationError, match="Invalid tested SemVer version"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_production_eligibility_rejects_incomplete_authoring_descriptor(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         issues = collect_production_metadata_issues(descriptor)
