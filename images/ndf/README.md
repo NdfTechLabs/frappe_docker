@@ -47,10 +47,10 @@ Governing principle:
 
 ### M4.1 — Integration contract and architecture
 
-**Status: In progress.**  
-**Implementation status: Not started under M4.1 approval.**
+**Status: Complete (2026-11-09).** The NDF artifact, composition, candidate/build, immutable image and deployment descriptor contracts were accepted in the final 13-point M4.1 architecture review and approved by the platform owner.  
+**Implementation authorization: Not granted.** NDF implementation remains assigned to M4.2 and later milestones, subject to separate explicit authorization.
 
-M4.1 will define the NDF contracts consumed by DT Master.
+M4.1 defined and approved the NDF contracts consumed by DT Master.
 
 | Workstream | NDF responsibility | Expected output |
 |---|---|---|
@@ -67,7 +67,7 @@ M4.1 will define the NDF contracts consumed by DT Master.
 
 NDF already has product manifest/lock resolution, image preparation, image building and validation scripts, plus product build/publish/release workflows.
 
-M4.1 should extend the existing pipeline to support dynamic Deployment Candidate inputs. It should not create a competing image builder or duplicate existing product workflows.
+M4.1 accepted the direction to extend the existing pipeline for dynamic Deployment Candidate inputs rather than create a competing image builder or duplicate product workflows. Implementation is assigned to M4.2.
 
 Current relevant components include:
 
@@ -79,7 +79,7 @@ Current relevant components include:
 - `.github/workflows/ndf-publish-product.yml`
 - `.github/workflows/ndf-release-product.yml`
 
-The current product workflows are based on predefined product definitions. Dynamic candidate composition, runtime/package dependency resolution and the complete deployment descriptor contract remain M4.1 design and subsequent implementation work.
+The current product workflows are based on predefined product definitions. Dynamic candidate composition, runtime/package dependency resolution and the complete deployment descriptor contract are accepted M4.1 architecture; implementation remains assigned to M4.2 and M4.4.
 
 ### Artifact principles
 
@@ -99,9 +99,9 @@ The current product workflows are based on predefined product definitions. Dynam
 
 This repository is based on [upstream frappe_docker](https://github.com/frappe/frappe_docker). Upstream build/runtime improvements should be incorporated while keeping NDF-specific manifests, schemas, scripts and workflows isolated under `images/ndf/` where practical.
 
-## M4.1 completion criteria
+## M4.1 completion record
 
-M4.1 is complete only when the following are reviewed and approved:
+The following acceptance criteria were reviewed and approved as part of M4.1, which is Complete as of 2026-11-09:
 
 - DocType ownership and relationship model across DT Master and DT Tenant.
 - Versioned Marketplace App Descriptor and Deployment Candidate schemas.
@@ -112,4 +112,4 @@ M4.1 is complete only when the following are reviewed and approved:
 - Replacement Bench, site migration, verification, rollback and retirement lifecycle.
 - File-level repository migration matrix and implementation sequence.
 
-Until those contracts are approved, the M4.1 status remains **In progress** and no production integration should assume they are finalized.
+These architecture contracts are approved. Their implementation, build-pipeline validation and production integration remain pending the relevant M4.2–M4.7 work and separate implementation authorization. M4.1 completion does not imply that the NDF build pipeline already satisfies every accepted contract.
