@@ -1599,7 +1599,8 @@ class ManifestLoader:
                         f"{section} entry '{service_id}' has an invalid service kind."
                     )
                 if expected_kind == "container":
-                    image = entry.get("artifact", {}).get("image")
+                    artifact = entry.get("artifact")
+                    image = artifact.get("image") if isinstance(artifact, dict) else None
                     if not isinstance(image, str) or not re.fullmatch(
                         r"[^@\s]+@sha256:[a-fA-F0-9]{64}", image
                     ):
@@ -1612,7 +1613,13 @@ class ManifestLoader:
                         )
                 else:
                     provider = entry.get("provider")
-                    if not isinstance(provider, dict) or not provider.get("name") or not provider.get("requirement"):
+                    if (
+                        not isinstance(provider, dict)
+                        or not isinstance(provider.get("name"), str)
+                        or not provider["name"]
+                        or not isinstance(provider.get("requirement"), str)
+                        or not provider["requirement"]
+                    ):
                         raise ManifestError(
                             f"External requirement '{service_id}' has invalid provider metadata."
                         )
