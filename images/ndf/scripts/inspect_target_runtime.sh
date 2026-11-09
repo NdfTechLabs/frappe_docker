@@ -184,7 +184,10 @@ echo
 echo "=== APT SOURCE CONFIGURATION ==="
 if [ -d /etc/apt/sources.list.d ]; then
   find /etc/apt -maxdepth 2 -type f \( -name 'sources.list' -o -name '*.list' -o -name '*.sources' \) -print
-  grep -RhsE '^(deb |URIs:|Suites:|Components:|Types:)' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null
+  for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [ -f "$source_file" ] || continue
+    grep -E '^(deb |URIs:|Suites:|Components:|Types:)' "$source_file" 2>/dev/null || true
+  done
 else
   echo "MISSING: /etc/apt/sources.list.d"
 fi
