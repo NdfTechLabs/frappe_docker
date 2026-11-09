@@ -117,7 +117,6 @@ class TestMarketplaceDescriptorSchemas:
         ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
-
     def test_invalid_semver_constraint_is_rejected(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"]["frappe"] = "not-a-valid-range"
@@ -252,6 +251,7 @@ class TestMarketplaceDescriptorSchemas:
         ):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
+
 class TestCompositionDescriptorSemantics:
     def test_descriptor_path_traversal_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
@@ -265,7 +265,7 @@ class TestCompositionDescriptorSemantics:
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["descriptor"] = r"..\\..\\outside.json"
         with pytest.raises(
-            DescriptorValidationError, match="normalized repository-relative"
+            DescriptorValidationError, match="normalized catalogue-relative"
         ):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
