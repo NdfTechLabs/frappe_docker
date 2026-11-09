@@ -526,6 +526,30 @@ class TestLockGeneration:
 
 class TestGitReferenceResolution:
 
+    def test_explicit_commit_reference_is_verified(self, loader, monkeypatch):
+        commit = "d" * 40
+
+        def fake_run(args, **kwargs):
+            output = commit + "\\n" if args[-1] == "FETCH_HEAD" else ""
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout=output,
+                stderr="",
+            )
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        resolved = loader.resolve_git_ref(
+            "https://example.com/frappe.git",
+            commit,
+        )
+
+        assert resolved == {
+            "sha": commit,
+            "kind": "commit",
+            "name": commit,
+        }
+
     def test_exact_tag_is_preferred_over_same_named_branch(self, loader, monkeypatch):
         tag_object = "b" * 40
         peeled_commit = "a" * 40
