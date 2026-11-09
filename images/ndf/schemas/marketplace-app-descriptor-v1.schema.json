@@ -337,6 +337,25 @@
               "policy_id"
             ]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "build_system": {
+                "const": "custom_policy"
+              }
+            },
+            "required": [
+              "build_system"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "policy_id"
+              ]
+            }
+          }
         }
       ]
     },
@@ -386,6 +405,25 @@
             "required": [
               "policy_id"
             ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "post_install_policy": {
+                "const": "approved_policy"
+              }
+            },
+            "required": [
+              "post_install_policy"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "policy_id"
+              ]
+            }
           }
         }
       ]
