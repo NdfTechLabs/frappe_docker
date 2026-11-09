@@ -1681,6 +1681,66 @@ class TestV2CompositionAndCapabilityLoading:
 
         assert [item["id"] for item in loaded["_loaded_capabilities"]] == ["optional-ai"]
 
+    def test_capability_selection_is_recorded_and_lock_tampering_is_rejected(
+        self, loader, tmp_path, monkeypatch
+    ):
+        manifest = self._manifest(
+            "product",
+            capabilities=[
+                {
+                    "manifest": "optional-ai.json",
+                    "required": False,
+                    "selected": False,
+                }
+            ],
+            applications=[
+                {
+                    "name": "frappe",
+                    "repository": "https://github.com/frappe/frappe",
+                    "target_ref": "version-16",
+                    "required": True,
+                    "install_order": 0,
+                    "dependencies": [],
+                    "compatibility_status": "verified",
+                }
+            ],
+        )
+        source = loader.manifests_dir / "product.json"
+        source.write_text(json.dumps(manifest), encoding="utf-8")
+        loaded = loader.load("product.json")
+        applications = loader.compose_applications(loaded)
+        monkeypatch.setattr(
+            loader,
+            "resolve_git_ref",
+            lambda repository, target_ref: {
+                "sha": "a" * 40,
+                "kind": "tag",
+                "name": f"refs/tags/{target_ref}",
+            },
+        )
+        applications = loader.resolve_application_refs(
+            loader.resolve_install_order(applications),
+            loader.resolve_policy(loaded),
+        )
+        lock = loader.build_lock_data(loaded, applications)
+
+        assert lock["capabilities"] == [
+            {
+                "manifest": "optional-ai.json",
+                "required": False,
+                "selected": False,
+            }
+        ]
+        lock_path = tmp_path / "capability.lock.json"
+        loader.write_lock_file(lock, lock_path)
+        assert loader.validate_lock_file(lock_path, loaded) is True
+
+        tampered = json.loads(lock_path.read_text(encoding="utf-8"))
+        tampered["capabilities"][0]["selected"] = True
+        loader.write_lock_file(tampered, lock_path)
+        with pytest.raises(ManifestError, match="capability selections"):
+            loader.validate_lock_file(lock_path, loaded)
+
     def test_v1_capability_declarations_keep_legacy_non_loading_behaviour(self, loader):
         product_path = write_test_manifest(loader.manifests_dir, "product.json", "product")
         product = json.loads(product_path.read_text(encoding="utf-8"))
