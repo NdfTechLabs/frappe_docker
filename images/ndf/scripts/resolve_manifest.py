@@ -538,7 +538,6 @@ class ManifestLoader:
                 )
                 if not selected:
                     continue
-                dependencies.append(dep_id)
             package_dependencies = self._resolve_descriptor_packages(
                 descriptor, target_runtime, selected_optional
             )
@@ -1194,6 +1193,11 @@ class ManifestLoader:
             raise ManifestError(
                 "Lock file effective resolution policy does not match "
                 "the source manifests."
+            )
+
+        if lock.get("target_runtime") != expected_manifest.get("target_runtime"):
+            raise ManifestError(
+                "Lock file target runtime matrix does not match the source manifest."
             )
 
         # 2. Product identity
