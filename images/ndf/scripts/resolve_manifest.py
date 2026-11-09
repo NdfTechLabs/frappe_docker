@@ -532,6 +532,15 @@ class ManifestLoader:
                     raise ManifestError(
                         f"Bench app name '{bench_name}' maps to conflicting descriptor identities."
                     )
+                requested_ref = entry.get("target_ref") or descriptor.get("source", {}).get("default_ref")
+                if existing.get("target_ref") != requested_ref:
+                    raise ManifestError(
+                        f"Conflicting source-ref selections for Marketplace app '{app_id}'."
+                    )
+                if existing.get("_descriptor_sha256") != checksum:
+                    raise ManifestError(
+                        f"Conflicting descriptor content for Marketplace app '{app_id}'."
+                    )
                 return
             if app_id in app_ids and app_ids[app_id] != bench_name:
                 raise ManifestError(f"Duplicate Marketplace app_id: {app_id}")
@@ -1487,7 +1496,7 @@ class ManifestLoader:
                 if expected_kind == "container":
                     image = entry.get("artifact", {}).get("image")
                     if not isinstance(image, str) or not re.fullmatch(
-                        r"[^@\\s]+@sha256:[a-fA-F0-9]{64}", image
+                        r"[^@\s]+@sha256:[a-fA-F0-9]{64}", image
                     ):
                         raise ManifestError(
                             f"Container service '{service_id}' is not pinned to an OCI digest."
