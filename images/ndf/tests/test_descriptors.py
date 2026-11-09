@@ -254,6 +254,30 @@ class TestMarketplaceDescriptorSchemas:
         ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_verified_ndf_evidence_requires_test_timestamp(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"] = {
+            "status": "verified",
+            "frappe": "^16.0.0",
+            "python": ">=3.12,<3.15",
+            "evidence": [
+                {
+                    "kind": "automated_test",
+                    "authority": "ndf",
+                    "reference": "https://github.com/NdfTechLabs/frappe_docker/actions",
+                    "result": "passed",
+                    "tested_versions": {
+                        "frappe": "16.1.0",
+                        "python": "3.14.3",
+                    },
+                }
+            ],
+        }
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor schema validation failed"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_invalid_tested_version_in_compatibility_evidence_is_rejected(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"]["evidence"] = [
