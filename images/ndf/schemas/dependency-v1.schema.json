@@ -10,54 +10,131 @@
     },
     "disposition": {
       "type": "string",
-      "enum": ["base", "runtime_compatible", "environment_level"]
+      "enum": [
+        "base",
+        "runtime_compatible",
+        "environment_level"
+      ]
     },
     "benchApp": {
       "type": "object",
-      "required": ["app_id", "required"],
+      "required": [
+        "app_id",
+        "required"
+      ],
       "properties": {
-        "app_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-        "required": {"type": "boolean"},
-        "version": {"$ref": "#/$defs/versionConstraint"},
-        "disposition": {"const": "base", "default": "base"},
-        "notes": {"type": "string"}
+        "app_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "version": {
+          "$ref": "#/$defs/versionConstraint"
+        },
+        "notes": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "pythonPackage": {
       "type": "object",
-      "required": ["name", "disposition"],
+      "required": [
+        "name",
+        "disposition"
+      ],
       "properties": {
-        "name": {"type": "string", "minLength": 1},
-        "version": {"$ref": "#/$defs/versionConstraint"},
-        "disposition": {"$ref": "#/$defs/disposition"},
-        "source": {"type": "string", "format": "uri"},
-        "build_required": {"type": "boolean"}
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/versionConstraint"
+        },
+        "disposition": {
+          "$ref": "#/$defs/disposition"
+        },
+        "source": {
+          "type": "string",
+          "format": "uri"
+        },
+        "build_required": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     },
     "nodePackage": {
       "type": "object",
-      "required": ["name", "package_manager", "scope", "disposition"],
+      "required": [
+        "name",
+        "package_manager",
+        "scope",
+        "disposition"
+      ],
       "properties": {
-        "name": {"type": "string", "minLength": 1},
-        "version": {"$ref": "#/$defs/versionConstraint"},
-        "package_manager": {"enum": ["npm", "yarn", "pnpm"]},
-        "scope": {"enum": ["build", "runtime"]},
-        "disposition": {"$ref": "#/$defs/disposition"}
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/versionConstraint"
+        },
+        "package_manager": {
+          "enum": [
+            "npm",
+            "yarn",
+            "pnpm"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "build",
+            "runtime"
+          ]
+        },
+        "disposition": {
+          "$ref": "#/$defs/disposition"
+        }
       },
       "additionalProperties": false
     },
     "osPackage": {
       "type": "object",
-      "required": ["name", "distribution_family", "package_manager", "scope", "disposition"],
+      "required": [
+        "name",
+        "distribution_family",
+        "package_manager",
+        "scope",
+        "disposition"
+      ],
       "properties": {
-        "name": {"type": "string", "minLength": 1},
-        "version": {"$ref": "#/$defs/versionConstraint"},
-        "distribution_family": {"type": "string", "minLength": 1},
-        "package_manager": {"type": "string", "minLength": 1},
-        "scope": {"enum": ["build", "runtime"]},
-        "disposition": {"$ref": "#/$defs/disposition"}
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/versionConstraint"
+        },
+        "distribution_family": {
+          "type": "string",
+          "minLength": 1
+        },
+        "package_manager": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "enum": [
+            "build",
+            "runtime"
+          ]
+        },
+        "disposition": {
+          "$ref": "#/$defs/disposition"
+        }
       },
       "additionalProperties": false
     }
