@@ -1870,6 +1870,46 @@ class TestIndependentServiceComposition:
         assert services[0]["artifact"]["image"].endswith("a" * 64)
         assert external[0]["provider"]["requirement"] == "Merchant API v1"
 
+    def test_service_inventory_never_enters_bench_apps_json(
+        self, loader, sample_manifest, sample_applications
+    ):
+        service_path = self._write_service(
+            loader,
+            "search",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "search",
+                "name": "Search",
+                "service_kind": "container",
+                "artifact": {"image": "registry.example/search@sha256:" + "5" * 64},
+            },
+        )
+        manifest = dict(sample_manifest)
+        manifest["services"] = [{"descriptor": service_path, "required": True}]
+        applications = sample_applications + [
+            {
+                "name": "example_app",
+                "repository": "https://github.com/example/example_app",
+                "target_ref": "version-1",
+                "ref": "b" * 40,
+                "dependencies": ["frappe"],
+                "compatibility_status": "verified",
+                "_reference_kind": "tag",
+                "_resolved_ref": "refs/tags/version-1",
+            }
+        ]
+
+        lock = loader.build_lock_data(manifest, applications)
+        from scripts.prepare_build import build_apps_json
+
+        apps_json = build_apps_json(lock)
+
+        assert [item["service_id"] for item in lock["services"]] == ["search"]
+        assert [item["url"] for item in apps_json] == [
+            "https://github.com/example/example_app"
+        ]
+        assert all(item.get("name") != "search" for item in apps_json)
+
     def test_container_service_rejects_mutable_tag(self, loader):
         service_path = self._write_service(
             loader,
