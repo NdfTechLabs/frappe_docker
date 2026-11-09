@@ -751,6 +751,14 @@ class ManifestLoader:
                 f"Unable to read previous lock file " f"{previous_lock_path}: {exc}"
             ) from exc
 
+        # Version 1 locks predate enforced policy and reference provenance.
+        # Treat them as migration inputs, not valid version 2 locks.
+        if previous_lock.get("lock_version") != 2:
+            return [
+                f"Lock format upgrade required: "
+                f"{previous_lock.get('lock_version')} -> 2"
+            ]
+
         # Validate structure, but allow source checksum changes.
         self.validate_lock_file(
             previous_lock_path,
