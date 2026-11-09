@@ -44,6 +44,32 @@ class TestMarketplaceDescriptorSchemas:
             "dt_recomendations",
         ]
 
+    def test_typed_dependency_ecosystems_accept_valid_contract_records(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["dependencies"].update({
+            "python": [{
+                "name": "example-python-package",
+                "version": ">=1.0,<2.0",
+                "disposition": "runtime_compatible",
+                "build_required": True
+            }],
+            "node": [{
+                "name": "example-node-package",
+                "version": "^1.2.3",
+                "package_manager": "npm",
+                "scope": "build",
+                "disposition": "runtime_compatible"
+            }],
+            "os": [{
+                "name": "example-system-library",
+                "distribution_family": "debian",
+                "package_manager": "apt",
+                "scope": "build",
+                "disposition": "environment_level"
+            }]
+        })
+        validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_invalid_dependency_disposition_is_rejected(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["dependencies"]["python"] = [{
@@ -125,12 +151,20 @@ class TestCompositionDescriptorSemantics:
 
 
 class TestLegacyManifestCompatibility:
-    def test_existing_v1_core_manifest_validates_against_v1_schema(self):
+    def test_all_existing_v1_manifests_validate_against_v1_schema(self):
         schema = read_json(SCHEMA_DIR / "application-manifest-v1.schema.json")
-        manifest = read_json(NDF_DIR / "manifests" / "core" / "dhana-base-v16.json")
         Draft202012Validator.check_schema(schema)
-        errors = list(Draft202012Validator(schema).iter_errors(manifest))
-        assert errors == []
+        validator = Draft202012Validator(schema)
+        manifests = sorted((NDF_DIR / "manifests").rglob("*.json"))
+        assert manifests, "Expected existing v1 manifest fixtures"
+        failures = {}
+        for path in manifests:
+            errors = list(validator.iter_errors(read_json(path)))
+            if errors:
+                failures[str(path.relative_to(NDF_DIR))] = [
+                    error.message for error in errors
+                ]
+        assert failures == {}
 
     def test_v2_schema_accepts_legacy_embedded_application_entries(self):
         schema = read_json(SCHEMA_DIR / "application-manifest-v2.schema.json")
