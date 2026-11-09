@@ -181,6 +181,12 @@ def _load_policy_catalogue(schema_dir: Path) -> dict[str, set[str]]:
                 raise DescriptorValidationError(
                     f"Policy '{policy_id}' has an invalid NDF implementation_id in {path}"
                 )
+            try:
+                SemVerVersion(definition["policy_version"])
+            except ValueError as exc:
+                raise DescriptorValidationError(
+                    f"Policy '{policy_id}' has an invalid SemVer policy_version in {path}"
+                ) from exc
         result[field] = set(values)
     return result
 
