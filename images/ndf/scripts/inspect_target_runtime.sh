@@ -199,6 +199,8 @@ CONTAINER_SCRIPT
   {
     printf 'image=%s\n' "$image"
     printf 'requested_platform=%s\n' "$PLATFORM"
+    printf 'resolved_image_ref='
+    cat "$dir/resolved-image-ref.txt"
     printf 'image_id='
     cat "$dir/image-id.txt"
     printf 'repo_digests='
