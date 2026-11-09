@@ -440,6 +440,20 @@ class TestCompositionDescriptorSemantics:
         ):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
+    def test_descriptor_symlink_escape_is_rejected(self, tmp_path):
+        descriptor_dir = tmp_path / "images" / "ndf" / "descriptors" / "apps"
+        descriptor_dir.mkdir(parents=True)
+        outside = tmp_path.parent / "outside-descriptor.json"
+        outside.write_text("{}", encoding="utf-8")
+        (descriptor_dir / "dt_ecommerce.json").symlink_to(outside)
+
+        composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
+        composition["applications"] = composition["applications"][:1]
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor path escapes repository root"
+        ):
+            validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
+
     def test_missing_descriptor_file_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0][
