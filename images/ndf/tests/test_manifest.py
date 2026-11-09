@@ -524,6 +524,37 @@ class TestLockGeneration:
 # ---------------------------------------------------------
 
 
+class TestGitReferenceResolution:
+
+    def test_exact_tag_is_preferred_over_same_named_branch(self, loader, monkeypatch):
+        tag_object = "b" * 40
+        peeled_commit = "a" * 40
+        branch_commit = "c" * 40
+        output = (
+            f"{tag_object}\\trefs/tags/version-16\\n"
+            f"{peeled_commit}\\trefs/tags/version-16^{{}}\\n"
+            f"{branch_commit}\\trefs/heads/version-16\\n"
+        )
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(
+                args=args[0], returncode=0, stdout=output, stderr=""
+            ),
+        )
+
+        resolved = loader.resolve_git_ref(
+            "https://example.com/frappe.git",
+            "version-16",
+        )
+
+        assert resolved == {
+            "sha": peeled_commit,
+            "kind": "tag",
+            "name": "refs/tags/version-16",
+        }
+
+
 class TestLockValidation:
 
     def test_valid_lock_passes(self, loader, sample_manifest, generated_lock):
