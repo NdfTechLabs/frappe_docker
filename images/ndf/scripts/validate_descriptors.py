@@ -28,24 +28,6 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def _validator(schema_path: Path, dependency_schema_path: Path) -> Draft202012Validator:
-    schema = _load_json(schema_path)
-    dependency_schema = _load_json(dependency_schema_path)
-    dependency_uri = dependency_schema.get("$id")
-    registry = Registry().with_resource(
-        dependency_uri, Resource.from_contents(dependency_schema)
-    )
-    validator = Draft202012Validator(schema, registry=registry)
-    errors = sorted(
-        validator.iter_errors({}),
-        key=lambda error: list(error.absolute_path),
-    )
-    # Schema validity itself is checked separately by check_schema.
-    Draft202012Validator.check_schema(schema)
-    Draft202012Validator.check_schema(dependency_schema)
-    return validator
-
-
 def _schema_errors(instance: dict[str, Any], schema_path: Path,
                    dependency_schema_path: Path) -> list[str]:
     schema = _load_json(schema_path)
