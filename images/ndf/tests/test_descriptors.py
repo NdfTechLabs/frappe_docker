@@ -96,7 +96,13 @@ class TestCompositionDescriptorSemantics:
     def test_descriptor_path_traversal_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["descriptor"] = "../../../../etc/passwd"
-        with pytest.raises(DescriptorValidationError, match="escapes repository root"):
+        with pytest.raises(DescriptorValidationError, match="normalized repository-relative"):
+            validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
+
+    def test_windows_style_descriptor_path_is_rejected(self):
+        composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
+        composition["applications"][0]["descriptor"] = r"..\\..\\outside.json"
+        with pytest.raises(DescriptorValidationError, match="normalized repository-relative"):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
     def test_missing_descriptor_file_is_rejected(self):
