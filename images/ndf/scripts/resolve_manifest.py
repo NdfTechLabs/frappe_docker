@@ -11,6 +11,16 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from validate_descriptors import (
+    DescriptorValidationError,
+    collect_production_metadata_issues,
+    validate_descriptor,
+)
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version as PythonVersion
+from semantic_version import NpmSpec
+from semantic_version import Version as SemVerVersion
+
 
 class ManifestError(Exception):
     """Raised when manifest loading or resolution fails."""
@@ -26,6 +36,9 @@ class ManifestLoader:
         self.loaded = {}
         self.loading_stack = []
         self.manifest_ids = {}
+        self.repository_root = self.manifests_dir.parents[2]
+        self.schema_dir = self.manifests_dir.parent / "schemas"
+        self._descriptor_cache = {}
 
     def resolve_path(self, manifest_path: str) -> Path:
         """Resolve a manifest path relative to the manifests root."""
@@ -130,6 +143,58 @@ class ManifestLoader:
                     loaded_includes.append(child)
                     loaded_include_paths.add(resolved_include_path)
 
+            loaded_capabilities = []
+            capability_selections = []
+            capabilities = manifest.get("capabilities", [])
+            if not isinstance(capabilities, list):
+                raise ManifestError(f"'capabilities' must be an array in {path.name}")
+
+            if manifest.get("manifest_version") == "2.0.0":
+                for capability in capabilities:
+                    if not isinstance(capability, dict):
+                        raise ManifestError(
+                            f"Invalid capability entry in {path.name}"
+                        )
+                    capability_path = capability.get("manifest")
+                    if not isinstance(capability_path, str) or not capability_path:
+                        raise ManifestError(
+                            f"Capability entry has no valid manifest path in {path.name}"
+                        )
+                    required = capability.get("required", False)
+                    selected = capability.get("selected")
+                    if not isinstance(required, bool):
+                        raise ManifestError(
+                            f"Capability 'required' must be boolean in {path.name}"
+                        )
+                    if not required and not isinstance(selected, bool):
+                        raise ManifestError(
+                            f"Optional capability '{capability_path}' must have an explicit "
+                            "'selected' boolean."
+                        )
+                    include_capability = required or selected is True
+                    capability_selections.append(
+                        {
+                            "manifest": capability_path,
+                            "required": required,
+                            "selected": include_capability,
+                        }
+                    )
+                    if not include_capability:
+                        continue
+                    try:
+                        resolved_capability_path = self.resolve_path(capability_path)
+                        child = self.load(capability_path)
+                    except ManifestError as exc:
+                        if required or isinstance(exc, DuplicateManifestIDError):
+                            raise
+                        raise ManifestError(
+                            f"Selected optional capability is unavailable: "
+                            f"{capability_path}: {exc}"
+                        ) from exc
+                    if resolved_capability_path not in loaded_include_paths:
+                        loaded_capabilities.append(child)
+                        loaded_include_paths.add(resolved_capability_path)
+
             manifest_id = manifest["id"]
             existing_path = self.manifest_ids.get(manifest_id)
 
@@ -142,6 +207,8 @@ class ManifestLoader:
 
             manifest["_source_path"] = str(path)
             manifest["_loaded_includes"] = loaded_includes
+            manifest["_loaded_capabilities"] = loaded_capabilities
+            manifest["_capability_selections"] = capability_selections
 
             self.manifest_ids[manifest_id] = path
             self.loaded[path] = manifest
@@ -154,11 +221,13 @@ class ManifestLoader:
     def validate(self, manifest: dict, path: Path):
         """Validate a manifest against the NDF manifest schema."""
 
-        schema_path = (
-            self.manifests_dir.parent
-            / "schemas"
-            / "application-manifest-v1.schema.json"
+        manifest_version = manifest.get("manifest_version")
+        schema_name = (
+            "application-manifest-v2.schema.json"
+            if manifest_version == "2.0.0"
+            else "application-manifest-v1.schema.json"
         )
+        schema_path = self.schema_dir / schema_name
 
         try:
             with schema_path.open("r", encoding="utf-8") as file:
@@ -195,6 +264,8 @@ class ManifestLoader:
             policies.append(current.get("resolution", {}))
             for child in current.get("_loaded_includes", []):
                 collect(child)
+            for child in current.get("_loaded_capabilities", []):
+                collect(child)
 
         collect(manifest)
         values = {
@@ -219,41 +290,282 @@ class ManifestLoader:
 
         return values
 
+    def _load_app_descriptor(self, relative_path: str) -> tuple[dict, str, str]:
+        """Load one canonical Marketplace App Descriptor and its checksum."""
+        from pathlib import PurePosixPath
+
+        pure = PurePosixPath(relative_path)
+        if (
+            not relative_path
+            or relative_path.strip() != relative_path
+            or "\\" in relative_path
+            or pure.is_absolute()
+            or ".." in pure.parts
+            or pure.as_posix() != relative_path
+            or pure.parts[:4] != ("images", "ndf", "descriptors", "apps")
+            or len(pure.parts) != 5
+            or pure.suffix != ".json"
+        ):
+            raise ManifestError(f"Invalid canonical app descriptor path: {relative_path}")
+
+        path = (self.repository_root / relative_path).resolve()
+        descriptor_root = (self.repository_root / "images" / "ndf" / "descriptors" / "apps").resolve()
+        if not path.is_relative_to(descriptor_root) or not path.is_file():
+            raise ManifestError(f"Marketplace App Descriptor not found or unsafe: {relative_path}")
+
+        raw = path.read_bytes()
+        checksum = hashlib.sha256(raw).hexdigest()
+        cache_key = (relative_path, checksum)
+        if cache_key in self._descriptor_cache:
+            return self._descriptor_cache[cache_key], relative_path, checksum
+        try:
+            descriptor = json.loads(raw.decode("utf-8"))
+            validate_descriptor(descriptor, self.schema_dir)
+        except (UnicodeDecodeError, json.JSONDecodeError, DescriptorValidationError) as exc:
+            raise ManifestError(f"Invalid Marketplace App Descriptor {relative_path}: {exc}") from exc
+
+        if path.stem != descriptor.get("app_id"):
+            raise ManifestError(
+                f"Descriptor filename does not match app_id in {relative_path}"
+            )
+        self._descriptor_cache[cache_key] = descriptor
+        return descriptor, relative_path, checksum
+
+    def _validate_descriptor_target(
+        self, descriptor: dict, target_runtime: dict, selected_optional: set[str]
+    ) -> None:
+        """Check declared compatibility against the exact selected runtime matrix."""
+        app_id = descriptor["app_id"]
+        compatibility = descriptor.get("compatibility", {})
+        required_fields = ["frappe", "python"]
+        bench_deps = descriptor.get("dependencies", {}).get("bench_apps", [])
+        if any(
+            item.get("app_id") == "erpnext"
+            and (item.get("required", True) or f"bench_apps:{item.get('app_id')}" in selected_optional)
+            for item in bench_deps
+        ):
+            required_fields.append("erpnext")
+        if descriptor.get("build", {}).get("requires_assets_build") or any(
+            item.get("required", True)
+            or f"node:{item.get('name')}" in selected_optional
+            for item in descriptor.get("dependencies", {}).get("node", [])
+        ):
+            required_fields.append("node")
+
+        for field in required_fields:
+            target = target_runtime.get(field)
+            constraint = compatibility.get(field)
+            if not isinstance(target, str) or not target:
+                raise ManifestError(
+                    f"{app_id}: target_runtime.{field} must be an exact version."
+                )
+            if not isinstance(constraint, str) or not constraint:
+                raise ManifestError(
+                    f"{app_id}: compatibility.{field} is required for selected target."
+                )
+            try:
+                if field == "python":
+                    accepted = PythonVersion(target) in SpecifierSet(constraint)
+                else:
+                    accepted = SemVerVersion(target) in NpmSpec(constraint)
+            except (TypeError, ValueError) as exc:
+                raise ManifestError(
+                    f"{app_id}: invalid target or compatibility constraint for {field}: {exc}"
+                ) from exc
+            if not accepted:
+                raise ManifestError(
+                    f"{app_id}: target {field} {target} does not satisfy {constraint}."
+                )
+
+    def _compose_v2_applications(self, manifest: dict) -> list:
+        """Compose v2 descriptor-backed apps and their required dependency closure."""
+        target_runtime = manifest.get("target_runtime")
+        if not isinstance(target_runtime, dict):
+            raise ManifestError(
+                "v2 composition requires an explicit target_runtime matrix."
+            )
+        selected_optional = set(manifest.get("selected_optional_dependencies", []))
+        if any(not isinstance(item, str) or not item for item in selected_optional):
+            raise ManifestError("selected_optional_dependencies must contain non-empty strings.")
+
+        applications: dict[str, dict] = {}
+        app_ids: dict[str, str] = {}
+        source_owners: dict[str, str] = {}
+        pending_descriptors: list[tuple[dict, str, str, dict]] = []
+
+        def add_legacy(current: dict) -> None:
+            for app in current.get("applications", []):
+                if "descriptor" in app or not app.get("required", False):
+                    continue
+                name = app["name"]
+                if name in applications:
+                    if applications[name] != app:
+                        raise ManifestError(
+                            f"Conflicting application definition: {name}\n"
+                            f"First defined in: {source_owners[name]}\n"
+                            f"Conflicting definition in: {current['id']}"
+                        )
+                    continue
+                normalized = dict(app)
+                normalized.setdefault("dependencies", [])
+                applications[name] = normalized
+                source_owners[name] = current["id"]
+
+        def collect_legacy(current: dict) -> None:
+            for child in current.get("_loaded_includes", []):
+                collect_legacy(child)
+            for child in current.get("_loaded_capabilities", []):
+                collect_legacy(child)
+            add_legacy(current)
+
+        collect_legacy(manifest)
+
+        def add_descriptor(relative_path: str, entry: dict, owner: str) -> None:
+            descriptor, descriptor_path, checksum = self._load_app_descriptor(relative_path)
+            app_id = descriptor["app_id"]
+            bench_name = descriptor["app_module"]["bench_app_name"]
+            existing = applications.get(bench_name)
+            if existing:
+                if existing.get("_app_id") != app_id:
+                    raise ManifestError(
+                        f"Bench app name '{bench_name}' maps to conflicting descriptor identities."
+                    )
+                return
+            if app_id in app_ids and app_ids[app_id] != bench_name:
+                raise ManifestError(f"Duplicate Marketplace app_id: {app_id}")
+            self._validate_descriptor_target(descriptor, target_runtime, selected_optional)
+            issues = collect_production_metadata_issues(
+                descriptor, selected_optional
+            )
+            if issues:
+                raise ManifestError(
+                    "Descriptor metadata is not production-ready:\n"
+                    + "\n".join(f"  - {issue}" for issue in issues)
+                )
+            target_ref = entry.get("target_ref") or descriptor.get("source", {}).get("default_ref")
+            if not isinstance(target_ref, str) or not target_ref:
+                raise ManifestError(f"{app_id}: no target_ref or descriptor default_ref.")
+            dependencies = []
+            for dependency in descriptor.get("dependencies", {}).get("bench_apps", []):
+                dep_id = dependency["app_id"]
+                selected = dependency.get("required", True) or (
+                    f"bench_apps:{dep_id}" in selected_optional
+                )
+                if not selected:
+                    continue
+                dependencies.append(dep_id)
+            normalized = {
+                "name": bench_name,
+                "repository": descriptor["source"]["repository"],
+                "target_ref": target_ref,
+                "required": True,
+                "dependencies": dependencies,
+                "compatibility_status": descriptor["compatibility"]["status"],
+                "_app_id": app_id,
+                "_release_version": descriptor.get("release", {}).get("version"),
+                "_descriptor_path": descriptor_path,
+                "_descriptor_sha256": checksum,
+                "_descriptor": descriptor,
+                "_source_manifest": owner,
+            }
+            applications[bench_name] = normalized
+            app_ids[app_id] = bench_name
+            source_owners[bench_name] = owner
+            pending_descriptors.append((descriptor, descriptor_path, checksum, entry))
+
+        def collect_descriptors(current: dict) -> None:
+            for child in current.get("_loaded_includes", []):
+                collect_descriptors(child)
+            for child in current.get("_loaded_capabilities", []):
+                collect_descriptors(child)
+            for entry in current.get("applications", []):
+                if "descriptor" not in entry:
+                    continue
+                required = entry.get("required", False)
+                selected = entry.get("selected")
+                if not required and selected is not True:
+                    continue
+                add_descriptor(entry["descriptor"], entry, current["id"])
+
+        collect_descriptors(manifest)
+
+        # Close required descriptor dependencies using the canonical app_id filename.
+        index = 0
+        while index < len(pending_descriptors):
+            descriptor, _, _, _ = pending_descriptors[index]
+            parent_name = descriptor["app_module"]["bench_app_name"]
+            parent = applications[parent_name]
+            for dependency in descriptor.get("dependencies", {}).get("bench_apps", []):
+                dep_id = dependency["app_id"]
+                selected = dependency.get("required", True) or (
+                    f"bench_apps:{dep_id}" in selected_optional
+                )
+                if not selected:
+                    continue
+                existing = applications.get(dep_id)
+                if existing is None:
+                    canonical_path = f"images/ndf/descriptors/apps/{dep_id}.json"
+                    dep_descriptor, dep_path, dep_checksum = self._load_app_descriptor(canonical_path)
+                    add_descriptor(canonical_path, {}, f"descriptor:{parent_name}")
+                    existing = applications.get(dep_descriptor["app_module"]["bench_app_name"])
+                if existing is None:
+                    raise ManifestError(
+                        f"{parent_name} requires unresolved Bench app dependency '{dep_id}'."
+                    )
+                dep_name = existing["name"]
+                dep_release = existing.get("_release_version")
+                constraint = dependency.get("version")
+                if constraint:
+                    if not dep_release:
+                        raise ManifestError(
+                            f"{parent_name} requires {dep_id} {constraint}, but the "
+                            "dependency descriptor has no declared release.version."
+                        )
+                    try:
+                        accepted = SemVerVersion(dep_release) in NpmSpec(constraint)
+                    except (TypeError, ValueError) as exc:
+                        raise ManifestError(
+                            f"Invalid Bench app dependency constraint {constraint!r}: {exc}"
+                        ) from exc
+                    if not accepted:
+                        raise ManifestError(
+                            f"{parent_name} requires {dep_id} {constraint}, "
+                            f"but descriptor declares {dep_release}."
+                        )
+                if dep_name not in parent["dependencies"]:
+                    parent["dependencies"].append(dep_name)
+            index += 1
+
+        return list(applications.values())
+
     def compose_applications(self, manifest: dict) -> list:
-        """Collect required applications from the complete manifest hierarchy."""
+        """Collect the required applications from the loaded manifest hierarchy."""
+        if manifest.get("manifest_version") == "2.0.0":
+            return self._compose_v2_applications(manifest)
 
         applications = {}
         sources = {}
 
         def collect(current: dict):
-            # Process included manifests first.
             for child in current.get("_loaded_includes", []):
                 collect(child)
-
             for app in current.get("applications", []):
                 if not app.get("required", False):
                     continue
-
                 name = app["name"]
-
                 if name in applications:
                     existing = applications[name]
-
-                    # Allow identical definitions, but reject conflicts.
                     if existing != app:
                         raise ManifestError(
                             f"Conflicting application definition: {name}\n"
                             f"First defined in: {sources[name]}\n"
                             f"Conflicting definition in: {current['id']}"
                         )
-
                     continue
-
                 applications[name] = app
                 sources[name] = current["id"]
 
         collect(manifest)
-
         return list(applications.values())
 
     def validate_dependencies(self, applications: list):
@@ -454,6 +766,25 @@ class ManifestLoader:
             )
         return applications
 
+    def _walk_manifest_graph(self, manifest: dict) -> list[dict]:
+        """Return each loaded manifest once in deterministic graph traversal order."""
+        result = []
+        seen = set()
+
+        def visit(current: dict) -> None:
+            path = str(Path(current["_source_path"]).resolve())
+            if path in seen:
+                return
+            seen.add(path)
+            result.append(current)
+            for child in current.get("_loaded_includes", []):
+                visit(child)
+            for child in current.get("_loaded_capabilities", []):
+                visit(child)
+
+        visit(manifest)
+        return result
+
     def build_lock_data(
         self,
         manifest: dict,
@@ -487,6 +818,8 @@ class ManifestLoader:
             )
 
             for child in current.get("_loaded_includes", []):
+                collect_manifests(child)
+            for child in current.get("_loaded_capabilities", []):
                 collect_manifests(child)
 
         collect_manifests(manifest)
@@ -526,6 +859,18 @@ class ManifestLoader:
             },
             "framework": framework,
             "manifests": loaded_manifests,
+            "capabilities": sorted(
+                [
+                    {
+                        "manifest": item["manifest"],
+                        "required": item["required"],
+                        "selected": item["selected"],
+                    }
+                    for current in self._walk_manifest_graph(manifest)
+                    for item in current.get("_capability_selections", [])
+                ],
+                key=lambda item: item["manifest"],
+            ),
             "applications": [
                 {
                     "name": app["name"],
@@ -537,6 +882,16 @@ class ManifestLoader:
                     "compatibility_status": app.get("compatibility_status"),
                     "dependencies": app.get("dependencies", []),
                     "installation_order": index,
+                    **(
+                        {
+                            "app_id": app["_app_id"],
+                            "release_version": app.get("_release_version"),
+                            "descriptor": app["_descriptor_path"],
+                            "descriptor_sha256": app["_descriptor_sha256"],
+                        }
+                        if app.get("_app_id")
+                        else {}
+                    ),
                 }
                 for index, app in enumerate(applications, start=1)
             ],
@@ -829,6 +1184,8 @@ class ManifestLoader:
                 expected_manifest_entries[relative_path] = current["id"]
                 for child in current.get("_loaded_includes", []):
                     collect_expected_manifests(child)
+                for child in current.get("_loaded_capabilities", []):
+                    collect_expected_manifests(child)
 
             collect_expected_manifests(expected_manifest)
             actual_manifest_entries = {
@@ -838,6 +1195,23 @@ class ManifestLoader:
                 raise ManifestError(
                     "Lock file manifest inventory does not match the "
                     "loaded source manifest graph."
+                )
+
+            expected_capabilities = sorted(
+                [
+                    {
+                        "manifest": item["manifest"],
+                        "required": item["required"],
+                        "selected": item["selected"],
+                    }
+                    for current in self._walk_manifest_graph(expected_manifest)
+                    for item in current.get("_capability_selections", [])
+                ],
+                key=lambda item: item["manifest"],
+            )
+            if lock.get("capabilities", []) != expected_capabilities:
+                raise ManifestError(
+                    "Lock file capability selections do not match source manifests."
                 )
 
             expected_applications = self.compose_applications(expected_manifest)
@@ -856,6 +1230,10 @@ class ManifestLoader:
                     "target_ref",
                     "dependencies",
                     "compatibility_status",
+                    "app_id",
+                    "release_version",
+                    "descriptor",
+                    "descriptor_sha256",
                 )
                 for index, (expected_app, locked_app) in enumerate(
                     zip(expected_order, applications, strict=True),
