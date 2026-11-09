@@ -14,7 +14,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from referencing import Registry, Resource
-from semantic_version import NpmSpec, ValueError as SemVerValueError
+from semantic_version import NpmSpec
 
 
 class DescriptorValidationError(ValueError):
@@ -69,7 +69,7 @@ def _schema_errors(
 def _validate_semver(value: str, location: str) -> None:
     try:
         NpmSpec(value)
-    except (TypeError, ValueError, SemVerValueError) as exc:
+    except (TypeError, ValueError) as exc:
         raise DescriptorValidationError(
             f"Invalid SemVer range at {location}: {value!r}"
         ) from exc
