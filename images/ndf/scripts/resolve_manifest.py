@@ -372,9 +372,12 @@ class ManifestLoader:
                 ) from exc
 
             commit = result.stdout.strip()
-            if not re.fullmatch(r"[a-fA-F0-9]{40}", commit):
+            if (
+                not re.fullmatch(r"[a-fA-F0-9]{40}", commit)
+                or commit.lower() != target_ref.lower()
+            ):
                 raise ManifestError(
-                    f"Git did not resolve '{target_ref}' to a full commit SHA."
+                    f"Git did not resolve '{target_ref}' to the requested commit SHA."
                 )
             return {"sha": commit, "kind": "commit", "name": commit}
 
