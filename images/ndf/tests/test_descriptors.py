@@ -70,6 +70,12 @@ class TestMarketplaceDescriptorSchemas:
         })
         validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_verified_compatibility_requires_passed_evidence(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"] = {"status": "verified"}
+        with pytest.raises(DescriptorValidationError, match="Descriptor schema validation failed"):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_invalid_dependency_disposition_is_rejected(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["dependencies"]["python"] = [{
@@ -125,6 +131,23 @@ class TestCompositionDescriptorSemantics:
             "images/ndf/descriptors/apps/duplicate.json"
         )
         with pytest.raises(DescriptorValidationError, match="Duplicate descriptor app_id"):
+            validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
+
+    def test_duplicate_bench_install_names_are_rejected(self, tmp_path):
+        copy_descriptor_tree(tmp_path)
+        duplicate = read_json(NDF_DIR / "descriptors" / "apps" / "dt_recomendations.json")
+        duplicate["app_id"] = "different_marketplace_id"
+        duplicate["app_module"]["bench_app_name"] = "dt_ecommerce"
+        duplicate_path = (
+            tmp_path / "images" / "ndf" / "descriptors" / "apps" / "duplicate-bench-name.json"
+        )
+        duplicate_path.write_text(json.dumps(duplicate), encoding="utf-8")
+
+        composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
+        composition["applications"][1]["descriptor"] = (
+            "images/ndf/descriptors/apps/duplicate-bench-name.json"
+        )
+        with pytest.raises(DescriptorValidationError, match="Duplicate Bench app name"):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
     def test_missing_source_reference_is_rejected(self, tmp_path):
