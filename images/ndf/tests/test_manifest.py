@@ -616,6 +616,22 @@ class TestLockValidation:
             is True
         )
 
+    def test_missing_resolution_policy_is_rejected(self, loader, sample_manifest, generated_lock):
+        lock_path, lock_data = generated_lock
+        lock_data.pop("resolution_policy")
+        lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+
+        with pytest.raises(ManifestError, match="effective resolution policy"):
+            loader.validate_lock_file(lock_path, sample_manifest)
+
+    def test_framework_commit_must_match_frappe_application(self, loader, sample_manifest, generated_lock):
+        lock_path, lock_data = generated_lock
+        lock_data["framework"]["ref"] = "b" * 40
+        lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+
+        with pytest.raises(ManifestError, match="Framework source identity"):
+            loader.validate_lock_file(lock_path, sample_manifest)
+
     def test_invalid_lock_json_is_rejected(
         self,
         loader,
