@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schemas/application-manifest-v2.schema.json",
+  "manifest_version": "2.0.0",
+  "id": "dalali-v2-fixture",
+  "name": "Dalali v2 composition fixture",
+  "description": "Schema and semantic-validation fixture; not a production product manifest.",
+  "framework": {
+    "name": "frappe",
+    "version": "16",
+    "release_channel": "stable",
+    "target_ref": "version-16"
+  },
+  "profile": {
+    "type": "product",
+    "required": true,
+    "install_by_default": true
+  },
+  "resolution": {
+    "strategy": "locked",
+    "require_immutable_commit": true,
+    "fail_on_unverified_compatibility": true
+  },
+  "applications": [
+    {
+      "descriptor": "images/ndf/descriptors/apps/dt_ecommerce.json",
+      "required": true,
+      "install_order": 110
+    },
+    {
+      "descriptor": "images/ndf/descriptors/apps/dt_recomendations.json",
+      "required": true,
+      "install_order": 120
+    }
+  ],
+  "validation": {
+    "required_checks": [
+      "all_bench_apps_support_target_frappe_version",
+      "bench_app_dependency_graph_is_acyclic"
+    ]
+  }
+}
