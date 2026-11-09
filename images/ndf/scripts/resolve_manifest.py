@@ -197,7 +197,7 @@ class ManifestLoader:
 
         collect(manifest)
         values = {
-            "require_immutable_commit": True,
+            "require_immutable_commit": False,
             "allow_development_branches": True,
             "fail_on_unverified_compatibility": False,
         }
@@ -706,6 +706,15 @@ class ManifestLoader:
             if reference_kind not in {"branch", "tag"}:
                 raise ManifestError(
                     f"Application '{name}' has invalid reference provenance."
+                )
+            expected_ref_name = (
+                f"refs/heads/{target_ref}"
+                if reference_kind == "branch"
+                else f"refs/tags/{target_ref}"
+            )
+            if resolved_ref != expected_ref_name:
+                raise ManifestError(
+                    f"Application '{name}' has inconsistent resolved ref provenance."
                 )
             if not isinstance(resolved_ref, str) or not resolved_ref:
                 raise ManifestError(
