@@ -75,20 +75,29 @@ inspect_image() {
   mkdir -p "$dir"
 
   echo
-  echo "==> Pulling $image for $PLATFORM"
-  docker pull --platform "$PLATFORM" "$image"
-
-  echo "==> Recording registry manifest/index metadata"
+  echo "==> Resolving the mutable tag to an immutable registry digest"
   docker buildx imagetools inspect "$image" > "$dir/registry-manifest.txt"
+  local registry_digest
+  registry_digest="$(awk '/^Digest: sha256:/ {print $2; exit}' "$dir/registry-manifest.txt")"
+  if [[ ! "$registry_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "Unable to extract a valid registry digest for $image." >&2
+    exit 1
+  fi
+  local repository="${image%%:*}"
+  local resolved_ref="${repository}@${registry_digest}"
+  printf '%s\\n' "$resolved_ref" > "$dir/resolved-image-ref.txt"
+
+  echo "==> Pulling immutable image $resolved_ref for $PLATFORM"
+  docker pull --platform "$PLATFORM" "$resolved_ref"
 
   echo "==> Recording local image configuration and identity"
-  docker image inspect "$image" > "$dir/docker-image-inspect.json"
-  docker image inspect --format '{{.Id}}' "$image" > "$dir/image-id.txt"
-  docker image inspect --format '{{json .RepoDigests}}' "$image" > "$dir/repo-digests.json"
-  docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image" > "$dir/image-platform.txt"
+  docker image inspect "$resolved_ref" > "$dir/docker-image-inspect.json"
+  docker image inspect --format '{{.Id}}' "$resolved_ref" > "$dir/image-id.txt"
+  docker image inspect --format '{{json .RepoDigests}}' "$resolved_ref" > "$dir/repo-digests.json"
+  docker image inspect --format '{{.Os}}/{{.Architecture}}' "$resolved_ref" > "$dir/image-platform.txt"
 
   echo "==> Inspecting runtime metadata inside the selected image"
-  docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$image" -s \
+  docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -s \
     > "$dir/runtime-metadata.txt" <<'CONTAINER_SCRIPT'
 set +e
 
@@ -182,7 +191,7 @@ fi
 CONTAINER_SCRIPT
 
   echo "==> Capturing installed dpkg inventory"
-  docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$image" -c \
+  docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -c \
     "dpkg-query -W -f='\${binary:Package}\t\${Version}\t\${Architecture}\n' 2>/dev/null | LC_ALL=C sort" \
     > "$dir/dpkg-inventory.tsv"
 
@@ -201,7 +210,7 @@ CONTAINER_SCRIPT
 
   (
     cd "$dir"
-    sha256sum registry-manifest.txt docker-image-inspect.json image-id.txt \
+    sha256sum registry-manifest.txt resolved-image-ref.txt docker-image-inspect.json image-id.txt \
       repo-digests.json image-platform.txt runtime-metadata.txt \
       dpkg-inventory.tsv summary.txt > SHA256SUMS
   )
