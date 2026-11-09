@@ -54,8 +54,8 @@ def write_test_manifest(
         },
         "resolution": {
             "strategy": "locked",
-            "immutable_commit": True,
-            "allow_development_branches": False,
+            "require_immutable_commit": True,
+            "allow_development_branches": True,
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
@@ -73,7 +73,7 @@ def write_test_manifest(
                     "install_order": 0,
                     "dependencies": [],
                     "ref": None,
-                    "compatibility_status": "pending",
+                    "compatibility_status": "verified",
                 }
             ]
         ),
@@ -97,6 +97,8 @@ def shared_test_application():
         "dependencies": [],
         "ref": "a" * 40,
         "compatibility_status": "verified",
+        "_reference_kind": "tag",
+        "_resolved_ref": "refs/tags/version-16",
     }
 
 
@@ -281,7 +283,7 @@ def cli_environment(tmp_path):
         },
         "resolution": {
             "strategy": "locked",
-            "immutable_commit": True,
+            "require_immutable_commit": True,
             "allow_development_branches": False,
             "fail_on_unverified_compatibility": True,
             "notes": [],
@@ -330,7 +332,7 @@ class TestLockGeneration:
             sample_applications,
         )
 
-        assert lock_data["lock_version"] == 1
+        assert lock_data["lock_version"] == 2
         assert lock_data["product"]["id"] == "test-product"
         assert len(lock_data["applications"]) == 1
         assert lock_data["applications"][0]["name"] == "frappe"
