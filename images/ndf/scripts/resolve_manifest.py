@@ -766,6 +766,128 @@ class ManifestLoader:
             )
         return applications
 
+    def _load_service_descriptor(self, relative_path: str) -> tuple[dict, str]:
+        """Load a canonical independent-service descriptor and checksum."""
+        from pathlib import PurePosixPath
+
+        pure = PurePosixPath(relative_path)
+        if (
+            not relative_path
+            or relative_path.strip() != relative_path
+            or "\\" in relative_path
+            or pure.is_absolute()
+            or ".." in pure.parts
+            or pure.as_posix() != relative_path
+            or pure.parts[:4] != ("images", "ndf", "descriptors", "services")
+            or len(pure.parts) != 5
+            or pure.suffix != ".json"
+        ):
+            raise ManifestError(f"Invalid canonical service descriptor path: {relative_path}")
+        root = (self.repository_root / "images" / "ndf" / "descriptors" / "services").resolve()
+        path = (self.repository_root / relative_path).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            raise ManifestError(f"Service descriptor not found or unsafe: {relative_path}")
+        raw = path.read_bytes()
+        checksum = hashlib.sha256(raw).hexdigest()
+        try:
+            descriptor = json.loads(raw.decode("utf-8"))
+            schema_path = self.schema_dir / "service-descriptor-v1.schema.json"
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            errors = sorted(
+                Draft202012Validator(
+                    schema,
+                    format_checker=Draft202012Validator.FORMAT_CHECKER,
+                ).iter_errors(descriptor),
+                key=lambda error: (list(error.absolute_path), error.message),
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ManifestError(f"Unable to validate service descriptor {relative_path}: {exc}") from exc
+        if errors:
+            detail = "; ".join(error.message for error in errors)
+            raise ManifestError(f"Invalid service descriptor {relative_path}: {detail}")
+        if path.stem != descriptor.get("service_id"):
+            raise ManifestError(
+                f"Service descriptor filename does not match service_id: {relative_path}"
+            )
+        return descriptor, checksum
+
+    def compose_services(self, manifest: dict) -> tuple[list[dict], list[dict]]:
+        """Resolve independent container services and external requirements."""
+        services: dict[str, dict] = {}
+        external: dict[str, dict] = {}
+
+        for current in self._walk_manifest_graph(manifest):
+            for field, expected_kind, inventory in (
+                ("services", "container", services),
+                ("external_requirements", "external", external),
+            ):
+                for entry in current.get(field, []):
+                    required = entry.get("required", False)
+                    selected = entry.get("selected")
+                    if not required and selected is not True:
+                        continue
+                    descriptor_path = entry["descriptor"]
+                    descriptor, checksum = self._load_service_descriptor(descriptor_path)
+                    service_id = descriptor["service_id"]
+                    if descriptor["service_kind"] != expected_kind:
+                        raise ManifestError(
+                            f"{descriptor_path} has service_kind={descriptor['service_kind']}; "
+                            f"{field} requires {expected_kind}."
+                        )
+                    if service_id in inventory:
+                        previous = inventory[service_id]
+                        if previous["descriptor_sha256"] != checksum:
+                            raise ManifestError(
+                                f"Conflicting service descriptor identity: {service_id}"
+                            )
+                        continue
+                    inventory[service_id] = {
+                        "service_id": service_id,
+                        "name": descriptor["name"],
+                        "service_kind": expected_kind,
+                        "artifact": descriptor.get("artifact"),
+                        "provider": descriptor.get("provider"),
+                        "depends_on": descriptor.get("depends_on", []),
+                        "descriptor": descriptor_path,
+                        "descriptor_sha256": checksum,
+                    }
+
+        def validate_graph(inventory: dict[str, dict], label: str) -> list[dict]:
+            ordered: list[dict] = []
+            visiting: list[str] = []
+            visited: set[str] = set()
+
+            def visit(service_id: str) -> None:
+                if service_id in visiting:
+                    cycle = visiting[visiting.index(service_id):] + [service_id]
+                    raise ManifestError(
+                        f"Circular {label} dependency detected: " + " -> ".join(cycle)
+                    )
+                if service_id in visited:
+                    return
+                visiting.append(service_id)
+                item = inventory[service_id]
+                for dependency in sorted(item["depends_on"]):
+                    if dependency not in inventory:
+                        raise ManifestError(
+                            f"{label} '{service_id}' requires missing dependency '{dependency}'."
+                        )
+                    visit(dependency)
+                visiting.pop()
+                visited.add(service_id)
+                ordered.append(item)
+
+            for service_id in sorted(inventory):
+                visit(service_id)
+            for index, item in enumerate(ordered, start=1):
+                item["resolution_order"] = index
+            return ordered
+
+        return (
+            validate_graph(services, "service"),
+            validate_graph(external, "external requirement"),
+        )
+
     def _walk_manifest_graph(self, manifest: dict) -> list[dict]:
         """Return each loaded manifest once in deterministic graph traversal order."""
         result = []
@@ -825,6 +947,7 @@ class ManifestLoader:
         collect_manifests(manifest)
 
         policy = self.resolve_policy(manifest)
+        resolved_services, resolved_external = self.compose_services(manifest)
         framework_application = next(
             (app for app in applications if app["name"] == "frappe"),
             None,
@@ -871,6 +994,8 @@ class ManifestLoader:
                 ],
                 key=lambda item: item["manifest"],
             ),
+            "services": resolved_services,
+            "external_requirements": resolved_external,
             "applications": [
                 {
                     "name": app["name"],
@@ -1167,6 +1292,24 @@ class ManifestLoader:
 
             installed_apps.add(name)
 
+        for section in ("services", "external_requirements"):
+            entries = lock.get(section, [])
+            if not isinstance(entries, list):
+                raise ManifestError(f"Lock file {section} inventory must be an array.")
+            seen_service_ids = set()
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ManifestError(f"Invalid {section} entry in lock file.")
+                service_id = entry.get("service_id")
+                checksum = entry.get("descriptor_sha256")
+                if not isinstance(service_id, str) or not service_id or service_id in seen_service_ids:
+                    raise ManifestError(f"Invalid or duplicate identity in {section} lock inventory.")
+                if not isinstance(checksum, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", checksum):
+                    raise ManifestError(f"Invalid descriptor checksum for {service_id}.")
+                if not isinstance(entry.get("descriptor"), str):
+                    raise ManifestError(f"Missing descriptor path for {service_id}.")
+                seen_service_ids.add(service_id)
+
         # When validating a build lock against unchanged source manifests,
         # prove that the lock inventories the complete loaded manifest graph
         # and the exact required application composition. Structural checks
@@ -1212,6 +1355,16 @@ class ManifestLoader:
             if lock.get("capabilities", []) != expected_capabilities:
                 raise ManifestError(
                     "Lock file capability selections do not match source manifests."
+                )
+
+            expected_services, expected_external = self.compose_services(expected_manifest)
+            if lock.get("services", []) != expected_services:
+                raise ManifestError(
+                    "Lock file service inventory does not match selected source composition."
+                )
+            if lock.get("external_requirements", []) != expected_external:
+                raise ManifestError(
+                    "Lock file external-requirement inventory does not match selected source composition."
                 )
 
             expected_applications = self.compose_applications(expected_manifest)
@@ -1339,6 +1492,13 @@ class ManifestLoader:
 
             if old_item.get("sha256") != new_item.get("sha256"):
                 changes.append(f"Changed manifest content: {manifest_id}")
+
+        # Compare independently resolved service inventories.
+        for section in ("services", "external_requirements", "capabilities"):
+            old_items = previous_lock.get(section, [])
+            new_items = new_lock_data.get(section, [])
+            if old_items != new_items:
+                changes.append(f"Changed {section} composition")
 
         # Compare applications by application name.
         old_apps = {
