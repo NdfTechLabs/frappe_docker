@@ -27,7 +27,6 @@
   "resolution": {
     "strategy": "locked",
     "require_immutable_commit": true,
-    "allow_development_branches": false,
     "fail_on_unverified_compatibility": true,
     "notes": [
       "Vincowoods is a DhanaERP tenant product.",
