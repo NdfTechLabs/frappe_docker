@@ -514,7 +514,22 @@ class TestLockGeneration:
         assert lock_data["lock_version"] == 2
         assert lock_data["product"]["id"] == "test-product"
         assert len(lock_data["applications"]) == 1
-        assert lock_data["applications"][0]["name"] == "frappe"
+
+        # A01: the generated lock must persist the complete requested-source
+        # identity, not merely prove that the resolver returned a SHA.
+        frappe_lock = lock_data["applications"][0]
+        assert frappe_lock["name"] == "frappe"
+        assert frappe_lock["target_ref"] == "version-16"
+        assert frappe_lock["ref"] == "a" * 40
+        assert frappe_lock["reference_kind"] == "tag"
+        assert frappe_lock["resolved_ref"] == "refs/tags/version-16"
+        assert frappe_lock["compatibility_status"] == "verified"
+
+        # The framework identity must be bound to the same Frappe source.
+        assert lock_data["framework"]["target_ref"] == frappe_lock["target_ref"]
+        assert lock_data["framework"]["ref"] == frappe_lock["ref"]
+        assert lock_data["framework"]["reference_kind"] == frappe_lock["reference_kind"]
+        assert lock_data["framework"]["resolved_ref"] == frappe_lock["resolved_ref"]
 
     def test_lock_generation_is_deterministic(
         self,
