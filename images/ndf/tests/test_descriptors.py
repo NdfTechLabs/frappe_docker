@@ -227,6 +227,30 @@ class TestMarketplaceDescriptorSchemas:
         }
         validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_tested_version_must_satisfy_declared_compatibility_range(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"].update(
+            {
+                "frappe": "^16.0.0",
+                "evidence": [
+                    {
+                        "kind": "automated_test",
+                        "authority": "publisher",
+                        "reference": "https://example.com/test-report",
+                        "result": "passed",
+                        "tested_versions": {
+                            "frappe": "17.0.0",
+                            "python": "3.14.3",
+                        },
+                    }
+                ],
+            }
+        )
+        with pytest.raises(
+            DescriptorValidationError, match="does not satisfy compatibility.frappe"
+        ):
+            validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_invalid_tested_version_in_compatibility_evidence_is_rejected(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"]["evidence"] = [
