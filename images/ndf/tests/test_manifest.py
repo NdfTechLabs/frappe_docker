@@ -1848,7 +1848,13 @@ class TestDescriptorResolutionPrimitives:
             descriptor,
             {
                 "os": {"distribution_family": "debian", "package_manager": "apt"},
-                "package_versions": {"os:libpq-dev": "16.4-1"},
+                "package_versions": {
+                    "os:libpq-dev": {
+                        "version": "16.4-1",
+                        "source": "https://deb.debian.org/debian",
+                        "resolver": "apt",
+                    }
+                },
             },
             set(),
         )
