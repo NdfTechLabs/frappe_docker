@@ -4,13 +4,11 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
-
 from scripts.validate_descriptors import (
     DescriptorValidationError,
     validate_composition_descriptors,
     validate_descriptor,
 )
-
 
 NDF_DIR = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = NDF_DIR.parents[1]
@@ -46,55 +44,73 @@ class TestMarketplaceDescriptorSchemas:
 
     def test_typed_dependency_ecosystems_accept_valid_contract_records(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
-        descriptor["dependencies"].update({
-            "python": [{
-                "name": "example-python-package",
-                "version": ">=1.0,<2.0",
-                "disposition": "runtime_compatible",
-                "build_required": True
-            }],
-            "node": [{
-                "name": "example-node-package",
-                "version": "^1.2.3",
-                "package_manager": "npm",
-                "scope": "build",
-                "disposition": "runtime_compatible"
-            }],
-            "os": [{
-                "name": "example-system-library",
-                "distribution_family": "debian",
-                "package_manager": "apt",
-                "scope": "build",
-                "disposition": "environment_level"
-            }]
-        })
+        descriptor["dependencies"].update(
+            {
+                "python": [
+                    {
+                        "name": "example-python-package",
+                        "version": ">=1.0,<2.0",
+                        "disposition": "runtime_compatible",
+                        "build_required": True,
+                    }
+                ],
+                "node": [
+                    {
+                        "name": "example-node-package",
+                        "version": "^1.2.3",
+                        "package_manager": "npm",
+                        "scope": "build",
+                        "disposition": "runtime_compatible",
+                    }
+                ],
+                "os": [
+                    {
+                        "name": "example-system-library",
+                        "distribution_family": "debian",
+                        "package_manager": "apt",
+                        "scope": "build",
+                        "disposition": "environment_level",
+                    }
+                ],
+            }
+        )
         validate_descriptor(descriptor, SCHEMA_DIR)
 
     def test_verified_compatibility_requires_passed_evidence(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"] = {"status": "verified"}
-        with pytest.raises(DescriptorValidationError, match="Descriptor schema validation failed"):
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor schema validation failed"
+        ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
     def test_invalid_dependency_disposition_is_rejected(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
-        descriptor["dependencies"]["python"] = [{
-            "name": "example-package",
-            "disposition": "install_anywhere",
-        }]
-        with pytest.raises(DescriptorValidationError, match="Descriptor schema validation failed"):
+        descriptor["dependencies"]["python"] = [
+            {
+                "name": "example-package",
+                "disposition": "install_anywhere",
+            }
+        ]
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor schema validation failed"
+        ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
     def test_unknown_dependency_properties_are_rejected(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
-        descriptor["dependencies"]["node"] = [{
-            "name": "example-package",
-            "package_manager": "npm",
-            "scope": "build",
-            "disposition": "runtime_compatible",
-            "run": "arbitrary command",
-        }]
-        with pytest.raises(DescriptorValidationError, match="Descriptor schema validation failed"):
+        descriptor["dependencies"]["node"] = [
+            {
+                "name": "example-package",
+                "package_manager": "npm",
+                "scope": "build",
+                "disposition": "runtime_compatible",
+                "run": "arbitrary command",
+            }
+        ]
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor schema validation failed"
+        ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
 
@@ -102,19 +118,27 @@ class TestCompositionDescriptorSemantics:
     def test_descriptor_path_traversal_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["descriptor"] = "../../../../etc/passwd"
-        with pytest.raises(DescriptorValidationError, match="normalized repository-relative"):
+        with pytest.raises(
+            DescriptorValidationError, match="normalized repository-relative"
+        ):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
     def test_windows_style_descriptor_path_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["descriptor"] = r"..\\..\\outside.json"
-        with pytest.raises(DescriptorValidationError, match="normalized repository-relative"):
+        with pytest.raises(
+            DescriptorValidationError, match="normalized repository-relative"
+        ):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
     def test_missing_descriptor_file_is_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
-        composition["applications"][0]["descriptor"] = "images/ndf/descriptors/apps/not-found.json"
-        with pytest.raises(DescriptorValidationError, match="Descriptor file not found"):
+        composition["applications"][0][
+            "descriptor"
+        ] = "images/ndf/descriptors/apps/not-found.json"
+        with pytest.raises(
+            DescriptorValidationError, match="Descriptor file not found"
+        ):
             validate_composition_descriptors(composition, REPOSITORY_ROOT, SCHEMA_DIR)
 
     def test_duplicate_descriptor_app_ids_are_rejected(self, tmp_path):
@@ -127,26 +151,35 @@ class TestCompositionDescriptorSemantics:
         duplicate_path.write_text(json.dumps(duplicate), encoding="utf-8")
 
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
-        composition["applications"][1]["descriptor"] = (
-            "images/ndf/descriptors/apps/duplicate.json"
-        )
-        with pytest.raises(DescriptorValidationError, match="Duplicate descriptor app_id"):
+        composition["applications"][1][
+            "descriptor"
+        ] = "images/ndf/descriptors/apps/duplicate.json"
+        with pytest.raises(
+            DescriptorValidationError, match="Duplicate descriptor app_id"
+        ):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
     def test_duplicate_bench_install_names_are_rejected(self, tmp_path):
         copy_descriptor_tree(tmp_path)
-        duplicate = read_json(NDF_DIR / "descriptors" / "apps" / "dt_recomendations.json")
+        duplicate = read_json(
+            NDF_DIR / "descriptors" / "apps" / "dt_recomendations.json"
+        )
         duplicate["app_id"] = "different_marketplace_id"
         duplicate["app_module"]["bench_app_name"] = "dt_ecommerce"
         duplicate_path = (
-            tmp_path / "images" / "ndf" / "descriptors" / "apps" / "duplicate-bench-name.json"
+            tmp_path
+            / "images"
+            / "ndf"
+            / "descriptors"
+            / "apps"
+            / "duplicate-bench-name.json"
         )
         duplicate_path.write_text(json.dumps(duplicate), encoding="utf-8")
 
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
-        composition["applications"][1]["descriptor"] = (
-            "images/ndf/descriptors/apps/duplicate-bench-name.json"
-        )
+        composition["applications"][1][
+            "descriptor"
+        ] = "images/ndf/descriptors/apps/duplicate-bench-name.json"
         with pytest.raises(DescriptorValidationError, match="Duplicate Bench app name"):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
@@ -164,7 +197,9 @@ class TestCompositionDescriptorSemantics:
         with pytest.raises(DescriptorValidationError, match="Missing source reference"):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
-    def test_composition_target_ref_satisfies_missing_descriptor_default(self, tmp_path):
+    def test_composition_target_ref_satisfies_missing_descriptor_default(
+        self, tmp_path
+    ):
         copy_descriptor_tree(tmp_path)
         descriptor_path = (
             tmp_path / "images" / "ndf" / "descriptors" / "apps" / "dt_ecommerce.json"
@@ -175,7 +210,9 @@ class TestCompositionDescriptorSemantics:
 
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["target_ref"] = "release-override"
-        descriptors = validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
+        descriptors = validate_composition_descriptors(
+            composition, tmp_path, SCHEMA_DIR
+        )
         assert descriptors[0]["app_id"] == "dt_ecommerce"
 
 

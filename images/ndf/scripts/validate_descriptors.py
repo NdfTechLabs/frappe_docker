@@ -4,6 +4,7 @@
 This module is deliberately separate from resolve_manifest.py. It establishes
 schema and composition-reference validation before resolver integration.
 """
+
 from __future__ import annotations
 
 import json
@@ -22,14 +23,17 @@ def _load_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise DescriptorValidationError(f"Unable to load JSON file {path}: {exc}") from exc
+        raise DescriptorValidationError(
+            f"Unable to load JSON file {path}: {exc}"
+        ) from exc
     if not isinstance(value, dict):
         raise DescriptorValidationError(f"Expected a JSON object in {path}")
     return value
 
 
-def _schema_errors(instance: dict[str, Any], schema_path: Path,
-                   dependency_schema_path: Path) -> list[str]:
+def _schema_errors(
+    instance: dict[str, Any], schema_path: Path, dependency_schema_path: Path
+) -> list[str]:
     schema = _load_json(schema_path)
     dependency_schema = _load_json(dependency_schema_path)
     Draft202012Validator.check_schema(schema)
@@ -59,7 +63,9 @@ def validate_descriptor(descriptor: dict[str, Any], schema_dir: Path) -> None:
         schema_dir / "dependency-v1.schema.json",
     )
     if errors:
-        raise DescriptorValidationError("Descriptor schema validation failed:\n" + "\n".join(errors))
+        raise DescriptorValidationError(
+            "Descriptor schema validation failed:\n" + "\n".join(errors)
+        )
 
 
 def validate_composition_descriptors(
@@ -126,7 +132,9 @@ def validate_composition_descriptors(
             )
         seen_bench_names[bench_name] = relative
 
-        selected_ref = entry.get("target_ref") or descriptor.get("source", {}).get("default_ref")
+        selected_ref = entry.get("target_ref") or descriptor.get("source", {}).get(
+            "default_ref"
+        )
         if not isinstance(selected_ref, str) or not selected_ref.strip():
             raise DescriptorValidationError(
                 f"Missing source reference for application '{app_id}': "
