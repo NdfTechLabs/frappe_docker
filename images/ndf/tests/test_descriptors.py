@@ -248,7 +248,7 @@ class TestMarketplaceDescriptorSchemas:
             "descriptor"
         ] = "images/ndf/descriptors/apps/renamed.json"
         with pytest.raises(
-            DescriptorValidationError, match="normalized catalogue-relative"
+            DescriptorValidationError, match="filename/path identity mismatch"
         ):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
