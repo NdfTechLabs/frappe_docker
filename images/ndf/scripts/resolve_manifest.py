@@ -1529,6 +1529,7 @@ class ManifestLoader:
 
             installed_apps.add(name)
 
+        locked_independent_artifacts = {}
         for section in ("services", "external_requirements"):
             entries = lock.get(section, [])
             if not isinstance(entries, list):
@@ -1577,7 +1578,36 @@ class ManifestLoader:
                     or any(not isinstance(item, str) or not item for item in entry.get("depends_on", []))
                 ):
                     raise ManifestError(f"Invalid dependency list for {service_id}.")
+                order = entry.get("resolution_order")
+                if not isinstance(order, int) or isinstance(order, bool) or order < 1:
+                    raise ManifestError(
+                        f"Invalid resolution order for independent artifact '{service_id}'."
+                    )
+                if order in locked_independent_artifacts:
+                    raise ManifestError(
+                        "Duplicate resolution order in independent artifact lock inventory."
+                    )
+                locked_independent_artifacts[order] = entry
                 seen_service_ids.add(service_id)
+
+        all_independent = {
+            entry["service_id"]: entry
+            for section in ("services", "external_requirements")
+            for entry in lock.get(section, [])
+        }
+        for entry in all_independent.values():
+            for dependency_id in entry.get("depends_on", []):
+                dependency = all_independent.get(dependency_id)
+                if dependency is None:
+                    raise ManifestError(
+                        f"Independent artifact '{entry['service_id']}' has missing "
+                        f"dependency '{dependency_id}' in lock file."
+                    )
+                if dependency["resolution_order"] >= entry["resolution_order"]:
+                    raise ManifestError(
+                        f"Independent artifact '{entry['service_id']}' appears before "
+                        f"dependency '{dependency_id}' in lock file."
+                    )
 
         # When validating a build lock against unchanged source manifests,
         # prove that the lock inventories the complete loaded manifest graph
