@@ -203,7 +203,7 @@ class ManifestLoader:
                             )
                         child = self.load(capability_path)
                     except ManifestError as exc:
-                        if required or isinstance(exc, DuplicateManifestIDError):
+                        if required or selected is True or isinstance(exc, DuplicateManifestIDError):
                             raise
                         raise ManifestError(
                             f"Selected optional capability is unavailable: "
