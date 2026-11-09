@@ -1510,8 +1510,12 @@ class ManifestLoader:
                         not isinstance(package, dict)
                         or not all(
                             isinstance(package.get(field), str) and package[field]
-                            for field in ("ecosystem", "name", "version")
+                            for field in ("ecosystem", "name", "version", "source", "resolver")
                         )
+                        or package.get("ecosystem") not in {"python", "node", "os"}
+                        or not isinstance(package.get("install"), bool)
+                        or package.get("disposition")
+                        not in {"base", "runtime_compatible", "environment_level"}
                     ):
                         raise ManifestError(
                             f"Application '{name}' has an incomplete package selection."
