@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/marketplace-app-descriptor-v1.schema.json",
+  "title": "NDF Marketplace App Descriptor",
+  "description": "Reusable metadata for one Frappe/Bench-installable application. Product and capability manifests select and compose descriptors; they do not duplicate descriptor-owned metadata.",
+  "type": "object",
+  "required": ["descriptor_version", "app_id", "name", "publisher", "source", "app_module", "dependencies", "build", "installation", "compatibility"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "descriptor_version": {"const": "1.0.0"},
+    "app_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "name": {"type": "string", "minLength": 1},
+    "publisher": {"type": "string", "minLength": 1},
+    "description": {"type": "string"},
+    "license": {"type": "string"},
+    "release": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "released_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["repository"],
+      "properties": {
+        "repository": {"type": "string", "format": "uri"},
+        "default_ref": {"type": "string"},
+        "source_subdirectory": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "app_module": {
+      "type": "object",
+      "required": ["bench_app_name"],
+      "properties": {
+        "bench_app_name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "modules": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["verified", "pending", "incompatible", "experimental"]},
+        "frappe": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
+        "erpnext": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
+        "python": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
+        "node": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "reference", "result"],
+            "properties": {
+              "kind": {"enum": ["automated_test", "manual_test", "upstream_declaration", "maintainer_attestation"]},
+              "reference": {"type": "string", "minLength": 1},
+              "result": {"enum": ["passed", "failed", "partial"]},
+              "tested_at": {"type": "string", "format": "date-time"},
+              "tested_versions": {"type": "object", "additionalProperties": {"type": "string"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "bench_apps": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/benchApp"}},
+        "python": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/pythonPackage"}},
+        "node": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/nodePackage"}},
+        "os": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/osPackage"}}
+      },
+      "additionalProperties": false
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "python_project_file": {"type": "string"},
+        "node_lockfile": {"type": "string"},
+        "build_system": {"enum": ["bench", "setuptools", "flit", "hatchling", "poetry", "npm", "yarn", "pnpm", "custom_policy"]},
+        "requires_assets_build": {"type": "boolean"},
+        "required_tools": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "installation": {
+      "type": "object",
+      "properties": {
+        "bench_installable": {"const": true},
+        "requires_migrate": {"type": "boolean"},
+        "install_order_hint": {"type": "integer", "minimum": 0},
+        "post_install_policy": {"enum": ["none", "trusted_hook", "operator_action"]}
+      },
+      "additionalProperties": false
+    },
+    "metadata": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}}
+  },
+  "additionalProperties": false
+}
