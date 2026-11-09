@@ -24,7 +24,9 @@ def read_json(path):
 
 def copy_descriptor_tree(destination):
     source = NDF_DIR / "descriptors"
-    shutil.copytree(source, destination / "images" / "ndf" / "descriptors")
+    target = destination / "images" / "ndf" / "descriptors"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target)
 
 
 class TestMarketplaceDescriptorSchemas:
@@ -107,13 +109,19 @@ class TestCompositionDescriptorSemantics:
         with pytest.raises(DescriptorValidationError, match="Missing source reference"):
             validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
 
-    def test_composition_target_ref_overrides_descriptor_default(self):
+    def test_composition_target_ref_satisfies_missing_descriptor_default(self, tmp_path):
+        copy_descriptor_tree(tmp_path)
+        descriptor_path = (
+            tmp_path / "images" / "ndf" / "descriptors" / "apps" / "dt_ecommerce.json"
+        )
+        descriptor = read_json(descriptor_path)
+        descriptor["source"].pop("default_ref")
+        descriptor_path.write_text(json.dumps(descriptor), encoding="utf-8")
+
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
         composition["applications"][0]["target_ref"] = "release-override"
-        descriptors = validate_composition_descriptors(
-            composition, REPOSITORY_ROOT, SCHEMA_DIR
-        )
-        assert descriptors[0]["source"]["default_ref"] == "version-1"
+        descriptors = validate_composition_descriptors(composition, tmp_path, SCHEMA_DIR)
+        assert descriptors[0]["app_id"] == "dt_ecommerce"
 
 
 class TestLegacyManifestCompatibility:
