@@ -4,7 +4,7 @@
   "title": "NDF Frappe Composition Manifest v2",
   "description": "Composition root selecting reusable Marketplace App Descriptors. Product-specific inclusion and source-ref overrides remain here.",
   "type": "object",
-  "required": ["manifest_version", "id", "name", "framework", "profile", "resolution", "validation"],
+  "required": ["manifest_version", "id", "name", "framework", "profile", "resolution", "target_runtime", "validation"],
   "properties": {
     "$schema": {"type": "string"},
     "manifest_version": {"const": "2.0.0"},
@@ -21,6 +21,38 @@
         "target_ref": {"type": "string", "minLength": 1}
       },
       "additionalProperties": true
+    },
+    "target_runtime": {
+      "type": "object",
+      "required": ["frappe", "python"],
+      "properties": {
+        "frappe": {"type": "string", "minLength": 1},
+        "erpnext": {"type": "string", "minLength": 1},
+        "python": {"type": "string", "minLength": 1},
+        "node": {"type": "string", "minLength": 1},
+        "os": {
+          "type": "object",
+          "required": ["distribution_family", "package_manager"],
+          "properties": {
+            "distribution_family": {"enum": ["debian", "rpm", "alpine"]},
+            "package_manager": {"enum": ["apt", "dpkg", "dnf", "yum", "rpm", "apk"]},
+            "release": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "package_versions": {
+          "type": "object",
+          "description": "Exact package versions supplied by the target image/package-manager resolution context.",
+          "additionalProperties": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": false
+    },
+    "selected_optional_dependencies": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "description": "Explicit optional dependency selections, using ecosystem:identity."
     },
     "profile": {
       "type": "object",
@@ -82,6 +114,7 @@
                 "description": "Normalized repository-relative POSIX path to a Marketplace App Descriptor JSON file."
               },
               "required": {"type": "boolean"},
+              "selected": {"type": "boolean"},
               "target_ref": {"type": "string", "minLength": 1},
               "ref": {"type": ["string", "null"], "description": "Temporary migration field; not an authoritative source pin."},
               "install_order": {"type": "integer", "minimum": 0},
@@ -109,7 +142,44 @@
         ]
       }
     },
-    "services": {"type": "array", "items": {"type": "object"}},
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["descriptor", "required"],
+        "properties": {
+          "descriptor": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"},
+          "selected": {"type": "boolean"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"required": {"const": false}}, "required": ["required"]},
+            "then": {"required": ["selected"]}
+          }
+        ],
+        "additionalProperties": false
+      }
+    },
+    "external_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["descriptor", "required"],
+        "properties": {
+          "descriptor": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"},
+          "selected": {"type": "boolean"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"required": {"const": false}}, "required": ["required"]},
+            "then": {"required": ["selected"]}
+          }
+        ],
+        "additionalProperties": false
+      }
+    },
     "validation": {
       "type": "object",
       "properties": {
