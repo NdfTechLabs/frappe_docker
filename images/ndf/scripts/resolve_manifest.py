@@ -484,7 +484,7 @@ class ManifestLoader:
             "resolution_policy": policy,
             "resolver": {
                 "name": "ndf-manifest-resolver",
-                "version": "1.0.0",
+                "version": "1.1.0",
             },
             "product": {
                 "id": manifest["id"],
@@ -810,11 +810,11 @@ class ManifestLoader:
 
         # Version 1 locks predate enforced policy and reference provenance.
         # Treat them as migration inputs, not valid version 2 locks.
-        if previous_lock.get("lock_version") != 2:
-            return [
-                f"Lock format upgrade required: "
-                f"{previous_lock.get('lock_version')} -> 2"
-            ]
+        previous_version = previous_lock.get("lock_version")
+        if previous_version == 1:
+            return ["Lock format upgrade required: 1 -> 2"]
+        if previous_version != 2:
+            raise ManifestError(f"Unsupported lock version: {previous_version}")
 
         # Validate structure, but allow source checksum changes.
         self.validate_lock_file(
