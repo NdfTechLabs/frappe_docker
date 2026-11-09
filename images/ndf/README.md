@@ -92,8 +92,8 @@ The current product workflows are based on predefined product definitions. Dynam
 
 ### Cross-repository architecture records
 
-- [DT Master M4 architecture](https://github.com/NdfTechLabs/dt_master# m4--ndf-frappe-docker-integration)
-- [DT Tenant M4 architecture](https://github.com/NdfTechLabs/dt_tenant#dt-master-and-ndf-integration)
+- [DT Master M4 architecture](https://github.com/NdfTechLabs/dt_master/blob/develop/README.md)
+- [DT Tenant M4 architecture](https://github.com/NdfTechLabs/dt_tenant/blob/develop/README.md)
 
 ## Upstream relationship
 
