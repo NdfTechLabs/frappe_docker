@@ -14,9 +14,11 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
-from packaging.version import InvalidVersion, Version as PythonVersion
+from packaging.version import InvalidVersion
+from packaging.version import Version as PythonVersion
 from referencing import Registry, Resource
-from semantic_version import NpmSpec, Version as SemVerVersion
+from semantic_version import NpmSpec
+from semantic_version import Version as SemVerVersion
 
 
 class DescriptorValidationError(ValueError):
@@ -218,9 +220,7 @@ def _load_policy_catalogue(schema_dir: Path) -> dict[str, set[str]]:
     return result
 
 
-def _validate_policy_references(
-    descriptor: dict[str, Any], schema_dir: Path
-) -> None:
+def _validate_policy_references(descriptor: dict[str, Any], schema_dir: Path) -> None:
     catalogue = _load_policy_catalogue(schema_dir)
     build = descriptor.get("build", {})
     if build.get("policy_id") and build["policy_id"] not in catalogue["build_policies"]:
@@ -228,16 +228,19 @@ def _validate_policy_references(
             f"Unapproved NDF build policy: {build['policy_id']}"
         )
     installation = descriptor.get("installation", {})
-    if installation.get("policy_id") and installation["policy_id"] not in catalogue[
-        "installation_policies"
-    ]:
+    if (
+        installation.get("policy_id")
+        and installation["policy_id"] not in catalogue["installation_policies"]
+    ):
         raise DescriptorValidationError(
             f"Unapproved NDF installation policy: {installation['policy_id']}"
         )
 
 
 def _validate_os_package_manager(descriptor: dict[str, Any]) -> None:
-    for index, dependency in enumerate(descriptor.get("dependencies", {}).get("os", [])):
+    for index, dependency in enumerate(
+        descriptor.get("dependencies", {}).get("os", [])
+    ):
         family = dependency["distribution_family"]
         manager = dependency["package_manager"]
         if manager not in OS_PACKAGE_MANAGERS[family]:
@@ -287,6 +290,7 @@ def collect_production_metadata_issues(
             return True
         identity = dependency.get("app_id", dependency.get("name", ""))
         return f"{ecosystem}:{identity}" in selected_optional_dependencies
+
     issues: list[str] = []
     app_id = descriptor.get("app_id", "<unknown>")
     compatibility = descriptor.get("compatibility", {})
@@ -320,11 +324,7 @@ def collect_production_metadata_issues(
         and item.get("kind") in {"automated_test", "manual_test"}
         and item.get("result") == "passed"
         and required_evidence_versions.issubset(
-            {
-                key
-                for key, value in item.get("tested_versions", {}).items()
-                if value
-            }
+            {key for key, value in item.get("tested_versions", {}).items() if value}
         )
     ]
     if not qualifying_evidence:

@@ -24,12 +24,12 @@ It owns how Frappe product environments are composed, resolved, built, validated
 
 The M4 architecture establishes the following ownership boundaries:
 
-| Component | Responsibility |
-|---|---|
-| NDF Frappe Docker | Product composition, dependency resolution, image construction, validation, immutable publishing and deployment descriptors |
-| GHCR | Distribution of immutable images and associated artifacts |
-| DT Master | Infrastructure Nodes, Bench Environments, Docker/Compose orchestration, site lifecycle, deployment execution, migration, verification and rollback |
-| DT Tenant | Tenant-facing marketplace/subscription experience and authenticated requests to DT Master |
+| Component         | Responsibility                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NDF Frappe Docker | Product composition, dependency resolution, image construction, validation, immutable publishing and deployment descriptors                        |
+| GHCR              | Distribution of immutable images and associated artifacts                                                                                          |
+| DT Master         | Infrastructure Nodes, Bench Environments, Docker/Compose orchestration, site lifecycle, deployment execution, migration, verification and rollback |
+| DT Tenant         | Tenant-facing marketplace/subscription experience and authenticated requests to DT Master                                                          |
 
 Governing principle:
 
@@ -51,16 +51,16 @@ Governing principle:
 
 M4.1 defined and approved the NDF contracts consumed by DT Master.
 
-| Workstream | NDF responsibility | Expected output |
-|---|---|---|
-| Marketplace App Descriptor | Define and validate app source, version, framework/runtime compatibility and dependency declarations | Versioned app descriptor schema |
-| Deployment Candidate | Validate the requested complete Bench composition and build parameters | Candidate input schema |
-| Runtime resolution | Resolve compatible Python, Node.js, Yarn and framework versions | Exact runtime selection |
-| Dependency resolution | Resolve Python, Node.js and OS package dependencies | Deterministic dependency lock |
-| Candidate manifest generation | Convert a candidate composition into NDF build inputs | Resolved manifest and lock |
-| Image build and validation | Build and test the requested composition | Validated immutable OCI image |
-| Deployment descriptor | Describe the image actually produced, not merely the requested manifest | Versioned descriptor with image digest |
-| Publishing | Publish image and associated descriptor/artifacts | Immutable GHCR reference and digest |
+| Workstream                    | NDF responsibility                                                                                   | Expected output                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Marketplace App Descriptor    | Define and validate app source, version, framework/runtime compatibility and dependency declarations | Versioned app descriptor schema        |
+| Deployment Candidate          | Validate the requested complete Bench composition and build parameters                               | Candidate input schema                 |
+| Runtime resolution            | Resolve compatible Python, Node.js, Yarn and framework versions                                      | Exact runtime selection                |
+| Dependency resolution         | Resolve Python, Node.js and OS package dependencies                                                  | Deterministic dependency lock          |
+| Candidate manifest generation | Convert a candidate composition into NDF build inputs                                                | Resolved manifest and lock             |
+| Image build and validation    | Build and test the requested composition                                                             | Validated immutable OCI image          |
+| Deployment descriptor         | Describe the image actually produced, not merely the requested manifest                              | Versioned descriptor with image digest |
+| Publishing                    | Publish image and associated descriptor/artifacts                                                    | Immutable GHCR reference and digest    |
 
 ### M4.2 — Runtime Infrastructure Enhancements
 

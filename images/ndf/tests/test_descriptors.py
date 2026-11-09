@@ -137,7 +137,8 @@ class TestMarketplaceDescriptorSchemas:
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["release"] = {"version": "release-sixteen"}
         with pytest.raises(
-            DescriptorValidationError, match="Invalid SemVer application release version"
+            DescriptorValidationError,
+            match="Invalid SemVer application release version",
         ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
@@ -176,7 +177,9 @@ class TestMarketplaceDescriptorSchemas:
             "build_system": "custom_policy",
             "policy_id": "publisher.arbitrary-command",
         }
-        with pytest.raises(DescriptorValidationError, match="Unapproved NDF build policy"):
+        with pytest.raises(
+            DescriptorValidationError, match="Unapproved NDF build policy"
+        ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
     def test_unapproved_installation_policy_is_rejected(self):
@@ -354,10 +357,10 @@ class TestMarketplaceDescriptorSchemas:
         optional["required"] = False
         optional["version_policy"] = "constraint"
         unselected = collect_production_metadata_issues(descriptor)
-        assert not any("constraint policy requires a version" in item for item in unselected)
-        selected = collect_production_metadata_issues(
-            descriptor, {"bench_apps:frappe"}
+        assert not any(
+            "constraint policy requires a version" in item for item in unselected
         )
+        selected = collect_production_metadata_issues(descriptor, {"bench_apps:frappe"})
         assert any("constraint policy requires a version" in item for item in selected)
 
     def test_constraint_policy_without_version_blocks_metadata_readiness(self):
@@ -368,9 +371,9 @@ class TestMarketplaceDescriptorSchemas:
 
     def test_bench_app_dependency_cannot_use_latest_compatible(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
-        descriptor["dependencies"]["bench_apps"][0]["version_policy"] = (
-            "latest_compatible"
-        )
+        descriptor["dependencies"]["bench_apps"][0][
+            "version_policy"
+        ] = "latest_compatible"
         with pytest.raises(
             DescriptorValidationError, match="Descriptor schema validation failed"
         ):
@@ -387,7 +390,9 @@ class TestMarketplaceDescriptorSchemas:
             }
         ]
         issues = collect_production_metadata_issues(descriptor)
-        assert any("base dependencies require a version constraint" in item for item in issues)
+        assert any(
+            "base dependencies require a version constraint" in item for item in issues
+        )
 
     def test_latest_compatible_cannot_also_declare_version(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
@@ -467,9 +472,9 @@ class TestCompositionDescriptorSemantics:
 
     def test_duplicate_descriptor_app_ids_are_rejected(self):
         composition = read_json(FIXTURE_DIR / "compositions" / "dalali-v2.json")
-        composition["applications"][1][
+        composition["applications"][1]["descriptor"] = composition["applications"][0][
             "descriptor"
-        ] = composition["applications"][0]["descriptor"]
+        ]
         with pytest.raises(
             DescriptorValidationError, match="Duplicate descriptor app_id"
         ):

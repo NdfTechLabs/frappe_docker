@@ -10,18 +10,11 @@
     },
     "disposition": {
       "type": "string",
-      "enum": [
-        "base",
-        "runtime_compatible",
-        "environment_level"
-      ]
+      "enum": ["base", "runtime_compatible", "environment_level"]
     },
     "benchApp": {
       "type": "object",
-      "required": [
-        "app_id",
-        "required"
-      ],
+      "required": ["app_id", "required"],
       "properties": {
         "app_id": {
           "type": "string",
@@ -46,11 +39,7 @@
     },
     "pythonPackage": {
       "type": "object",
-      "required": [
-        "name",
-        "disposition",
-        "required"
-      ],
+      "required": ["name", "disposition", "required"],
       "properties": {
         "name": {
           "type": "string",
@@ -96,17 +85,10 @@
           "$ref": "#/$defs/versionConstraint"
         },
         "package_manager": {
-          "enum": [
-            "npm",
-            "yarn",
-            "pnpm"
-          ]
+          "enum": ["npm", "yarn", "pnpm"]
         },
         "scope": {
-          "enum": [
-            "build",
-            "runtime"
-          ]
+          "enum": ["build", "runtime"]
         },
         "disposition": {
           "$ref": "#/$defs/disposition"
@@ -141,29 +123,15 @@
         "distribution_family": {
           "type": "string",
           "minLength": 1,
-          "enum": [
-            "debian",
-            "rpm",
-            "alpine"
-          ]
+          "enum": ["debian", "rpm", "alpine"]
         },
         "package_manager": {
           "type": "string",
           "minLength": 1,
-          "enum": [
-            "apt",
-            "dpkg",
-            "dnf",
-            "yum",
-            "rpm",
-            "apk"
-          ]
+          "enum": ["apt", "dpkg", "dnf", "yum", "rpm", "apk"]
         },
         "scope": {
-          "enum": [
-            "build",
-            "runtime"
-          ]
+          "enum": ["build", "runtime"]
         },
         "disposition": {
           "$ref": "#/$defs/disposition"
@@ -179,10 +147,7 @@
     },
     "versionPolicy": {
       "type": "string",
-      "enum": [
-        "constraint",
-        "latest_compatible"
-      ],
+      "enum": ["constraint", "latest_compatible"],
       "description": "Explicit version selection policy. Omission is allowed during authoring but blocks production metadata readiness."
     }
   }
