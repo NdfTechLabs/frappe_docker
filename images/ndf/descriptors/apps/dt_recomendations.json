@@ -17,9 +17,9 @@
   },
   "dependencies": {
     "bench_apps": [
-      {"app_id": "frappe", "required": true},
-      {"app_id": "erpnext", "required": true},
-      {"app_id": "dt_ecommerce", "required": true}
+      { "app_id": "frappe", "required": true },
+      { "app_id": "erpnext", "required": true },
+      { "app_id": "dt_ecommerce", "required": true }
     ]
   },
   "build": {},

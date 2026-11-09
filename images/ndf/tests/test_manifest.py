@@ -323,7 +323,7 @@ def cli_environment(tmp_path):
                 "dependencies": ["frappe"],
                 "ref": None,
                 "compatibility_status": "verified",
-            }
+            },
         ],
     }
 
@@ -374,10 +374,12 @@ class TestResolutionPolicy:
 
     def test_invalid_policy_type_is_rejected(self, loader):
         with pytest.raises(ManifestError, match="must be a boolean"):
-            loader.resolve_policy({
-                "resolution": {"require_immutable_commit": "true"},
-                "_loaded_includes": [],
-            })
+            loader.resolve_policy(
+                {
+                    "resolution": {"require_immutable_commit": "true"},
+                    "_loaded_includes": [],
+                }
+            )
 
 
 class TestReferencePolicyEnforcement:
@@ -396,12 +398,14 @@ class TestReferencePolicyEnforcement:
                 "name": f"refs/heads/{ref}",
             },
         )
-        apps = [{
-            "name": "test_app",
-            "repository": "https://example.com/test.git",
-            "target_ref": target_ref,
-            "compatibility_status": "verified",
-        }]
+        apps = [
+            {
+                "name": "test_app",
+                "repository": "https://example.com/test.git",
+                "target_ref": target_ref,
+                "compatibility_status": "verified",
+            }
+        ]
         policy = {
             "require_immutable_commit": True,
             "fail_on_unverified_compatibility": True,
@@ -423,12 +427,14 @@ class TestReferencePolicyEnforcement:
                 "name": "refs/tags/version-16",
             },
         )
-        apps = [{
-            "name": "test_app",
-            "repository": "https://example.com/test.git",
-            "target_ref": "version-16",
-            "compatibility_status": "pending",
-        }]
+        apps = [
+            {
+                "name": "test_app",
+                "repository": "https://example.com/test.git",
+                "target_ref": "version-16",
+                "compatibility_status": "pending",
+            }
+        ]
         policy = {
             "require_immutable_commit": True,
             "fail_on_unverified_compatibility": True,
@@ -447,11 +453,13 @@ class TestReferencePolicyEnforcement:
                 "name": "refs/tags/version-16",
             },
         )
-        apps = [{
-            "name": "test_app",
-            "repository": "https://example.com/test.git",
-            "target_ref": "version-16",
-        }]
+        apps = [
+            {
+                "name": "test_app",
+                "repository": "https://example.com/test.git",
+                "target_ref": "version-16",
+            }
+        ]
         policy = {
             "require_immutable_commit": True,
             "fail_on_unverified_compatibility": True,
@@ -472,12 +480,14 @@ class TestReferencePolicyEnforcement:
                 "name": "refs/tags/version-16",
             },
         )
-        apps = [{
-            "name": "test_app",
-            "repository": "https://example.com/test.git",
-            "target_ref": "version-16",
-            "compatibility_status": "verified",
-        }]
+        apps = [
+            {
+                "name": "test_app",
+                "repository": "https://example.com/test.git",
+                "target_ref": "version-16",
+                "compatibility_status": "verified",
+            }
+        ]
         policy = {
             "require_immutable_commit": True,
             "fail_on_unverified_compatibility": True,
@@ -499,12 +509,14 @@ class TestReferencePolicyEnforcement:
                 "name": "refs/tags/version-16",
             },
         )
-        apps = [{
-            "name": "frappe",
-            "repository": "https://example.com/frappe.git",
-            "target_ref": "version-16",
-            "compatibility_status": "verified",
-        }]
+        apps = [
+            {
+                "name": "frappe",
+                "repository": "https://example.com/frappe.git",
+                "target_ref": "version-16",
+                "compatibility_status": "verified",
+            }
+        ]
         policy = {
             "require_immutable_commit": True,
             "fail_on_unverified_compatibility": True,
@@ -770,9 +782,7 @@ class TestLockValidation:
         ):
             loader.validate_lock_file(lock_path, manifest)
 
-    def test_lock_cannot_substitute_application_repository(
-        self, loader, tmp_path
-    ):
+    def test_lock_cannot_substitute_application_repository(self, loader, tmp_path):
         write_test_manifest(
             loader.manifests_dir,
             "product.json",
@@ -797,9 +807,9 @@ class TestLockValidation:
             "_resolved_ref": "refs/tags/version-16",
         }
         lock_data = loader.build_lock_data(manifest, [app])
-        lock_data["applications"][0]["repository"] = (
-            "https://example.com/attacker/frappe.git"
-        )
+        lock_data["applications"][0][
+            "repository"
+        ] = "https://example.com/attacker/frappe.git"
         lock_path = tmp_path / "product.lock.json"
         loader.write_lock_file(lock_data, lock_path)
 
@@ -808,7 +818,6 @@ class TestLockValidation:
             match="application composition does not match",
         ):
             loader.validate_lock_file(lock_path, manifest)
-
 
     def test_framework_commit_must_match_frappe_application(
         self, loader, sample_manifest, generated_lock
@@ -1131,6 +1140,7 @@ class TestCheckMode:
         current_lock = environment["lock_path"].read_bytes()
 
         assert current_lock == original_lock
+
     def test_normal_execution_updates_outdated_lock(self, cli_environment):
         environment = cli_environment
 
@@ -1590,6 +1600,7 @@ class TestApplicationDependencies:
             "dt_dalali_ecommerce"
         )
 
+
 class TestV2CompositionAndCapabilityLoading:
     def _manifest(self, manifest_id, **overrides):
         value = {
@@ -1639,7 +1650,11 @@ class TestV2CompositionAndCapabilityLoading:
     def test_optional_capability_is_not_loaded_when_explicitly_unselected(self, loader):
         capability = self._manifest(
             "optional-ai",
-            profile={"type": "capability", "required": False, "install_by_default": False},
+            profile={
+                "type": "capability",
+                "required": False,
+                "install_by_default": False,
+            },
         )
         (loader.manifests_dir / "optional-ai.json").write_text(
             json.dumps(capability), encoding="utf-8"
@@ -1664,7 +1679,11 @@ class TestV2CompositionAndCapabilityLoading:
     def test_selected_optional_capability_is_loaded_into_graph(self, loader):
         capability = self._manifest(
             "optional-ai",
-            profile={"type": "capability", "required": False, "install_by_default": False},
+            profile={
+                "type": "capability",
+                "required": False,
+                "install_by_default": False,
+            },
         )
         (loader.manifests_dir / "optional-ai.json").write_text(
             json.dumps(capability), encoding="utf-8"
@@ -1681,7 +1700,9 @@ class TestV2CompositionAndCapabilityLoading:
 
         loaded = loader.load("product.json")
 
-        assert [item["id"] for item in loaded["_loaded_capabilities"]] == ["optional-ai"]
+        assert [item["id"] for item in loaded["_loaded_capabilities"]] == [
+            "optional-ai"
+        ]
 
     def test_capability_selection_is_recorded_and_lock_tampering_is_rejected(
         self, loader, tmp_path, monkeypatch
@@ -1744,10 +1765,16 @@ class TestV2CompositionAndCapabilityLoading:
             loader.validate_lock_file(lock_path, loaded)
 
     def test_v1_capability_declarations_keep_legacy_non_loading_behaviour(self, loader):
-        product_path = write_test_manifest(loader.manifests_dir, "product.json", "product")
+        product_path = write_test_manifest(
+            loader.manifests_dir, "product.json", "product"
+        )
         product = json.loads(product_path.read_text(encoding="utf-8"))
         product["capabilities"] = [
-            {"manifest": "legacy-capability.json", "required": False, "install_by_default": False}
+            {
+                "manifest": "legacy-capability.json",
+                "required": False,
+                "install_by_default": False,
+            }
         ]
         product_path.write_text(json.dumps(product), encoding="utf-8")
 
@@ -1765,9 +1792,7 @@ class TestDescriptorResolutionPrimitives:
                 "python": ">=3.12,<3.15",
                 "erpnext": "^16.0.0",
             },
-            "dependencies": {
-                "bench_apps": [{"app_id": "erpnext", "required": True}]
-            },
+            "dependencies": {"bench_apps": [{"app_id": "erpnext", "required": True}]},
         }
         loader._validate_descriptor_target(
             descriptor,
@@ -1822,12 +1847,16 @@ class TestDescriptorResolutionPrimitives:
             },
             set(),
         )
-        assert [(item["ecosystem"], item["name"], item["version"]) for item in result] == [
+        assert [
+            (item["ecosystem"], item["name"], item["version"]) for item in result
+        ] == [
             ("node", "vite", "6.0.0"),
             ("python", "requests", "2.32.3"),
         ]
 
-    def test_os_package_versions_require_exact_native_selection_and_matching_target(self, loader):
+    def test_os_package_versions_require_exact_native_selection_and_matching_target(
+        self, loader
+    ):
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
@@ -1876,14 +1905,19 @@ class TestDescriptorResolutionPrimitives:
             },
         }
         with pytest.raises(ManifestError, match="must provide an exact selection"):
-            loader._resolve_descriptor_packages(descriptor, {"package_versions": {}}, set())
+            loader._resolve_descriptor_packages(
+                descriptor, {"package_versions": {}}, set()
+            )
 
 
 class TestIndependentServiceComposition:
     def _write_service(self, loader, service_id, descriptor):
         path = (
             loader.repository_root
-            / "images" / "ndf" / "descriptors" / "services"
+            / "images"
+            / "ndf"
+            / "descriptors"
+            / "services"
             / f"{service_id}.json"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1899,9 +1933,7 @@ class TestIndependentServiceComposition:
                 "service_id": "search",
                 "name": "Search service",
                 "service_kind": "container",
-                "artifact": {
-                    "image": "ghcr.io/example/search@sha256:" + "a" * 64
-                },
+                "artifact": {"image": "ghcr.io/example/search@sha256:" + "a" * 64},
             },
         )
         external_path = self._write_service(
@@ -1926,9 +1958,7 @@ class TestIndependentServiceComposition:
             "_loaded_includes": [],
             "_loaded_capabilities": [],
             "services": [{"descriptor": service_path, "required": True}],
-            "external_requirements": [
-                {"descriptor": external_path, "required": True}
-            ],
+            "external_requirements": [{"descriptor": external_path, "required": True}],
         }
 
         services, external = loader.compose_services(manifest)
@@ -2108,12 +2138,16 @@ class TestIndependentServiceComposition:
                 {"descriptor": second, "required": True},
             ],
         }
-        with pytest.raises(ManifestError, match="Circular independent-service dependency"):
+        with pytest.raises(
+            ManifestError, match="Circular independent-service dependency"
+        ):
             loader.compose_services(manifest)
 
 
 class TestDescriptorLockIdentity:
-    def test_app_id_release_and_git_ref_provenance_remain_distinct(self, loader, sample_manifest):
+    def test_app_id_release_and_git_ref_provenance_remain_distinct(
+        self, loader, sample_manifest
+    ):
         applications = [
             {
                 "name": "frappe",
@@ -2146,7 +2180,9 @@ class TestDescriptorLockIdentity:
             },
         ]
         lock = loader.build_lock_data(sample_manifest, applications)
-        locked = next(item for item in lock["applications"] if item["name"] == "example_app")
+        locked = next(
+            item for item in lock["applications"] if item["name"] == "example_app"
+        )
 
         assert locked["app_id"] == "example_app"
         assert locked["release_version"] == "4.2.1"
@@ -2197,16 +2233,18 @@ class TestDescriptorCompositionClosureAndLock:
             },
         }
 
-    def test_required_descriptor_dependency_closure_and_lock_identity(self, loader, tmp_path, monkeypatch):
+    def test_required_descriptor_dependency_closure_and_lock_identity(
+        self, loader, tmp_path, monkeypatch
+    ):
         policy_dir = tmp_path / "policies"
         policy_dir.mkdir()
         shutil.copy2(
-            Path(__file__).resolve().parents[1] / "policies" / "build-install-policies-v1.json",
+            Path(__file__).resolve().parents[1]
+            / "policies"
+            / "build-install-policies-v1.json",
             policy_dir / "build-install-policies-v1.json",
         )
-        descriptor_dir = (
-            tmp_path / "images" / "ndf" / "descriptors" / "apps"
-        )
+        descriptor_dir = tmp_path / "images" / "ndf" / "descriptors" / "apps"
         descriptor_dir.mkdir(parents=True)
 
         dependency = self._descriptor("dependency_app", "2.1.0")

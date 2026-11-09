@@ -160,9 +160,7 @@ class ManifestLoader:
                 seen_capability_paths = set()
                 for capability in capabilities:
                     if not isinstance(capability, dict):
-                        raise ManifestError(
-                            f"Invalid capability entry in {path.name}"
-                        )
+                        raise ManifestError(f"Invalid capability entry in {path.name}")
                     capability_path = capability.get("manifest")
                     if not isinstance(capability_path, str) or not capability_path:
                         raise ManifestError(
@@ -171,7 +169,9 @@ class ManifestLoader:
                     normalized_capability_path = (
                         self.manifests_dir / capability_path
                     ).resolve()
-                    if not normalized_capability_path.is_relative_to(self.manifests_dir):
+                    if not normalized_capability_path.is_relative_to(
+                        self.manifests_dir
+                    ):
                         raise ManifestError(
                             f"Capability path escapes the manifests directory: {capability_path}"
                         )
@@ -210,7 +210,11 @@ class ManifestLoader:
                         resolved_capability_path = self.resolve_path(capability_path)
                         child = self.load(capability_path)
                     except ManifestError as exc:
-                        if required or selected is True or isinstance(exc, DuplicateManifestIDError):
+                        if (
+                            required
+                            or selected is True
+                            or isinstance(exc, DuplicateManifestIDError)
+                        ):
                             raise
                         raise ManifestError(
                             f"Selected optional capability is unavailable: "
@@ -304,14 +308,12 @@ class ManifestLoader:
             for key in values:
                 if key in policy and not isinstance(policy[key], bool):
                     raise ManifestError(f"Resolution policy '{key}' must be a boolean.")
-            values["require_immutable_commit"] = (
-                values["require_immutable_commit"]
-                or policy.get("require_immutable_commit", True)
-            )
-            values["fail_on_unverified_compatibility"] = (
-                values["fail_on_unverified_compatibility"]
-                or policy.get("fail_on_unverified_compatibility", True)
-            )
+            values["require_immutable_commit"] = values[
+                "require_immutable_commit"
+            ] or policy.get("require_immutable_commit", True)
+            values["fail_on_unverified_compatibility"] = values[
+                "fail_on_unverified_compatibility"
+            ] or policy.get("fail_on_unverified_compatibility", True)
 
         return values
 
@@ -331,12 +333,18 @@ class ManifestLoader:
             or len(pure.parts) != 5
             or pure.suffix != ".json"
         ):
-            raise ManifestError(f"Invalid canonical app descriptor path: {relative_path}")
+            raise ManifestError(
+                f"Invalid canonical app descriptor path: {relative_path}"
+            )
 
         path = (self.repository_root / relative_path).resolve()
-        descriptor_root = (self.repository_root / "images" / "ndf" / "descriptors" / "apps").resolve()
+        descriptor_root = (
+            self.repository_root / "images" / "ndf" / "descriptors" / "apps"
+        ).resolve()
         if not path.is_relative_to(descriptor_root) or not path.is_file():
-            raise ManifestError(f"Marketplace App Descriptor not found or unsafe: {relative_path}")
+            raise ManifestError(
+                f"Marketplace App Descriptor not found or unsafe: {relative_path}"
+            )
 
         raw = path.read_bytes()
         checksum = hashlib.sha256(raw).hexdigest()
@@ -346,8 +354,14 @@ class ManifestLoader:
         try:
             descriptor = json.loads(raw.decode("utf-8"))
             validate_descriptor(descriptor, self.schema_dir)
-        except (UnicodeDecodeError, json.JSONDecodeError, DescriptorValidationError) as exc:
-            raise ManifestError(f"Invalid Marketplace App Descriptor {relative_path}: {exc}") from exc
+        except (
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            DescriptorValidationError,
+        ) as exc:
+            raise ManifestError(
+                f"Invalid Marketplace App Descriptor {relative_path}: {exc}"
+            ) from exc
 
         if path.stem != descriptor.get("app_id"):
             raise ManifestError(
@@ -368,16 +382,16 @@ class ManifestLoader:
         for ecosystem in ("python", "node", "os"):
             for dependency in descriptor.get("dependencies", {}).get(ecosystem, []):
                 name = dependency.get("name", "")
-                if not dependency.get("required", True) and f"{ecosystem}:{name}" not in selected_optional:
+                if (
+                    not dependency.get("required", True)
+                    and f"{ecosystem}:{name}" not in selected_optional
+                ):
                     continue
                 key = f"{ecosystem}:{name}"
                 selection = packages.get(key)
-                if (
-                    not isinstance(selection, dict)
-                    or not all(
-                        isinstance(selection.get(field), str) and selection[field]
-                        for field in ("version", "source", "resolver")
-                    )
+                if not isinstance(selection, dict) or not all(
+                    isinstance(selection.get(field), str) and selection[field]
+                    for field in ("version", "source", "resolver")
                 ):
                     raise ManifestError(
                         f"{descriptor['app_id']}: target_runtime.package_versions "
@@ -393,9 +407,13 @@ class ManifestLoader:
                         )
                     try:
                         if ecosystem == "python":
-                            accepted = PythonVersion(selected_version) in SpecifierSet(constraint)
+                            accepted = PythonVersion(selected_version) in SpecifierSet(
+                                constraint
+                            )
                         elif ecosystem == "node":
-                            accepted = SemVerVersion(selected_version) in NpmSpec(constraint)
+                            accepted = SemVerVersion(selected_version) in NpmSpec(
+                                constraint
+                            )
                         else:
                             # OS package versions are distribution-native. Until a
                             # native package-manager adapter is available, only exact
@@ -418,8 +436,11 @@ class ManifestLoader:
                 expected_resolver = (
                     dependency.get("package_manager")
                     if ecosystem == "os"
-                    else ("pip", "uv") if ecosystem == "python"
-                    else ("npm", "yarn", "pnpm")
+                    else (
+                        ("pip", "uv")
+                        if ecosystem == "python"
+                        else ("npm", "yarn", "pnpm")
+                    )
                 )
                 allowed_resolvers = (
                     {expected_resolver}
@@ -433,8 +454,10 @@ class ManifestLoader:
                         f"{sorted(allowed_resolvers)}."
                     )
                 if ecosystem == "os" and (
-                    dependency.get("distribution_family") != os_target.get("distribution_family")
-                    or dependency.get("package_manager") != os_target.get("package_manager")
+                    dependency.get("distribution_family")
+                    != os_target.get("distribution_family")
+                    or dependency.get("package_manager")
+                    != os_target.get("package_manager")
                 ):
                     raise ManifestError(
                         f"{descriptor['app_id']}: OS dependency {name} does not match "
@@ -466,7 +489,10 @@ class ManifestLoader:
         bench_deps = descriptor.get("dependencies", {}).get("bench_apps", [])
         if any(
             item.get("app_id") == "erpnext"
-            and (item.get("required", True) or f"bench_apps:{item.get('app_id')}" in selected_optional)
+            and (
+                item.get("required", True)
+                or f"bench_apps:{item.get('app_id')}" in selected_optional
+            )
             for item in bench_deps
         ):
             required_fields.append("erpnext")
@@ -512,7 +538,9 @@ class ManifestLoader:
         raw_selected_optional = manifest.get("selected_optional_dependencies", [])
         if (
             not isinstance(raw_selected_optional, list)
-            or any(not isinstance(item, str) or not item for item in raw_selected_optional)
+            or any(
+                not isinstance(item, str) or not item for item in raw_selected_optional
+            )
             or len(raw_selected_optional) != len(set(raw_selected_optional))
         ):
             raise ManifestError(
@@ -521,7 +549,9 @@ class ManifestLoader:
         selected_optional = set(raw_selected_optional)
         try:
             selected_frappe = SemVerVersion(target_runtime["frappe"])
-            framework_major = int(str(manifest["framework"]["version"]).split(".", 1)[0])
+            framework_major = int(
+                str(manifest["framework"]["version"]).split(".", 1)[0]
+            )
         except (KeyError, TypeError, ValueError) as exc:
             raise ManifestError(
                 "v2 target_runtime.frappe and framework.version must identify a valid Frappe major."
@@ -531,7 +561,9 @@ class ManifestLoader:
                 "target_runtime.frappe does not match the product framework major."
             )
         if any(not isinstance(item, str) or not item for item in selected_optional):
-            raise ManifestError("selected_optional_dependencies must contain non-empty strings.")
+            raise ManifestError(
+                "selected_optional_dependencies must contain non-empty strings."
+            )
 
         applications: dict[str, dict] = {}
         app_ids: dict[str, str] = {}
@@ -567,7 +599,9 @@ class ManifestLoader:
         collect_legacy(manifest)
 
         def add_descriptor(relative_path: str, entry: dict, owner: str) -> None:
-            descriptor, descriptor_path, checksum = self._load_app_descriptor(relative_path)
+            descriptor, descriptor_path, checksum = self._load_app_descriptor(
+                relative_path
+            )
             app_id = descriptor["app_id"]
             bench_name = descriptor["app_module"]["bench_app_name"]
             existing = applications.get(bench_name)
@@ -576,7 +610,9 @@ class ManifestLoader:
                     raise ManifestError(
                         f"Bench app name '{bench_name}' maps to conflicting descriptor identities."
                     )
-                requested_ref = entry.get("target_ref") or descriptor.get("source", {}).get("default_ref")
+                requested_ref = entry.get("target_ref") or descriptor.get(
+                    "source", {}
+                ).get("default_ref")
                 if existing.get("target_ref") != requested_ref:
                     raise ManifestError(
                         f"Conflicting source-ref selections for Marketplace app '{app_id}'."
@@ -588,18 +624,22 @@ class ManifestLoader:
                 return
             if app_id in app_ids and app_ids[app_id] != bench_name:
                 raise ManifestError(f"Duplicate Marketplace app_id: {app_id}")
-            self._validate_descriptor_target(descriptor, target_runtime, selected_optional)
-            issues = collect_production_metadata_issues(
-                descriptor, selected_optional
+            self._validate_descriptor_target(
+                descriptor, target_runtime, selected_optional
             )
+            issues = collect_production_metadata_issues(descriptor, selected_optional)
             if issues:
                 raise ManifestError(
                     "Descriptor metadata is not production-ready:\n"
                     + "\n".join(f"  - {issue}" for issue in issues)
                 )
-            target_ref = entry.get("target_ref") or descriptor.get("source", {}).get("default_ref")
+            target_ref = entry.get("target_ref") or descriptor.get("source", {}).get(
+                "default_ref"
+            )
             if not isinstance(target_ref, str) or not target_ref:
-                raise ManifestError(f"{app_id}: no target_ref or descriptor default_ref.")
+                raise ManifestError(
+                    f"{app_id}: no target_ref or descriptor default_ref."
+                )
             dependencies = []
             for ecosystem in ("bench_apps", "python", "node", "os"):
                 for dependency in descriptor.get("dependencies", {}).get(ecosystem, []):
@@ -673,14 +713,22 @@ class ManifestLoader:
                 existing = applications.get(dep_id)
                 if existing is None:
                     existing = next(
-                        (item for item in applications.values() if item.get("_app_id") == dep_id),
+                        (
+                            item
+                            for item in applications.values()
+                            if item.get("_app_id") == dep_id
+                        ),
                         None,
                     )
                 if existing is None:
                     canonical_path = f"images/ndf/descriptors/apps/{dep_id}.json"
-                    dep_descriptor, dep_path, dep_checksum = self._load_app_descriptor(canonical_path)
+                    dep_descriptor, dep_path, dep_checksum = self._load_app_descriptor(
+                        canonical_path
+                    )
                     add_descriptor(canonical_path, {}, f"descriptor:{parent_name}")
-                    existing = applications.get(dep_descriptor["app_module"]["bench_app_name"])
+                    existing = applications.get(
+                        dep_descriptor["app_module"]["bench_app_name"]
+                    )
                 if existing is None:
                     raise ManifestError(
                         f"{parent_name} requires unresolved Bench app dependency '{dep_id}'."
@@ -829,8 +877,13 @@ class ManifestLoader:
                     )
                     subprocess.run(
                         [
-                            "git", "-C", temp_dir, "fetch", "--depth=1",
-                            repository, target_ref,
+                            "git",
+                            "-C",
+                            temp_dir,
+                            "fetch",
+                            "--depth=1",
+                            repository,
+                            target_ref,
                         ],
                         capture_output=True,
                         text=True,
@@ -869,7 +922,10 @@ class ManifestLoader:
         try:
             result = subprocess.run(
                 ["git", "ls-remote", repository, *refs],
-                capture_output=True, text=True, check=True, timeout=60,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=60,
             )
         except subprocess.TimeoutExpired as exc:
             raise ManifestError(
@@ -916,8 +972,7 @@ class ManifestLoader:
             status = str(app.get("compatibility_status", "")).strip().lower()
             if policy["fail_on_unverified_compatibility"] and status != "verified":
                 errors.append(
-                    f"{app['name']}: compatibility_status="
-                    f"{status or '<missing>'}"
+                    f"{app['name']}: compatibility_status=" f"{status or '<missing>'}"
                 )
 
             resolved = self.resolve_git_ref(repository, target_ref)
@@ -961,11 +1016,17 @@ class ManifestLoader:
             or len(pure.parts) != 5
             or pure.suffix != ".json"
         ):
-            raise ManifestError(f"Invalid canonical service descriptor path: {relative_path}")
-        root = (self.repository_root / "images" / "ndf" / "descriptors" / "services").resolve()
+            raise ManifestError(
+                f"Invalid canonical service descriptor path: {relative_path}"
+            )
+        root = (
+            self.repository_root / "images" / "ndf" / "descriptors" / "services"
+        ).resolve()
         path = (self.repository_root / relative_path).resolve()
         if not path.is_relative_to(root) or not path.is_file():
-            raise ManifestError(f"Service descriptor not found or unsafe: {relative_path}")
+            raise ManifestError(
+                f"Service descriptor not found or unsafe: {relative_path}"
+            )
         raw = path.read_bytes()
         checksum = hashlib.sha256(raw).hexdigest()
         try:
@@ -980,7 +1041,9 @@ class ManifestLoader:
                 key=lambda error: (list(error.absolute_path), error.message),
             )
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ManifestError(f"Unable to validate service descriptor {relative_path}: {exc}") from exc
+            raise ManifestError(
+                f"Unable to validate service descriptor {relative_path}: {exc}"
+            ) from exc
         if errors:
             detail = "; ".join(error.message for error in errors)
             raise ManifestError(f"Invalid service descriptor {relative_path}: {detail}")
@@ -995,7 +1058,9 @@ class ManifestLoader:
         services: dict[str, dict] = {}
         external: dict[str, dict] = {}
 
-        def add_descriptor(descriptor_path: str, expected_kind: str | None = None) -> dict:
+        def add_descriptor(
+            descriptor_path: str, expected_kind: str | None = None
+        ) -> dict:
             descriptor, checksum = self._load_service_descriptor(descriptor_path)
             service_id = descriptor["service_id"]
             actual_kind = descriptor["service_kind"]
@@ -1067,7 +1132,7 @@ class ManifestLoader:
 
         def visit(service_id: str) -> None:
             if service_id in visiting:
-                cycle = visiting[visiting.index(service_id):] + [service_id]
+                cycle = visiting[visiting.index(service_id) :] + [service_id]
                 raise ManifestError(
                     "Circular independent-service dependency detected: "
                     + " -> ".join(cycle)
@@ -1307,10 +1372,9 @@ class ManifestLoader:
                 "the source manifests."
             )
 
-        if (
-            verify_manifest_checksums
-            and lock.get("target_runtime") != expected_manifest.get("target_runtime")
-        ):
+        if verify_manifest_checksums and lock.get(
+            "target_runtime"
+        ) != expected_manifest.get("target_runtime"):
             raise ManifestError(
                 "Lock file target runtime matrix does not match the source manifest."
             )
@@ -1517,7 +1581,13 @@ class ManifestLoader:
                         not isinstance(package, dict)
                         or not all(
                             isinstance(package.get(field), str) and package[field]
-                            for field in ("ecosystem", "name", "version", "source", "resolver")
+                            for field in (
+                                "ecosystem",
+                                "name",
+                                "version",
+                                "source",
+                                "resolver",
+                            )
                         )
                         or package.get("ecosystem") not in {"python", "node", "os"}
                         or not isinstance(package.get("install"), bool)
@@ -1569,7 +1639,9 @@ class ManifestLoader:
                 or (required and not selected)
                 or capability_path in seen_capability_paths
             ):
-                raise ManifestError("Invalid or duplicate capability selection in lock file.")
+                raise ManifestError(
+                    "Invalid or duplicate capability selection in lock file."
+                )
             seen_capability_paths.add(capability_path)
 
         target_runtime = lock.get("target_runtime")
@@ -1587,10 +1659,20 @@ class ManifestLoader:
                     raise ManifestError(f"Invalid {section} entry in lock file.")
                 service_id = entry.get("service_id")
                 checksum = entry.get("descriptor_sha256")
-                if not isinstance(service_id, str) or not service_id or service_id in seen_service_ids:
-                    raise ManifestError(f"Invalid or duplicate identity in {section} lock inventory.")
-                if not isinstance(checksum, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", checksum):
-                    raise ManifestError(f"Invalid descriptor checksum for {service_id}.")
+                if (
+                    not isinstance(service_id, str)
+                    or not service_id
+                    or service_id in seen_service_ids
+                ):
+                    raise ManifestError(
+                        f"Invalid or duplicate identity in {section} lock inventory."
+                    )
+                if not isinstance(checksum, str) or not re.fullmatch(
+                    r"[a-fA-F0-9]{64}", checksum
+                ):
+                    raise ManifestError(
+                        f"Invalid descriptor checksum for {service_id}."
+                    )
                 if not isinstance(entry.get("descriptor"), str):
                     raise ManifestError(f"Missing descriptor path for {service_id}.")
                 expected_kind = "container" if section == "services" else "external"
@@ -1600,7 +1682,9 @@ class ManifestLoader:
                     )
                 if expected_kind == "container":
                     artifact = entry.get("artifact")
-                    image = artifact.get("image") if isinstance(artifact, dict) else None
+                    image = (
+                        artifact.get("image") if isinstance(artifact, dict) else None
+                    )
                     if not isinstance(image, str) or not re.fullmatch(
                         r"[^@\s]+@sha256:[a-fA-F0-9]{64}", image
                     ):
@@ -1627,9 +1711,9 @@ class ManifestLoader:
                         raise ManifestError(
                             f"External requirement '{service_id}' contains container artifact data."
                         )
-                if (
-                    not isinstance(entry.get("depends_on", []), list)
-                    or any(not isinstance(item, str) or not item for item in entry.get("depends_on", []))
+                if not isinstance(entry.get("depends_on", []), list) or any(
+                    not isinstance(item, str) or not item
+                    for item in entry.get("depends_on", [])
                 ):
                     raise ManifestError(f"Invalid dependency list for {service_id}.")
                 order = entry.get("resolution_order")
@@ -1688,9 +1772,7 @@ class ManifestLoader:
 
             def collect_expected_manifests(current: dict):
                 source_path = Path(current["_source_path"]).resolve()
-                relative_path = source_path.relative_to(
-                    self.manifests_dir
-                ).as_posix()
+                relative_path = source_path.relative_to(self.manifests_dir).as_posix()
                 expected_manifest_entries[relative_path] = current["id"]
                 for child in current.get("_loaded_includes", []):
                     collect_expected_manifests(child)
@@ -1724,7 +1806,9 @@ class ManifestLoader:
                     "Lock file capability selections do not match source manifests."
                 )
 
-            expected_services, expected_external = self.compose_services(expected_manifest)
+            expected_services, expected_external = self.compose_services(
+                expected_manifest
+            )
             if lock.get("services", []) != expected_services:
                 raise ManifestError(
                     "Lock file service inventory does not match selected source composition."
@@ -1765,10 +1849,7 @@ class ManifestLoader:
                         for field in composition_fields
                         if locked_app.get(field) != expected_app.get(field)
                     ]
-                    if (
-                        mismatches
-                        or locked_app.get("installation_order") != index
-                    ):
+                    if mismatches or locked_app.get("installation_order") != index:
                         raise ManifestError(
                             "Lock file application composition does not match "
                             f"the source manifests at position {index}: "
@@ -1829,7 +1910,13 @@ class ManifestLoader:
         changes = []
 
         # Compare top-level metadata.
-        for section in ("product", "framework", "target_runtime", "lock_version", "resolver"):
+        for section in (
+            "product",
+            "framework",
+            "target_runtime",
+            "lock_version",
+            "resolver",
+        ):
             old_value = previous_lock.get(section)
             new_value = new_lock_data.get(section)
 

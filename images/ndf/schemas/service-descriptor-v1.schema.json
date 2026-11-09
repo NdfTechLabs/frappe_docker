@@ -6,12 +6,12 @@
   "type": "object",
   "required": ["descriptor_version", "service_id", "name", "service_kind"],
   "properties": {
-    "$schema": {"type": "string"},
-    "descriptor_version": {"const": "1.0.0"},
-    "service_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-    "name": {"type": "string", "minLength": 1},
-    "description": {"type": "string"},
-    "service_kind": {"enum": ["container", "external"]},
+    "$schema": { "type": "string" },
+    "descriptor_version": { "const": "1.0.0" },
+    "service_id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "service_kind": { "enum": ["container", "external"] },
     "artifact": {
       "type": "object",
       "required": ["image"],
@@ -22,7 +22,7 @@
         },
         "platforms": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": { "type": "string" },
           "uniqueItems": true
         }
       },
@@ -32,26 +32,32 @@
       "type": "object",
       "required": ["name", "requirement"],
       "properties": {
-        "name": {"type": "string", "minLength": 1},
-        "requirement": {"type": "string", "minLength": 1},
-        "documentation": {"type": "string", "format": "uri"}
+        "name": { "type": "string", "minLength": 1 },
+        "requirement": { "type": "string", "minLength": 1 },
+        "documentation": { "type": "string", "format": "uri" }
       },
       "additionalProperties": false
     },
     "depends_on": {
       "type": "array",
-      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
       "uniqueItems": true
     }
   },
   "allOf": [
     {
-      "if": {"properties": {"service_kind": {"const": "container"}}, "required": ["service_kind"]},
-      "then": {"required": ["artifact"], "not": {"required": ["provider"]}}
+      "if": {
+        "properties": { "service_kind": { "const": "container" } },
+        "required": ["service_kind"]
+      },
+      "then": { "required": ["artifact"], "not": { "required": ["provider"] } }
     },
     {
-      "if": {"properties": {"service_kind": {"const": "external"}}, "required": ["service_kind"]},
-      "then": {"required": ["provider"], "not": {"required": ["artifact"]}}
+      "if": {
+        "properties": { "service_kind": { "const": "external" } },
+        "required": ["service_kind"]
+      },
+      "then": { "required": ["provider"], "not": { "required": ["artifact"] } }
     }
   ],
   "additionalProperties": false
