@@ -331,6 +331,80 @@ class ManifestLoader:
         self._descriptor_cache[cache_key] = descriptor
         return descriptor, relative_path, checksum
 
+    def _resolve_descriptor_packages(
+        self, descriptor: dict, target_runtime: dict, selected_optional: set[str]
+    ) -> list[dict]:
+        """Resolve package dependencies against exact versions supplied by the target matrix."""
+        packages = target_runtime.get("package_versions", {})
+        if not isinstance(packages, dict):
+            raise ManifestError("target_runtime.package_versions must be an object.")
+        os_target = target_runtime.get("os", {})
+        resolved = []
+        for ecosystem in ("python", "node", "os"):
+            for dependency in descriptor.get("dependencies", {}).get(ecosystem, []):
+                name = dependency.get("name", "")
+                if not dependency.get("required", True) and f"{ecosystem}:{name}" not in selected_optional:
+                    continue
+                key = f"{ecosystem}:{name}"
+                selected_version = packages.get(key)
+                if not isinstance(selected_version, str) or not selected_version:
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: target_runtime.package_versions "
+                        f"must provide an exact selection for {key}."
+                    )
+                policy = dependency.get("version_policy")
+                constraint = dependency.get("version")
+                if policy == "constraint":
+                    if not constraint:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: {key} constraint policy requires a version."
+                        )
+                    try:
+                        if ecosystem == "python":
+                            accepted = PythonVersion(selected_version) in SpecifierSet(constraint)
+                        elif ecosystem == "node":
+                            accepted = SemVerVersion(selected_version) in NpmSpec(constraint)
+                        else:
+                            # OS package versions are distribution-native. Until a
+                            # native package-manager adapter is available, only exact
+                            # equality is safe and deterministic.
+                            accepted = selected_version == constraint
+                    except (TypeError, ValueError) as exc:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: invalid {ecosystem} constraint "
+                            f"for {name}: {exc}"
+                        ) from exc
+                    if not accepted:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: selected {key}={selected_version} "
+                            f"does not satisfy {constraint}."
+                        )
+                elif policy != "latest_compatible":
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: unsupported version policy for {key}."
+                    )
+                if ecosystem == "os" and (
+                    dependency.get("distribution_family") != os_target.get("distribution_family")
+                    or dependency.get("package_manager") != os_target.get("package_manager")
+                ):
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: OS dependency {name} does not match "
+                        "target OS/package manager."
+                    )
+                resolved.append(
+                    {
+                        "ecosystem": ecosystem,
+                        "name": name,
+                        "version": selected_version,
+                        "version_policy": policy,
+                        "disposition": dependency.get("disposition"),
+                        "install": dependency.get("disposition") != "base",
+                        "package_manager": dependency.get("package_manager"),
+                        "distribution_family": dependency.get("distribution_family"),
+                    }
+                )
+        return sorted(resolved, key=lambda item: (item["ecosystem"], item["name"]))
+
     def _validate_descriptor_target(
         self, descriptor: dict, target_runtime: dict, selected_optional: set[str]
     ) -> None:
@@ -385,6 +459,17 @@ class ManifestLoader:
                 "v2 composition requires an explicit target_runtime matrix."
             )
         selected_optional = set(manifest.get("selected_optional_dependencies", []))
+        try:
+            selected_frappe = SemVerVersion(target_runtime["frappe"])
+            framework_major = int(str(manifest["framework"]["version"]).split(".", 1)[0])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ManifestError(
+                "v2 target_runtime.frappe and framework.version must identify a valid Frappe major."
+            ) from exc
+        if selected_frappe.major != framework_major:
+            raise ManifestError(
+                "target_runtime.frappe does not match the product framework major."
+            )
         if any(not isinstance(item, str) or not item for item in selected_optional):
             raise ManifestError("selected_optional_dependencies must contain non-empty strings.")
 
@@ -454,6 +539,9 @@ class ManifestLoader:
                 if not selected:
                     continue
                 dependencies.append(dep_id)
+            package_dependencies = self._resolve_descriptor_packages(
+                descriptor, target_runtime, selected_optional
+            )
             normalized = {
                 "name": bench_name,
                 "repository": descriptor["source"]["repository"],
@@ -466,7 +554,13 @@ class ManifestLoader:
                 "_descriptor_path": descriptor_path,
                 "_descriptor_sha256": checksum,
                 "_descriptor": descriptor,
+                "_package_dependencies": package_dependencies,
+                "package_dependencies": package_dependencies,
                 "_source_manifest": owner,
+                "app_id": app_id,
+                "release_version": descriptor.get("release", {}).get("version"),
+                "descriptor": descriptor_path,
+                "descriptor_sha256": checksum,
             }
             applications[bench_name] = normalized
             app_ids[app_id] = bench_name
@@ -503,6 +597,11 @@ class ManifestLoader:
                 if not selected:
                     continue
                 existing = applications.get(dep_id)
+                if existing is None:
+                    existing = next(
+                        (item for item in applications.values() if item.get("_app_id") == dep_id),
+                        None,
+                    )
                 if existing is None:
                     canonical_path = f"images/ndf/descriptors/apps/{dep_id}.json"
                     dep_descriptor, dep_path, dep_checksum = self._load_app_descriptor(canonical_path)
@@ -981,6 +1080,7 @@ class ManifestLoader:
                 "profile": manifest["profile"],
             },
             "framework": framework,
+            "target_runtime": manifest.get("target_runtime"),
             "manifests": loaded_manifests,
             "capabilities": sorted(
                 [
@@ -1013,6 +1113,7 @@ class ManifestLoader:
                             "release_version": app.get("_release_version"),
                             "descriptor": app["_descriptor_path"],
                             "descriptor_sha256": app["_descriptor_sha256"],
+                            "package_dependencies": app.get("package_dependencies", []),
                         }
                         if app.get("_app_id")
                         else {}
@@ -1387,6 +1488,7 @@ class ManifestLoader:
                     "release_version",
                     "descriptor",
                     "descriptor_sha256",
+                    "package_dependencies",
                 )
                 for index, (expected_app, locked_app) in enumerate(
                     zip(expected_order, applications, strict=True),
