@@ -6,7 +6,7 @@
     "versionConstraint": {
       "type": "string",
       "minLength": 1,
-      "description": "A constraint interpreted using the declared ecosystem's version semantics. Frappe/ERPNext and Node use SemVer-compatible ranges; Python uses PEP 440 specifiers; OS packages use the native package manager's version syntax."
+      "description": "SemVer 2.0.0 range for Frappe/ERPNext/Node ecosystems; PEP 440 specifier for Python. OS package versions use native package-manager syntax and are not parsed by a generic comparator."
     },
     "disposition": {
       "type": "string",
@@ -35,6 +35,9 @@
         },
         "notes": {
           "type": "string"
+        },
+        "version_policy": {
+          "$ref": "#/$defs/versionPolicy"
         }
       },
       "additionalProperties": false
@@ -43,7 +46,8 @@
       "type": "object",
       "required": [
         "name",
-        "disposition"
+        "disposition",
+        "required"
       ],
       "properties": {
         "name": {
@@ -62,6 +66,12 @@
         },
         "build_required": {
           "type": "boolean"
+        },
+        "version_policy": {
+          "$ref": "#/$defs/versionPolicy"
+        },
+        "required": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -72,7 +82,8 @@
         "name",
         "package_manager",
         "scope",
-        "disposition"
+        "disposition",
+        "required"
       ],
       "properties": {
         "name": {
@@ -97,6 +108,12 @@
         },
         "disposition": {
           "$ref": "#/$defs/disposition"
+        },
+        "version_policy": {
+          "$ref": "#/$defs/versionPolicy"
+        },
+        "required": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -108,7 +125,8 @@
         "distribution_family",
         "package_manager",
         "scope",
-        "disposition"
+        "disposition",
+        "required"
       ],
       "properties": {
         "name": {
@@ -120,11 +138,24 @@
         },
         "distribution_family": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "enum": [
+            "debian",
+            "rpm",
+            "alpine"
+          ]
         },
         "package_manager": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "enum": [
+            "apt",
+            "dpkg",
+            "dnf",
+            "yum",
+            "rpm",
+            "apk"
+          ]
         },
         "scope": {
           "enum": [
@@ -134,9 +165,23 @@
         },
         "disposition": {
           "$ref": "#/$defs/disposition"
+        },
+        "version_policy": {
+          "$ref": "#/$defs/versionPolicy"
+        },
+        "required": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
+    },
+    "versionPolicy": {
+      "type": "string",
+      "enum": [
+        "constraint",
+        "latest_compatible"
+      ],
+      "description": "Explicit version selection policy. Omission is allowed during authoring but blocks production eligibility."
     }
   }
 }
