@@ -27,7 +27,7 @@
       "required": ["repository"],
       "properties": {
         "repository": {"type": "string", "format": "uri"},
-        "default_ref": {"type": "string"},
+        "default_ref": {"type": "string", "minLength": 1},
         "source_subdirectory": {"type": "string"}
       },
       "additionalProperties": false
@@ -66,6 +66,24 @@
           }
         }
       },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "verified"}}, "required": ["status"]},
+          "then": {
+            "required": ["evidence"],
+            "properties": {
+              "evidence": {
+                "minItems": 1,
+                "contains": {
+                  "type": "object",
+                  "properties": {"result": {"const": "passed"}},
+                  "required": ["result"]
+                }
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "dependencies": {
@@ -83,6 +101,7 @@
       "properties": {
         "python_project_file": {"type": "string"},
         "node_lockfile": {"type": "string"},
+        "build_context": {"type": "string"},
         "build_system": {"enum": ["bench", "setuptools", "flit", "hatchling", "poetry", "npm", "yarn", "pnpm", "custom_policy"]},
         "requires_assets_build": {"type": "boolean"},
         "required_tools": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
@@ -91,6 +110,7 @@
     },
     "installation": {
       "type": "object",
+      "required": ["bench_installable"],
       "properties": {
         "bench_installable": {"const": true},
         "requires_migrate": {"type": "boolean"},
