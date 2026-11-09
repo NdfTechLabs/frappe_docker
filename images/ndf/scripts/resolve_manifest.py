@@ -352,7 +352,10 @@ class ManifestLoader:
                         timeout=30,
                     )
                     subprocess.run(
-                        ["git", "-C", temp_dir, "fetch", "--depth=1", repository, target_ref],
+                        [
+                            "git", "-C", temp_dir, "fetch", "--depth=1",
+                            repository, target_ref,
+                        ],
                         capture_output=True,
                         text=True,
                         check=True,
@@ -368,7 +371,8 @@ class ManifestLoader:
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                 detail = getattr(exc, "stderr", "") or str(exc)
                 raise ManifestError(
-                    f"Unable to verify commit '{target_ref}' from {repository}: {detail}"
+                    f"Unable to verify commit '{target_ref}' from "
+                    f"{repository}: {detail}"
                 ) from exc
 
             commit = result.stdout.strip()
@@ -392,10 +396,13 @@ class ManifestLoader:
                 capture_output=True, text=True, check=True, timeout=60,
             )
         except subprocess.TimeoutExpired as exc:
-            raise ManifestError(f"Git reference resolution timed out: {repository}") from exc
+            raise ManifestError(
+                f"Git reference resolution timed out: {repository}"
+            ) from exc
         except subprocess.CalledProcessError as exc:
             raise ManifestError(
-                f"Unable to resolve Git reference '{target_ref}' from {repository}: {exc.stderr.strip()}"
+                f"Unable to resolve Git reference '{target_ref}' "
+                f"from {repository}: {exc.stderr.strip()}"
             ) from exc
 
         resolved = {}
@@ -432,7 +439,10 @@ class ManifestLoader:
 
             status = str(app.get("compatibility_status", "")).strip().lower()
             if policy["fail_on_unverified_compatibility"] and status != "verified":
-                errors.append(f"{app['name']}: compatibility_status={status or '<missing>'}")
+                errors.append(
+                    f"{app['name']}: compatibility_status="
+                    f"{status or '<missing>'}"
+                )
 
             resolved = self.resolve_git_ref(repository, target_ref)
             if (
@@ -441,14 +451,18 @@ class ManifestLoader:
                 and not policy["allow_development_branches"]
             ):
                 errors.append(
-                    f"{app['name']}: development branch '{target_ref}' is prohibited by effective policy"
+                    f"{app['name']}: development branch '{target_ref}' "
+                    "is prohibited by effective policy"
                 )
 
             commit = resolved["sha"]
             if policy["require_immutable_commit"] and not re.fullmatch(
                 r"[a-fA-F0-9]{40}", commit
             ):
-                errors.append(f"{app['name']}: resolved source is not a full immutable commit SHA")
+                errors.append(
+                    f"{app['name']}: resolved source is not a full "
+                    "immutable commit SHA"
+                )
 
             app["ref"] = commit
             app["_reference_kind"] = resolved["kind"]
@@ -508,7 +522,9 @@ class ManifestLoader:
             None,
         )
         if framework_application is None:
-            raise ManifestError("Resolved application composition does not contain Frappe.")
+            raise ManifestError(
+                "Resolved application composition does not contain Frappe."
+            )
 
         framework = dict(manifest["framework"])
         framework.update(
@@ -620,7 +636,10 @@ class ManifestLoader:
         ):
             raise ManifestError("Lock file has an invalid effective resolution policy.")
         if policy != self.resolve_policy(expected_manifest):
-            raise ManifestError("Lock file effective resolution policy does not match the source manifests.")
+            raise ManifestError(
+                "Lock file effective resolution policy does not match "
+                "the source manifests."
+            )
 
         # 2. Product identity
         product = lock.get("product")
@@ -765,19 +784,27 @@ class ManifestLoader:
                 raise ManifestError(
                     f"Application '{name}' has no resolved Git reference name."
                 )
-            if policy["require_immutable_commit"] and not re.fullmatch(r"[a-fA-F0-9]{40}", commit):
-                raise ManifestError(f"Application '{name}' is not locked to an immutable commit SHA.")
+            if policy["require_immutable_commit"] and not re.fullmatch(
+                r"[a-fA-F0-9]{40}", commit
+            ):
+                raise ManifestError(
+                    f"Application '{name}' is not locked to an immutable commit SHA."
+                )
             if (
                 policy["fail_on_unverified_compatibility"]
                 and str(compatibility_status or "").strip().lower() != "verified"
             ):
-                raise ManifestError(f"Application '{name}' has unverified compatibility status.")
+                raise ManifestError(
+                    f"Application '{name}' has unverified compatibility status."
+                )
             if (
                 reference_kind == "branch"
                 and self.is_development_branch(target_ref)
                 and not policy["allow_development_branches"]
             ):
-                raise ManifestError(f"Application '{name}' uses a prohibited development branch.")
+                raise ManifestError(
+                    f"Application '{name}' uses a prohibited development branch."
+                )
 
             if (
                 not isinstance(order, int)
@@ -830,7 +857,8 @@ class ManifestLoader:
             or framework.get("resolved_ref") != frappe_app.get("resolved_ref")
         ):
             raise ManifestError(
-                "Framework source identity does not match the locked Frappe application."
+                "Framework source identity does not match the locked "
+                "Frappe application."
             )
 
         return True
@@ -992,7 +1020,10 @@ def main():
     # 2. Compute effective policy and compose applications
     try:
         effective_policy = loader.resolve_policy(manifest)
-        print(f"\nEffective resolution policy: {json.dumps(effective_policy, sort_keys=True)}")
+        print(
+            "\nEffective resolution policy: "
+            f"{json.dumps(effective_policy, sort_keys=True)}"
+        )
         applications = loader.compose_applications(manifest)
 
         loader.validate_dependencies(applications)
@@ -1019,7 +1050,10 @@ def main():
 
     # 4. Resolve immutable Git references
     try:
-        ordered_applications = loader.resolve_application_refs(ordered_applications, effective_policy)
+        ordered_applications = loader.resolve_application_refs(
+            ordered_applications,
+            effective_policy,
+        )
 
     except ManifestError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
