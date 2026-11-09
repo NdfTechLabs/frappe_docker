@@ -448,6 +448,7 @@ class ManifestLoader:
 
         framework = dict(manifest["framework"])
         framework.update({
+            "target_ref": framework_application["target_ref"],
             "ref": framework_application["ref"],
             "reference_kind": framework_application.get("_reference_kind"),
             "resolved_ref": framework_application.get("_resolved_ref"),
@@ -725,7 +726,8 @@ class ManifestLoader:
         if not isinstance(framework, dict) or frappe_app is None:
             raise ManifestError("Lock file has no valid locked Frappe framework entry.")
         if (
-            framework.get("ref") != frappe_app.get("ref")
+            framework.get("target_ref") != frappe_app.get("target_ref")
+            or framework.get("ref") != frappe_app.get("ref")
             or framework.get("reference_kind") != frappe_app.get("reference_kind")
             or framework.get("resolved_ref") != frappe_app.get("resolved_ref")
         ):
