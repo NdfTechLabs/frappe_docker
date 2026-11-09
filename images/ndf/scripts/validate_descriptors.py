@@ -82,6 +82,7 @@ def validate_composition_descriptors(
 
     root = repository_root.resolve()
     seen_ids: dict[str, str] = {}
+    seen_bench_names: dict[str, str] = {}
     resolved: list[dict[str, Any]] = []
 
     for index, entry in enumerate(composition.get("applications", [])):
@@ -116,6 +117,14 @@ def validate_composition_descriptors(
                 f"{seen_ids[app_id]} and {relative}"
             )
         seen_ids[app_id] = relative
+
+        bench_name = descriptor["app_module"]["bench_app_name"]
+        if bench_name in seen_bench_names:
+            raise DescriptorValidationError(
+                f"Duplicate Bench app name '{bench_name}' in composition: "
+                f"{seen_bench_names[bench_name]} and {relative}"
+            )
+        seen_bench_names[bench_name] = relative
 
         selected_ref = entry.get("target_ref") or descriptor.get("source", {}).get("default_ref")
         if not isinstance(selected_ref, str) or not selected_ref.strip():
