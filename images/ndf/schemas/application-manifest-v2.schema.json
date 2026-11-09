@@ -127,6 +127,12 @@
               "install_order": {"type": "integer", "minimum": 0},
               "notes": {"type": "string"}
             },
+            "allOf": [
+              {
+                "if": {"properties": {"required": {"const": false}}, "required": ["required"]},
+                "then": {"required": ["selected"]}
+              }
+            ],
             "additionalProperties": false
           },
           {
