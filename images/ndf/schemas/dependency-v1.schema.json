@@ -37,7 +37,9 @@
           "type": "string"
         },
         "version_policy": {
-          "$ref": "#/$defs/versionPolicy"
+          "type": "string",
+          "const": "constraint",
+          "description": "Bench app dependency versions are checked against the target descriptor's declared SemVer release; source selection remains in the composition manifest."
         }
       },
       "additionalProperties": false
