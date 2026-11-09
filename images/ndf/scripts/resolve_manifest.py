@@ -1540,6 +1540,31 @@ class ManifestLoader:
 
             installed_apps.add(name)
 
+        capability_entries = lock.get("capabilities", [])
+        if not isinstance(capability_entries, list):
+            raise ManifestError("Lock file capability selections must be an array.")
+        seen_capability_paths = set()
+        for selection in capability_entries:
+            if not isinstance(selection, dict):
+                raise ManifestError("Invalid capability selection in lock file.")
+            capability_path = selection.get("manifest")
+            required = selection.get("required")
+            selected = selection.get("selected")
+            if (
+                not isinstance(capability_path, str)
+                or not capability_path
+                or not isinstance(required, bool)
+                or not isinstance(selected, bool)
+                or (required and not selected)
+                or capability_path in seen_capability_paths
+            ):
+                raise ManifestError("Invalid or duplicate capability selection in lock file.")
+            seen_capability_paths.add(capability_path)
+
+        target_runtime = lock.get("target_runtime")
+        if target_runtime is not None and not isinstance(target_runtime, dict):
+            raise ManifestError("Lock file has an invalid target runtime matrix.")
+
         locked_independent_artifacts = {}
         for section in ("services", "external_requirements"):
             entries = lock.get(section, [])
