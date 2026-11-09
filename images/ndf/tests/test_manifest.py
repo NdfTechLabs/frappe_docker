@@ -45,7 +45,7 @@ def write_test_manifest(
             "name": "frappe",
             "version": "16",
             "release_channel": "stable",
-            "target_ref": "main",
+            "target_ref": "version-16",
         },
         "profile": {
             "type": "product",
@@ -277,7 +277,7 @@ def cli_environment(tmp_path):
             "name": "frappe",
             "version": "16",
             "release_channel": "stable",
-            "target_ref": "version-16",
+            "target_ref": "main",
         },
         "profile": {
             "type": "product",
