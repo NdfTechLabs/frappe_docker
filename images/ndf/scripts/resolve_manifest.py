@@ -973,80 +973,111 @@ class ManifestLoader:
         return descriptor, checksum
 
     def compose_services(self, manifest: dict) -> tuple[list[dict], list[dict]]:
-        """Resolve independent container services and external requirements."""
+        """Resolve transitive independent service and external requirement composition."""
         services: dict[str, dict] = {}
         external: dict[str, dict] = {}
 
+        def add_descriptor(descriptor_path: str, expected_kind: str | None = None) -> dict:
+            descriptor, checksum = self._load_service_descriptor(descriptor_path)
+            service_id = descriptor["service_id"]
+            actual_kind = descriptor["service_kind"]
+            if expected_kind and actual_kind != expected_kind:
+                raise ManifestError(
+                    f"{descriptor_path} has service_kind={actual_kind}; "
+                    f"composition requires {expected_kind}."
+                )
+            inventory = services if actual_kind == "container" else external
+            other_inventory = external if actual_kind == "container" else services
+            if service_id in other_inventory:
+                raise ManifestError(
+                    f"Service identity '{service_id}' is declared as both container and external."
+                )
+            if service_id in inventory:
+                previous = inventory[service_id]
+                if previous["descriptor_sha256"] != checksum:
+                    raise ManifestError(
+                        f"Conflicting service descriptor identity: {service_id}"
+                    )
+                return previous
+            item = {
+                "service_id": service_id,
+                "name": descriptor["name"],
+                "service_kind": actual_kind,
+                "artifact": descriptor.get("artifact"),
+                "provider": descriptor.get("provider"),
+                "depends_on": descriptor.get("depends_on", []),
+                "descriptor": descriptor_path,
+                "descriptor_sha256": checksum,
+            }
+            inventory[service_id] = item
+            return item
+
         for current in self._walk_manifest_graph(manifest):
-            for field, expected_kind, inventory in (
-                ("services", "container", services),
-                ("external_requirements", "external", external),
+            for field, expected_kind in (
+                ("services", "container"),
+                ("external_requirements", "external"),
             ):
                 for entry in current.get(field, []):
                     required = entry.get("required", False)
                     selected = entry.get("selected")
                     if not required and selected is not True:
                         continue
-                    descriptor_path = entry["descriptor"]
-                    descriptor, checksum = self._load_service_descriptor(descriptor_path)
-                    service_id = descriptor["service_id"]
-                    if descriptor["service_kind"] != expected_kind:
-                        raise ManifestError(
-                            f"{descriptor_path} has service_kind={descriptor['service_kind']}; "
-                            f"{field} requires {expected_kind}."
-                        )
-                    if service_id in inventory:
-                        previous = inventory[service_id]
-                        if previous["descriptor_sha256"] != checksum:
-                            raise ManifestError(
-                                f"Conflicting service descriptor identity: {service_id}"
-                            )
-                        continue
-                    inventory[service_id] = {
-                        "service_id": service_id,
-                        "name": descriptor["name"],
-                        "service_kind": expected_kind,
-                        "artifact": descriptor.get("artifact"),
-                        "provider": descriptor.get("provider"),
-                        "depends_on": descriptor.get("depends_on", []),
-                        "descriptor": descriptor_path,
-                        "descriptor_sha256": checksum,
-                    }
+                    add_descriptor(entry["descriptor"], expected_kind)
 
-        def validate_graph(inventory: dict[str, dict], label: str) -> list[dict]:
-            ordered: list[dict] = []
-            visiting: list[str] = []
-            visited: set[str] = set()
+        # Close service dependencies from the canonical independent-service catalogue.
+        pending = list(services.values()) + list(external.values())
+        index = 0
+        while index < len(pending):
+            item = pending[index]
+            for dependency_id in sorted(item["depends_on"]):
+                if dependency_id in services or dependency_id in external:
+                    continue
+                dependency_path = (
+                    f"images/ndf/descriptors/services/{dependency_id}.json"
+                )
+                dependency_descriptor = add_descriptor(dependency_path)
+                pending.append(dependency_descriptor)
+            index += 1
 
-            def visit(service_id: str) -> None:
-                if service_id in visiting:
-                    cycle = visiting[visiting.index(service_id):] + [service_id]
+        combined = {**services, **external}
+        if len(combined) != len(services) + len(external):
+            raise ManifestError("Service and external requirement identities overlap.")
+
+        ordered: list[dict] = []
+        visiting: list[str] = []
+        visited: set[str] = set()
+
+        def visit(service_id: str) -> None:
+            if service_id in visiting:
+                cycle = visiting[visiting.index(service_id):] + [service_id]
+                raise ManifestError(
+                    "Circular independent-service dependency detected: "
+                    + " -> ".join(cycle)
+                )
+            if service_id in visited:
+                return
+            visiting.append(service_id)
+            item = combined[service_id]
+            for dependency_id in sorted(item["depends_on"]):
+                if dependency_id not in combined:
                     raise ManifestError(
-                        f"Circular {label} dependency detected: " + " -> ".join(cycle)
+                        f"Independent artifact '{service_id}' requires missing "
+                        f"dependency '{dependency_id}'."
                     )
-                if service_id in visited:
-                    return
-                visiting.append(service_id)
-                item = inventory[service_id]
-                for dependency in sorted(item["depends_on"]):
-                    if dependency not in inventory:
-                        raise ManifestError(
-                            f"{label} '{service_id}' requires missing dependency '{dependency}'."
-                        )
-                    visit(dependency)
-                visiting.pop()
-                visited.add(service_id)
-                ordered.append(item)
+                visit(dependency_id)
+            visiting.pop()
+            visited.add(service_id)
+            ordered.append(item)
 
-            for service_id in sorted(inventory):
-                visit(service_id)
-            for index, item in enumerate(ordered, start=1):
-                item["resolution_order"] = index
-            return ordered
+        for service_id in sorted(combined):
+            visit(service_id)
+
+        for order, item in enumerate(ordered, start=1):
+            item["resolution_order"] = order
 
         return (
-            validate_graph(services, "service"),
-            validate_graph(external, "external requirement"),
+            [item for item in ordered if item["service_kind"] == "container"],
+            [item for item in ordered if item["service_kind"] == "external"],
         )
 
     def _walk_manifest_graph(self, manifest: dict) -> list[dict]:
