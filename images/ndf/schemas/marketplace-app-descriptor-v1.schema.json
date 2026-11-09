@@ -4,63 +4,186 @@
   "title": "NDF Marketplace App Descriptor",
   "description": "Reusable metadata for one Frappe/Bench-installable application. Product and capability manifests select and compose descriptors; they do not duplicate descriptor-owned metadata.",
   "type": "object",
-  "required": ["descriptor_version", "app_id", "name", "publisher", "source", "app_module", "dependencies", "build", "installation", "compatibility"],
+  "required": [
+    "descriptor_version",
+    "app_id",
+    "name",
+    "publisher",
+    "source",
+    "app_module",
+    "dependencies",
+    "build",
+    "installation",
+    "compatibility"
+  ],
   "properties": {
-    "$schema": {"type": "string"},
-    "descriptor_version": {"const": "1.0.0"},
-    "app_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-    "name": {"type": "string", "minLength": 1},
-    "publisher": {"type": "string", "minLength": 1},
-    "description": {"type": "string"},
-    "license": {"type": "string"},
+    "$schema": {
+      "type": "string"
+    },
+    "descriptor_version": {
+      "const": "1.0.0"
+    },
+    "app_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "publisher": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
     "release": {
       "type": "object",
-      "required": ["version"],
+      "required": [
+        "version"
+      ],
       "properties": {
-        "version": {"type": "string", "minLength": 1},
-        "released_at": {"type": "string", "format": "date-time"}
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "released_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
       "additionalProperties": false
     },
     "source": {
       "type": "object",
-      "required": ["repository"],
+      "required": [
+        "repository"
+      ],
       "properties": {
-        "repository": {"type": "string", "format": "uri"},
-        "default_ref": {"type": "string", "minLength": 1},
-        "source_subdirectory": {"type": "string"}
+        "repository": {
+          "type": "string",
+          "format": "uri"
+        },
+        "default_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_subdirectory": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "app_module": {
       "type": "object",
-      "required": ["bench_app_name"],
+      "required": [
+        "bench_app_name"
+      ],
       "properties": {
-        "bench_app_name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-        "modules": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        "bench_app_name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
       },
       "additionalProperties": false
     },
     "compatibility": {
       "type": "object",
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "properties": {
-        "status": {"enum": ["verified", "pending", "incompatible", "experimental"]},
-        "frappe": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
-        "erpnext": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
-        "python": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
-        "node": {"$ref": "dependency-v1.schema.json#/$defs/versionConstraint"},
+        "status": {
+          "enum": [
+            "verified",
+            "pending",
+            "incompatible",
+            "experimental"
+          ]
+        },
+        "frappe": {
+          "$ref": "dependency-v1.schema.json#/$defs/versionConstraint"
+        },
+        "erpnext": {
+          "$ref": "dependency-v1.schema.json#/$defs/versionConstraint"
+        },
+        "python": {
+          "$ref": "dependency-v1.schema.json#/$defs/versionConstraint"
+        },
+        "node": {
+          "$ref": "dependency-v1.schema.json#/$defs/versionConstraint"
+        },
         "evidence": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["kind", "reference", "result"],
+            "required": [
+              "kind",
+              "authority",
+              "reference",
+              "result"
+            ],
             "properties": {
-              "kind": {"enum": ["automated_test", "manual_test", "upstream_declaration", "maintainer_attestation"]},
-              "reference": {"type": "string", "minLength": 1},
-              "result": {"enum": ["passed", "failed", "partial"]},
-              "tested_at": {"type": "string", "format": "date-time"},
-              "tested_versions": {"type": "object", "additionalProperties": {"type": "string"}}
+              "kind": {
+                "enum": [
+                  "automated_test",
+                  "manual_test",
+                  "upstream_declaration",
+                  "maintainer_attestation"
+                ]
+              },
+              "reference": {
+                "type": "string",
+                "minLength": 1
+              },
+              "result": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "partial"
+                ]
+              },
+              "tested_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "tested_versions": {
+                "type": "object",
+                "properties": {
+                  "frappe": {
+                    "type": "string"
+                  },
+                  "erpnext": {
+                    "type": "string"
+                  },
+                  "python": {
+                    "type": "string"
+                  },
+                  "node": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "authority": {
+                "type": "string",
+                "enum": [
+                  "publisher",
+                  "upstream",
+                  "ndf"
+                ]
+              }
             },
             "additionalProperties": false
           }
@@ -68,16 +191,55 @@
       },
       "allOf": [
         {
-          "if": {"properties": {"status": {"const": "verified"}}, "required": ["status"]},
+          "if": {
+            "properties": {
+              "status": {
+                "const": "verified"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
           "then": {
-            "required": ["evidence"],
+            "required": [
+              "evidence"
+            ],
             "properties": {
               "evidence": {
                 "minItems": 1,
                 "contains": {
                   "type": "object",
-                  "properties": {"result": {"const": "passed"}},
-                  "required": ["result"]
+                  "required": [
+                    "authority",
+                    "result",
+                    "tested_versions"
+                  ],
+                  "properties": {
+                    "authority": {
+                      "const": "ndf"
+                    },
+                    "result": {
+                      "const": "passed"
+                    },
+                    "tested_versions": {
+                      "type": "object",
+                      "required": [
+                        "frappe",
+                        "python"
+                      ],
+                      "properties": {
+                        "frappe": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "python": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -89,37 +251,155 @@
     "dependencies": {
       "type": "object",
       "properties": {
-        "bench_apps": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/benchApp"}},
-        "python": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/pythonPackage"}},
-        "node": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/nodePackage"}},
-        "os": {"type": "array", "items": {"$ref": "dependency-v1.schema.json#/$defs/osPackage"}}
+        "bench_apps": {
+          "type": "array",
+          "items": {
+            "$ref": "dependency-v1.schema.json#/$defs/benchApp"
+          }
+        },
+        "python": {
+          "type": "array",
+          "items": {
+            "$ref": "dependency-v1.schema.json#/$defs/pythonPackage"
+          }
+        },
+        "node": {
+          "type": "array",
+          "items": {
+            "$ref": "dependency-v1.schema.json#/$defs/nodePackage"
+          }
+        },
+        "os": {
+          "type": "array",
+          "items": {
+            "$ref": "dependency-v1.schema.json#/$defs/osPackage"
+          }
+        }
       },
       "additionalProperties": false
     },
     "build": {
       "type": "object",
       "properties": {
-        "python_project_file": {"type": "string"},
-        "node_lockfile": {"type": "string"},
-        "build_context": {"type": "string"},
-        "build_system": {"enum": ["bench", "setuptools", "flit", "hatchling", "poetry", "npm", "yarn", "pnpm", "custom_policy"]},
-        "requires_assets_build": {"type": "boolean"},
-        "required_tools": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        "python_project_file": {
+          "type": "string"
+        },
+        "node_lockfile": {
+          "type": "string"
+        },
+        "build_context": {
+          "type": "string"
+        },
+        "build_system": {
+          "enum": [
+            "bench",
+            "setuptools",
+            "flit",
+            "hatchling",
+            "poetry",
+            "npm",
+            "yarn",
+            "pnpm",
+            "custom_policy"
+          ]
+        },
+        "requires_assets_build": {
+          "type": "boolean"
+        },
+        "required_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "policy_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "description": "Identifier from the NDF-controlled build policy catalogue."
+        }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "build_system": {
+                "const": "custom_policy"
+              }
+            },
+            "required": [
+              "build_system"
+            ]
+          },
+          "then": {
+            "required": [
+              "policy_id"
+            ]
+          }
+        }
+      ]
     },
     "installation": {
       "type": "object",
-      "required": ["bench_installable"],
+      "required": [
+        "bench_installable"
+      ],
       "properties": {
-        "bench_installable": {"const": true},
-        "requires_migrate": {"type": "boolean"},
-        "install_order_hint": {"type": "integer", "minimum": 0},
-        "post_install_policy": {"enum": ["none", "trusted_hook", "operator_action"]}
+        "bench_installable": {
+          "const": true
+        },
+        "requires_migrate": {
+          "type": "boolean"
+        },
+        "install_order_hint": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "post_install_policy": {
+          "enum": [
+            "none",
+            "operator_action",
+            "approved_policy"
+          ]
+        },
+        "policy_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "description": "Identifier from the NDF-controlled installation policy catalogue."
+        }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "post_install_policy": {
+                "const": "approved_policy"
+              }
+            },
+            "required": [
+              "post_install_policy"
+            ]
+          },
+          "then": {
+            "required": [
+              "policy_id"
+            ]
+          }
+        }
+      ]
     },
-    "metadata": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}}
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    }
   },
   "additionalProperties": false
 }
