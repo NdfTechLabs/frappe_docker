@@ -169,6 +169,9 @@ def sample_applications():
             "target_ref": "version-16",
             "ref": "a" * 40,
             "dependencies": [],
+            "compatibility_status": "verified",
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-16",
         }
     ]
 
@@ -284,19 +287,29 @@ def cli_environment(tmp_path):
         "resolution": {
             "strategy": "locked",
             "require_immutable_commit": True,
-            "allow_development_branches": False,
+            "allow_development_branches": True,
             "fail_on_unverified_compatibility": True,
             "notes": [],
         },
         "validation": {},
         "applications": [
             {
+                "name": "frappe",
+                "repository": repository_url,
+                "target_ref": "main",
+                "required": True,
+                "install_order": 0,
+                "dependencies": [],
+                "ref": None,
+                "compatibility_status": "verified",
+            },
+            {
                 "name": "test_app",
                 "repository": repository_url,
                 "target_ref": "main",
                 "required": True,
                 "install_order": 1,
-                "dependencies": [],
+                "dependencies": ["frappe"],
                 "ref": None,
                 "compatibility_status": "verified",
             }
@@ -322,6 +335,52 @@ def cli_environment(tmp_path):
 # ---------------------------------------------------------
 # Lock generation
 # ---------------------------------------------------------
+
+
+class TestResolutionPolicy:
+
+    def test_policy_is_aggregated_restrictively_across_includes(self, loader):
+        manifest = {
+            "resolution": {
+                "require_immutable_commit": True,
+                "allow_development_branches": True,
+                "fail_on_unverified_compatibility": True,
+            },
+            "_loaded_includes": [
+                {
+                    "resolution": {
+                        "require_immutable_commit": False,
+                        "allow_development_branches": False,
+                        "fail_on_unverified_compatibility": False,
+                    },
+                    "_loaded_includes": [],
+                }
+            ],
+        }
+
+        assert loader.resolve_policy(manifest) == {
+            "require_immutable_commit": True,
+            "allow_development_branches": False,
+            "fail_on_unverified_compatibility": True,
+        }
+
+    def test_invalid_policy_type_is_rejected(self, loader):
+        with pytest.raises(ManifestError, match="must be a boolean"):
+            loader.resolve_policy({
+                "resolution": {"allow_development_branches": "false"},
+                "_loaded_includes": [],
+            })
+
+    @pytest.mark.parametrize(
+        "name",
+        ["develop", "development", "dev", "main", "master", "nightly", "develop/next"],
+    )
+    def test_conventional_development_branches_are_classified(self, loader, name):
+        assert loader.is_development_branch(name) is True
+
+    @pytest.mark.parametrize("name", ["version-16", "version-3", "release/16.1"])
+    def test_release_refs_are_not_classified_as_development(self, loader, name):
+        assert loader.is_development_branch(name) is False
 
 
 class TestLockGeneration:
