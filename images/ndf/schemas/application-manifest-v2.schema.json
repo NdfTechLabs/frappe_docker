@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/application-manifest-v2.schema.json",
+  "title": "NDF Frappe Composition Manifest v2",
+  "description": "Composition root selecting reusable Marketplace App Descriptors. Product-specific inclusion and source-ref overrides remain here.",
+  "type": "object",
+  "required": ["manifest_version", "id", "name", "framework", "profile", "resolution", "validation"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "manifest_version": {"const": "2.0.0"},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "name": {"type": "string"},
+    "description": {"type": "string"},
+    "framework": {"type": "object"},
+    "profile": {"type": "object"},
+    "resolution": {"type": "object"},
+    "includes": {"type": "array", "items": {"type": "object"}},
+    "capabilities": {"type": "array", "items": {"type": "object"}},
+    "applications": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["descriptor", "required"],
+            "properties": {
+              "descriptor": {"type": "string", "description": "Repository-relative path to a Marketplace App Descriptor JSON file."},
+              "required": {"type": "boolean"},
+              "target_ref": {"type": "string", "description": "Product/capability-specific source ref override; when omitted, descriptor source.default_ref is used."},
+              "ref": {"type": ["string", "null"], "description": "Legacy compatibility field; resolver migration defines its semantics."},
+              "install_order": {"type": "integer", "minimum": 0},
+              "notes": {"type": "string"}
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["name", "repository", "target_ref", "required", "install_order", "dependencies"],
+            "description": "Legacy v1 application entry retained only for transition/read compatibility.",
+            "properties": {
+              "name": {"type": "string"},
+              "repository": {"type": "string", "format": "uri"},
+              "target_ref": {"type": "string"},
+              "ref": {"type": ["string", "null"]},
+              "required": {"type": "boolean"},
+              "install_order": {"type": "integer", "minimum": 0},
+              "dependencies": {"type": "array", "items": {"type": "string"}},
+              "compatibility_status": {"type": "string"},
+              "notes": {"type": "string"}
+            },
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "services": {"type": "array"},
+    "validation": {"type": "object"},
+    "deployment": {"type": "object"}
+  },
+  "additionalProperties": true
+}
