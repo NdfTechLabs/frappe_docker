@@ -1910,6 +1910,35 @@ class TestIndependentServiceComposition:
         ]
         assert all(item.get("name") != "search" for item in apps_json)
 
+    def test_lock_validation_rejects_omitted_service_inventory(
+        self, loader, sample_manifest, sample_applications, tmp_path
+    ):
+        service_path = self._write_service(
+            loader,
+            "search",
+            {
+                "descriptor_version": "1.0.0",
+                "service_id": "search",
+                "name": "Search",
+                "service_kind": "container",
+                "artifact": {"image": "registry.example/search@sha256:" + "6" * 64},
+            },
+        )
+        manifest = dict(sample_manifest)
+        manifest["services"] = [{"descriptor": service_path, "required": True}]
+        lock_data = loader.build_lock_data(manifest, sample_applications)
+        lock_path = tmp_path / "service.lock.json"
+        loader.write_lock_file(lock_data, lock_path)
+        assert loader.validate_lock_file(lock_path, manifest) is True
+
+        lock_data["services"] = []
+        loader.write_lock_file(lock_data, lock_path)
+        with pytest.raises(
+            ManifestError,
+            match="service inventory does not match",
+        ):
+            loader.validate_lock_file(lock_path, manifest)
+
     def test_container_service_rejects_mutable_tag(self, loader):
         service_path = self._write_service(
             loader,
