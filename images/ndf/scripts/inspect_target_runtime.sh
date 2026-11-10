@@ -123,7 +123,7 @@ inspect_image() {
   if ! docker run --rm -i --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -s \
     > "$dir/runtime-metadata.txt" 2> "$dir/runtime-metadata.stderr" <<'CONTAINER_SCRIPT'
 set +e
-printf '%s\\n' "NDF_RUNTIME_METADATA_BEGIN"
+printf '%s\n' "NDF_RUNTIME_METADATA_BEGIN"
 
 echo "=== OS RELEASE ==="
 if [ -r /etc/os-release ]; then
@@ -215,7 +215,7 @@ if [ -d /etc/apt/sources.list.d ]; then
 else
   echo "MISSING: /etc/apt/sources.list.d"
 fi
-printf '%s\\n' "NDF_RUNTIME_METADATA_END"
+printf '%s\n' "NDF_RUNTIME_METADATA_END"
 CONTAINER_SCRIPT
   then
     echo "ERROR: Runtime metadata inspection failed for $image." >&2
