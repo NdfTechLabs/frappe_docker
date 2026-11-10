@@ -107,8 +107,8 @@ inspect_image() {
   local repository="${image%%:*}"
   local index_ref="${repository}@${index_digest}"
   local resolved_ref="${repository}@${platform_digest}"
-  printf '%s\\n' "$index_ref" > "$dir/registry-index-ref.txt"
-  printf '%s\\n' "$resolved_ref" > "$dir/resolved-image-ref.txt"
+  printf '%s\n' "$index_ref" > "$dir/registry-index-ref.txt"
+  printf '%s\n' "$resolved_ref" > "$dir/resolved-image-ref.txt"
 
   echo "==> Pulling immutable platform image $resolved_ref"
   docker pull --platform "$PLATFORM" "$resolved_ref"
