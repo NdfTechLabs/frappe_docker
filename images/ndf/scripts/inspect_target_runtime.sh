@@ -120,9 +120,10 @@ inspect_image() {
   docker image inspect --format '{{.Os}}/{{.Architecture}}' "$resolved_ref" > "$dir/image-platform.txt"
 
   echo "==> Inspecting runtime metadata inside the selected image"
-  docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -s \
-    > "$dir/runtime-metadata.txt" <<'CONTAINER_SCRIPT'
+  if ! docker run --rm -i --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -s \
+    > "$dir/runtime-metadata.txt" 2> "$dir/runtime-metadata.stderr" <<'CONTAINER_SCRIPT'
 set +e
+printf '%s\\n' "NDF_RUNTIME_METADATA_BEGIN"
 
 echo "=== OS RELEASE ==="
 if [ -r /etc/os-release ]; then
@@ -214,7 +215,25 @@ if [ -d /etc/apt/sources.list.d ]; then
 else
   echo "MISSING: /etc/apt/sources.list.d"
 fi
+printf '%s\\n' "NDF_RUNTIME_METADATA_END"
 CONTAINER_SCRIPT
+  then
+    echo "ERROR: Runtime metadata inspection failed for $image." >&2
+    if [[ -s "$dir/runtime-metadata.stderr" ]]; then
+      cat "$dir/runtime-metadata.stderr" >&2
+    fi
+    return 1
+  fi
+
+  if [[ ! -s "$dir/runtime-metadata.txt" ]] ||
+    ! grep -Fxq "NDF_RUNTIME_METADATA_BEGIN" "$dir/runtime-metadata.txt" ||
+    ! grep -Fxq "NDF_RUNTIME_METADATA_END" "$dir/runtime-metadata.txt"; then
+    echo "ERROR: Runtime metadata output is empty or incomplete for $image." >&2
+    if [[ -s "$dir/runtime-metadata.stderr" ]]; then
+      cat "$dir/runtime-metadata.stderr" >&2
+    fi
+    return 1
+  fi
 
   echo "==> Capturing installed dpkg inventory"
   docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -c \
@@ -241,7 +260,7 @@ CONTAINER_SCRIPT
   (
     cd "$dir"
     sha256sum registry-manifest.txt registry-index-ref.txt resolved-image-ref.txt docker-image-inspect.json image-id.txt \
-      repo-digests.json image-platform.txt runtime-metadata.txt \
+      repo-digests.json image-platform.txt runtime-metadata.txt runtime-metadata.stderr \
       dpkg-inventory.tsv summary.txt > SHA256SUMS
   )
 
