@@ -90,6 +90,7 @@
           "properties": {
             "distribution_family": { "enum": ["debian", "rpm", "alpine"] },
             "id": { "type": "string", "minLength": 1 },
+            "pretty_name": { "type": "string", "minLength": 1 },
             "version_id": { "type": "string", "minLength": 1 },
             "codename": { "type": "string", "minLength": 1 },
             "architecture": { "type": "string", "minLength": 1 },
@@ -97,6 +98,8 @@
               "enum": ["apt", "dpkg", "dnf", "yum", "rpm", "apk"]
             },
             "package_manager_version": { "type": "string", "minLength": 1 },
+            "package_database": { "type": "string", "minLength": 1 },
+            "package_database_version": { "type": "string", "minLength": 1 },
             "release": { "type": "string" },
             "libc": {
               "type": "object",
