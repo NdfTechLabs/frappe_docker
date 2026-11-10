@@ -14,6 +14,31 @@
     "target_runtime",
     "validation"
   ],
+  "$defs": {
+    "target_image_identity": {
+      "type": "object",
+      "required": ["reference", "manifest_digest", "platform"],
+      "properties": {
+        "reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-fA-F0-9]{64}$"
+        },
+        "index_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-fA-F0-9]{64}$"
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-fA-F0-9]{64}$"
+        },
+        "platform": {
+          "type": "string",
+          "pattern": "^linux/(amd64|arm64)$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "properties": {
     "$schema": { "type": "string" },
     "manifest_version": { "const": "2.0.0" },
@@ -39,18 +64,64 @@
         "erpnext": { "type": "string", "minLength": 1 },
         "python": { "type": "string", "minLength": 1 },
         "node": { "type": "string", "minLength": 1 },
+        "platform": {
+          "type": "object",
+          "required": ["os", "architecture"],
+          "properties": {
+            "os": { "const": "linux" },
+            "architecture": { "enum": ["amd64", "arm64"] }
+          },
+          "additionalProperties": false,
+          "description": "OCI target platform. This is image metadata, not the CI runner platform."
+        },
+        "images": {
+          "type": "object",
+          "required": ["builder", "runtime"],
+          "properties": {
+            "builder": { "$ref": "#/$defs/target_image_identity" },
+            "runtime": { "$ref": "#/$defs/target_image_identity" }
+          },
+          "additionalProperties": false,
+          "description": "Digest-bound builder and final runtime image identities for this target platform."
+        },
         "os": {
           "type": "object",
           "required": ["distribution_family", "package_manager"],
           "properties": {
             "distribution_family": { "enum": ["debian", "rpm", "alpine"] },
+            "id": { "type": "string", "minLength": 1 },
+            "version_id": { "type": "string", "minLength": 1 },
+            "codename": { "type": "string", "minLength": 1 },
+            "architecture": { "type": "string", "minLength": 1 },
             "package_manager": {
               "enum": ["apt", "dpkg", "dnf", "yum", "rpm", "apk"]
             },
-            "release": { "type": "string" }
+            "package_manager_version": { "type": "string", "minLength": 1 },
+            "release": { "type": "string" },
+            "libc": {
+              "type": "object",
+              "required": ["implementation", "version"],
+              "properties": {
+                "implementation": { "type": "string", "minLength": 1 },
+                "version": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         },
+        "python_implementation": { "type": "string", "minLength": 1 },
+        "python_cache_tag": { "type": "string", "minLength": 1 },
+        "python_soabi": { "type": "string", "minLength": 1 },
+        "python_platform": { "type": "string", "minLength": 1 },
+        "python_executable": { "type": "string", "minLength": 1 },
+        "python_build": { "type": "string", "minLength": 1 },
+        "npm": { "type": "string", "minLength": 1 },
+        "node_platform": { "type": "string", "minLength": 1 },
+        "node_architecture": { "type": "string", "minLength": 1 },
+        "node_abi": { "type": "string", "minLength": 1 },
+        "node_api": { "type": "string", "minLength": 1 },
+        "node_executable": { "type": "string", "minLength": 1 },
         "package_versions": {
           "type": "object",
           "description": "Exact package versions supplied by the target image/package-manager resolution context.",
