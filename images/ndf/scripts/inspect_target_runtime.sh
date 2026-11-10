@@ -77,17 +77,40 @@ inspect_image() {
   echo
   echo "==> Resolving the mutable tag to an immutable registry digest"
   docker buildx imagetools inspect "$image" > "$dir/registry-manifest.txt"
-  local registry_digest
-  registry_digest="$(awk '/^Digest: sha256:/ {print $2; exit}' "$dir/registry-manifest.txt")"
-  if [[ ! "$registry_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-    echo "Unable to extract a valid registry digest for $image." >&2
+  local index_digest platform_digest
+  # Buildx aligns the Digest column with variable whitespace.
+  index_digest="$(awk '$1 == "Digest:" {print $2; exit}' "$dir/registry-manifest.txt")"
+  if [[ ! "$index_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "Unable to extract a valid registry index digest for $image." >&2
     exit 1
   fi
+
+  # Select the immutable child manifest for the requested platform, not an
+  # attestation manifest (which is reported as unknown/unknown).
+  platform_digest="$(awk -v wanted_platform="$PLATFORM" '
+    $1 == "Name:" {
+      candidate = $2
+      if (candidate !~ /@sha256:/) candidate = ""
+      else sub(/^.*@/, "", candidate)
+    }
+    $1 == "Platform:" && $2 == wanted_platform &&
+      candidate ~ /^sha256:/ {
+      print candidate
+      exit
+    }
+  ' "$dir/registry-manifest.txt")"
+  if [[ ! "$platform_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "Unable to extract a valid $PLATFORM manifest digest for $image." >&2
+    exit 1
+  fi
+
   local repository="${image%%:*}"
-  local resolved_ref="${repository}@${registry_digest}"
+  local index_ref="${repository}@${index_digest}"
+  local resolved_ref="${repository}@${platform_digest}"
+  printf '%s\\n' "$index_ref" > "$dir/registry-index-ref.txt"
   printf '%s\\n' "$resolved_ref" > "$dir/resolved-image-ref.txt"
 
-  echo "==> Pulling immutable image $resolved_ref for $PLATFORM"
+  echo "==> Pulling immutable platform image $resolved_ref"
   docker pull --platform "$PLATFORM" "$resolved_ref"
 
   echo "==> Recording local image configuration and identity"
@@ -202,7 +225,9 @@ CONTAINER_SCRIPT
   {
     printf 'image=%s\n' "$image"
     printf 'requested_platform=%s\n' "$PLATFORM"
-    printf 'resolved_image_ref='
+    printf 'registry_index_ref='
+    cat "$dir/registry-index-ref.txt"
+    printf 'resolved_platform_image_ref='
     cat "$dir/resolved-image-ref.txt"
     printf 'image_id='
     cat "$dir/image-id.txt"
@@ -215,7 +240,7 @@ CONTAINER_SCRIPT
 
   (
     cd "$dir"
-    sha256sum registry-manifest.txt resolved-image-ref.txt docker-image-inspect.json image-id.txt \
+    sha256sum registry-manifest.txt registry-index-ref.txt resolved-image-ref.txt docker-image-inspect.json image-id.txt \
       repo-digests.json image-platform.txt runtime-metadata.txt \
       dpkg-inventory.tsv summary.txt > SHA256SUMS
   )
