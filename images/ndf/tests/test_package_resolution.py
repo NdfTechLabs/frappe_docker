@@ -334,7 +334,10 @@ def test_manifest_loader_rejects_package_resolution_tampering(tmp_path):
     lock["package_resolution"]["packages"][0]["resolver_version"] = ""
     loader.write_lock_file(lock, lock_path)
 
-    with pytest.raises(ManifestError, match="unpinned resolver"):
+    with pytest.raises(
+        ManifestError,
+        match="Unsupported or unrecorded native resolver for python",
+    ):
         loader.validate_lock_file(lock_path, manifest)
 
 
