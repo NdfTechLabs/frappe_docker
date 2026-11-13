@@ -2405,6 +2405,14 @@ class TestDescriptorCompositionClosureAndLock:
     def test_conflicting_source_refs_for_same_descriptor_fail_closed(
         self, loader
     ):
+        policy_dir = loader.schema_dir.parent / "policies"
+        policy_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            Path(__file__).resolve().parents[1]
+            / "policies"
+            / "build-install-policies-v1.json",
+            policy_dir / "build-install-policies-v1.json",
+        )
         descriptor_dir = (
             loader.repository_root / "images" / "ndf" / "descriptors" / "apps"
         )
