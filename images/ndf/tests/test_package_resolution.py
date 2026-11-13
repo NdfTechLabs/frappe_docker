@@ -3,14 +3,13 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.package_resolution import (
     PackageResolutionError,
     package_identity,
     validate_package_resolution,
     version_satisfies,
 )
-from scripts.resolve_manifest import ManifestLoader, ManifestError
+from scripts.resolve_manifest import ManifestError, ManifestLoader
 
 NDF_DIR = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = NDF_DIR.parents[1]
@@ -19,10 +18,18 @@ INVENTORY_ROOT = (
     "images/ndf/inventories/debian-trixie-amd64/"
     "f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
 )
-BUILDER_DIGEST = "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
-RUNTIME_DIGEST = "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
-BUILDER_INDEX_DIGEST = "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe"
-RUNTIME_INDEX_DIGEST = "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0"
+BUILDER_DIGEST = (
+    "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
+)
+RUNTIME_DIGEST = (
+    "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+)
+BUILDER_INDEX_DIGEST = (
+    "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe"
+)
+RUNTIME_INDEX_DIGEST = (
+    "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0"
+)
 
 
 def target_runtime():
@@ -88,11 +95,13 @@ def python_package(name, version, *, direct=False, requested_by=None):
         "disposition": "runtime_compatible",
         "install": True,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "a" * 64,
-            "artifact": "https://files.pythonhosted.org/packages/demo/demo.whl",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "a" * 64,
+                "artifact": "https://files.pythonhosted.org/packages/demo/demo.whl",
+            }
+        ],
         "repository_metadata": {"source_identity": "official-public-pypi"},
     }
 
@@ -113,11 +122,13 @@ def node_package(name, version, *, direct=False, requested_by=None):
         "disposition": "runtime_compatible",
         "install": True,
         "scope": "build",
-        "integrity": [{
-            "algorithm": "sha512",
-            "digest": "b" * 128,
-            "artifact": "https://registry.npmjs.org/demo/-/demo-1.2.3.tgz",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha512",
+                "digest": "b" * 128,
+                "artifact": "https://registry.npmjs.org/demo/-/demo-1.2.3.tgz",
+            }
+        ],
         "repository_metadata": {"source_identity": "official-public-npm-registry"},
     }
 
@@ -147,27 +158,33 @@ def validate(section, *, target=None, apps=None, catalogue_path=CATALOGUE):
         for package in section["packages"]:
             if not package["direct"]:
                 continue
-            direct_dependencies.append({
-                "ecosystem": package["ecosystem"],
-                "name": package["name"],
-                "version": package["version"],
-                "source": package["source"],
-                "resolver": package["resolver"],
-                "source_profile": package["source_profile"],
-                "scope": package["scope"],
-                "architecture": (
-                    package["architecture"] if package["ecosystem"] == "os" else None
-                ),
-                "version_policy": "latest_compatible",
-                "requested_constraint": None,
-                "disposition": package["disposition"],
-                "install": package["install"],
-            })
-        apps = [{
-            "name": "demo_app",
-            "app_id": "demo_app",
-            "package_dependencies": direct_dependencies,
-        }]
+            direct_dependencies.append(
+                {
+                    "ecosystem": package["ecosystem"],
+                    "name": package["name"],
+                    "version": package["version"],
+                    "source": package["source"],
+                    "resolver": package["resolver"],
+                    "source_profile": package["source_profile"],
+                    "scope": package["scope"],
+                    "architecture": (
+                        package["architecture"]
+                        if package["ecosystem"] == "os"
+                        else None
+                    ),
+                    "version_policy": "latest_compatible",
+                    "requested_constraint": None,
+                    "disposition": package["disposition"],
+                    "install": package["install"],
+                }
+            )
+        apps = [
+            {
+                "name": "demo_app",
+                "app_id": "demo_app",
+                "package_dependencies": direct_dependencies,
+            }
+        ]
     return validate_package_resolution(
         section,
         target_runtime=target if target is not None else target_runtime(),
@@ -213,16 +230,18 @@ def test_empty_package_graph_rejects_unapproved_declared_source_profile():
     app = {
         "name": "demo_app",
         "app_id": "demo_app",
-        "package_dependencies": [{
-            "ecosystem": "python",
-            "name": "requests",
-            "version_policy": "latest_compatible",
-            "requested_constraint": None,
-            "source_profile": "publisher-supplied",
-            "disposition": "runtime_compatible",
-            "install": True,
-            "scope": "runtime",
-        }],
+        "package_dependencies": [
+            {
+                "ecosystem": "python",
+                "name": "requests",
+                "version_policy": "latest_compatible",
+                "requested_constraint": None,
+                "source_profile": "publisher-supplied",
+                "disposition": "runtime_compatible",
+                "install": True,
+                "scope": "runtime",
+            }
+        ],
     }
 
     with pytest.raises(PackageResolutionError, match="unapproved source profile"):
@@ -364,11 +383,13 @@ def test_valid_direct_and_transitive_graph_passes_offline_validation():
     dependency = python_package("demo-dependency", "2.4.0")
     section = package_resolution(
         [root, dependency],
-        [{
-            "from": root["id"],
-            "to": dependency["id"],
-            "constraint": ">=2,<3",
-        }],
+        [
+            {
+                "from": root["id"],
+                "to": dependency["id"],
+                "constraint": ">=2,<3",
+            }
+        ],
     )
 
     assert validate(section) is True
@@ -401,24 +422,28 @@ def test_noncanonical_package_record_order_fails_closed():
 
 
 def test_direct_request_constraint_is_preserved_and_enforced():
-    package = python_package("demo-root", "1.5.0", direct=True, requested_by=["demo_app"])
+    package = python_package(
+        "demo-root", "1.5.0", direct=True, requested_by=["demo_app"]
+    )
     section = package_resolution([package])
     app = {
         "name": "demo_app",
         "app_id": "demo_app",
-        "package_dependencies": [{
-            "ecosystem": "python",
-            "name": "demo-root",
-            "version": "1.5.0",
-            "source": "https://pypi.org/simple",
-            "resolver": "uv",
-            "source_profile": "python-pypi-public-v1",
-            "scope": "runtime",
-            "version_policy": "constraint",
-            "requested_constraint": ">=1,<2",
-            "disposition": "runtime_compatible",
-            "install": True,
-        }],
+        "package_dependencies": [
+            {
+                "ecosystem": "python",
+                "name": "demo-root",
+                "version": "1.5.0",
+                "source": "https://pypi.org/simple",
+                "resolver": "uv",
+                "source_profile": "python-pypi-public-v1",
+                "scope": "runtime",
+                "version_policy": "constraint",
+                "requested_constraint": ">=1,<2",
+                "disposition": "runtime_compatible",
+                "install": True,
+            }
+        ],
     }
 
     assert validate(section, apps=[app]) is True
@@ -434,24 +459,28 @@ def test_multiple_descriptor_constraints_for_one_package_are_all_enforced():
         direct=True,
         requested_by=["app_one", "app_two"],
     )
+
     def app_request(app_id, constraint):
         return {
             "name": app_id,
             "app_id": app_id,
-            "package_dependencies": [{
-                "ecosystem": "python",
-                "name": "shared-library",
-                "version": "1.5.0",
-                "source": "https://pypi.org/simple",
-                "resolver": "uv",
-                "source_profile": "python-pypi-public-v1",
-                "scope": "runtime",
-                "version_policy": "constraint",
-                "requested_constraint": constraint,
-                "disposition": "runtime_compatible",
-                "install": True,
-            }],
+            "package_dependencies": [
+                {
+                    "ecosystem": "python",
+                    "name": "shared-library",
+                    "version": "1.5.0",
+                    "source": "https://pypi.org/simple",
+                    "resolver": "uv",
+                    "source_profile": "python-pypi-public-v1",
+                    "scope": "runtime",
+                    "version_policy": "constraint",
+                    "requested_constraint": constraint,
+                    "disposition": "runtime_compatible",
+                    "install": True,
+                }
+            ],
         }
+
     apps = [
         app_request("app_one", ">=1,<2"),
         app_request("app_two", ">=2,<3"),
@@ -462,11 +491,15 @@ def test_multiple_descriptor_constraints_for_one_package_are_all_enforced():
 
 
 def test_package_source_url_must_match_approved_profile():
-    package = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
+    package = python_package(
+        "demo-root", "1.0.0", direct=True, requested_by=["demo_app"]
+    )
     package["source"] = "https://packages.example.invalid/simple"
     section = package_resolution([package])
 
-    with pytest.raises(PackageResolutionError, match="does not match its approved profile"):
+    with pytest.raises(
+        PackageResolutionError, match="does not match its approved profile"
+    ):
         validate(section)
 
 
@@ -499,11 +532,13 @@ def test_missing_transitive_package_endpoint_fails_closed():
     root = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
     section = package_resolution(
         [root],
-        [{
-            "from": root["id"],
-            "to": "python|missing-dependency|1.0.0|",
-            "constraint": ">=1",
-        }],
+        [
+            {
+                "from": root["id"],
+                "to": "python|missing-dependency|1.0.0|",
+                "constraint": ">=1",
+            }
+        ],
     )
 
     with pytest.raises(PackageResolutionError, match="missing endpoint"):
@@ -592,11 +627,13 @@ def test_runtime_scoped_base_package_is_verified_against_committed_inventory():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "b" * 64,
-            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "b" * 64,
+                "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -615,9 +652,7 @@ def test_runtime_scoped_base_package_is_verified_against_committed_inventory():
     ("version", "architecture"),
     [("1.22.23", "amd64"), ("1.22.22", "all")],
 )
-def test_base_package_version_or_architecture_mismatch_fails(
-    version, architecture
-):
+def test_base_package_version_or_architecture_mismatch_fails(version, architecture):
     package = {
         "id": package_identity("os", "dpkg", version, architecture),
         "ecosystem": "os",
@@ -633,11 +668,13 @@ def test_base_package_version_or_architecture_mismatch_fails(
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "b" * 64,
-            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "b" * 64,
+                "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -669,11 +706,13 @@ def test_base_inventory_reference_must_match_runtime_digest():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "b" * 64,
-            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "b" * 64,
+                "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -688,7 +727,9 @@ def test_base_inventory_reference_must_match_runtime_digest():
         "images/ndf/inventories/debian-trixie-amd64/" + "0" * 64
     )
 
-    with pytest.raises(PackageResolutionError, match="not keyed by the target runtime digest"):
+    with pytest.raises(
+        PackageResolutionError, match="not keyed by the target runtime digest"
+    ):
         validate(section)
 
 
@@ -719,11 +760,13 @@ def test_direct_os_request_must_match_native_architecture():
         "disposition": "runtime_compatible",
         "install": True,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "b" * 64,
-            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "b" * 64,
+                "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -735,20 +778,22 @@ def test_direct_os_request_must_match_native_architecture():
     app = {
         "name": "demo_app",
         "app_id": "demo_app",
-        "package_dependencies": [{
-            "ecosystem": "os",
-            "name": "dpkg",
-            "version": "1.22.22",
-            "source": "http://deb.debian.org/debian",
-            "resolver": "apt",
-            "source_profile": "os-debian-trixie-public-amd64-v1",
-            "scope": "runtime",
-            "architecture": "all",
-            "version_policy": "latest_compatible",
-            "requested_constraint": None,
-            "disposition": "runtime_compatible",
-            "install": True,
-        }],
+        "package_dependencies": [
+            {
+                "ecosystem": "os",
+                "name": "dpkg",
+                "version": "1.22.22",
+                "source": "http://deb.debian.org/debian",
+                "resolver": "apt",
+                "source_profile": "os-debian-trixie-public-amd64-v1",
+                "scope": "runtime",
+                "architecture": "all",
+                "version_policy": "latest_compatible",
+                "requested_constraint": None,
+                "disposition": "runtime_compatible",
+                "install": True,
+            }
+        ],
     }
 
     with pytest.raises(PackageResolutionError, match="architecture differs"):
@@ -771,11 +816,13 @@ def test_builder_only_package_cannot_satisfy_runtime_scope():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "b" * 64,
-            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "b" * 64,
+                "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -789,7 +836,6 @@ def test_builder_only_package_cannot_satisfy_runtime_scope():
 
     with pytest.raises(PackageResolutionError, match="runtime inventory"):
         validate(section)
-
 
 
 def test_empty_integrity_fails_for_approved_sources_that_publish_hashes():
@@ -828,7 +874,9 @@ def test_target_runtime_platform_must_match_accepted_a1_matrix():
 
 
 def test_same_package_name_cannot_mix_source_profiles_or_sources(tmp_path):
-    package_root = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
+    package_root = python_package(
+        "demo-root", "1.0.0", direct=True, requested_by=["demo_app"]
+    )
     node_one = {
         **python_package("node-dependency", "1.0.0"),
         "id": package_identity("node", "node-dependency", "1.0.0"),
@@ -838,11 +886,13 @@ def test_same_package_name_cannot_mix_source_profiles_or_sources(tmp_path):
         "resolver": "npm",
         "resolver_version": "11.19.1",
         "repository_metadata": {"source_identity": "official-public-npm-registry"},
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "c" * 64,
-            "artifact": "https://registry.npmjs.org/node-dependency/-/node-dependency-1.0.0.tgz",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "c" * 64,
+                "artifact": "https://registry.npmjs.org/node-dependency/-/node-dependency-1.0.0.tgz",
+            }
+        ],
     }
     node_two = {
         **node_one,
@@ -851,11 +901,13 @@ def test_same_package_name_cannot_mix_source_profiles_or_sources(tmp_path):
         "source_profile": "node-test-alternate-v1",
         "source": "https://registry.example.invalid",
         "repository_metadata": {"source_identity": "alternate-test-registry"},
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "d" * 64,
-            "artifact": "https://registry.npmjs.org/node-dependency/-/node-dependency-2.0.0.tgz",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "d" * 64,
+                "artifact": "https://registry.npmjs.org/node-dependency/-/node-dependency-2.0.0.tgz",
+            }
+        ],
     }
     catalogue = json.loads(CATALOGUE.read_text(encoding="utf-8"))
     alternate = dict(catalogue["source_profiles"]["node-npm-public-v1"])
@@ -874,34 +926,37 @@ def test_same_package_name_cannot_mix_source_profiles_or_sources(tmp_path):
         ],
     )
     # The graph's profile inventory is derived from package records.
-    section["source_profiles"] = sorted({
-        item["source_profile"] for item in section["packages"]
-    })
+    section["source_profiles"] = sorted(
+        {item["source_profile"] for item in section["packages"]}
+    )
 
     with pytest.raises(PackageResolutionError, match="Conflicting package sources"):
         validate(section, catalogue_path=catalogue_path)
 
 
-
 def test_selected_optional_dependency_is_represented_as_direct_package():
-    package = python_package("optional-feature", "1.2.0", direct=True, requested_by=["demo_app"])
+    package = python_package(
+        "optional-feature", "1.2.0", direct=True, requested_by=["demo_app"]
+    )
     section = package_resolution([package])
     app = {
         "name": "demo_app",
         "app_id": "demo_app",
-        "package_dependencies": [{
-            "ecosystem": "python",
-            "name": "optional-feature",
-            "version": "1.2.0",
-            "source": "https://pypi.org/simple",
-            "resolver": "uv",
-            "source_profile": "python-pypi-public-v1",
-            "scope": "runtime",
-            "version_policy": "latest_compatible",
-            "requested_constraint": None,
-            "disposition": "runtime_compatible",
-            "install": True,
-        }],
+        "package_dependencies": [
+            {
+                "ecosystem": "python",
+                "name": "optional-feature",
+                "version": "1.2.0",
+                "source": "https://pypi.org/simple",
+                "resolver": "uv",
+                "source_profile": "python-pypi-public-v1",
+                "scope": "runtime",
+                "version_policy": "latest_compatible",
+                "requested_constraint": None,
+                "disposition": "runtime_compatible",
+                "install": True,
+            }
+        ],
     }
 
     assert validate(section, apps=[app]) is True
@@ -923,11 +978,13 @@ def test_base_inventory_builder_digest_must_match_target_image():
         "disposition": "base",
         "install": False,
         "scope": "build",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "e" * 64,
-            "artifact": "pool/main/b/brotli/libbrotli-dev_1.1.0-2+deb13u1_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "e" * 64,
+                "artifact": "pool/main/b/brotli/libbrotli-dev_1.1.0-2+deb13u1_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -962,11 +1019,13 @@ def test_base_inventory_platform_must_match_target_image():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "f" * 64,
-            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "f" * 64,
+                "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -979,7 +1038,9 @@ def test_base_inventory_platform_must_match_target_image():
     section["base_inventory"] = _repository_inventory_reference()
     section["base_inventory"]["inventories"]["runtime"]["platform"] = "linux/arm64"
 
-    with pytest.raises(PackageResolutionError, match="metadata does not match evidence"):
+    with pytest.raises(
+        PackageResolutionError, match="metadata does not match evidence"
+    ):
         validate(section)
 
 
@@ -999,11 +1060,13 @@ def test_base_inventory_manifest_checksum_is_verified_offline():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [{
-            "algorithm": "sha256",
-            "digest": "a" * 64,
-            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
-        }],
+        "integrity": [
+            {
+                "algorithm": "sha256",
+                "digest": "a" * 64,
+                "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+            }
+        ],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -1018,7 +1081,6 @@ def test_base_inventory_manifest_checksum_is_verified_offline():
 
     with pytest.raises(PackageResolutionError, match="manifest checksum mismatch"):
         validate(section)
-
 
 
 @pytest.mark.parametrize(
@@ -1039,9 +1101,13 @@ def test_debian_version_constraints_use_dpkg_semantics(selected, constraint, exp
     assert version_satisfies("os", selected, constraint) is expected
 
 
-@pytest.mark.parametrize("constraint", ["=> 1.0", "!= 1.0", ">=1.0", ">= 1.0 extra", ""])
+@pytest.mark.parametrize(
+    "constraint", ["=> 1.0", "!= 1.0", ">=1.0", ">= 1.0 extra", ""]
+)
 def test_debian_version_constraints_reject_unsupported_relation_syntax(constraint):
-    with pytest.raises(PackageResolutionError, match="Invalid Debian version constraint"):
+    with pytest.raises(
+        PackageResolutionError, match="Invalid Debian version constraint"
+    ):
         version_satisfies("os", "1.0", constraint)
 
 
@@ -1058,7 +1124,9 @@ def test_version_comparison_dispatches_by_ecosystem():
 def test_python_package_lock_records_the_native_installer_without_ndf_version_pinning(
     resolver, resolver_version
 ):
-    package = python_package("demo-pkg", "1.2.3", direct=True, requested_by=["demo_app"])
+    package = python_package(
+        "demo-pkg", "1.2.3", direct=True, requested_by=["demo_app"]
+    )
     package["resolver"] = resolver
     package["resolver_version"] = resolver_version
 
@@ -1066,7 +1134,9 @@ def test_python_package_lock_records_the_native_installer_without_ndf_version_pi
 
 
 def test_node_package_lock_accepts_bench_yarn_installer():
-    package = node_package("demo-node-pkg", "1.2.3", direct=True, requested_by=["demo_app"])
+    package = node_package(
+        "demo-node-pkg", "1.2.3", direct=True, requested_by=["demo_app"]
+    )
     package["resolver"] = "yarn"
     package["resolver_version"] = "1.22.22"
 

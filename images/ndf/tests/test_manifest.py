@@ -603,14 +603,16 @@ class TestLockGeneration:
             "install": True,
             "scope": "runtime",
         }
-        applications = [{
-            **sample_applications[0],
-            "_app_id": "demo_app",
-            "_release_version": "1.0.0",
-            "_descriptor_path": "images/ndf/descriptors/apps/demo_app.json",
-            "_descriptor_sha256": "b" * 64,
-            "package_dependencies": [requirement],
-        }]
+        applications = [
+            {
+                **sample_applications[0],
+                "_app_id": "demo_app",
+                "_release_version": "1.0.0",
+                "_descriptor_path": "images/ndf/descriptors/apps/demo_app.json",
+                "_descriptor_sha256": "b" * 64,
+                "package_dependencies": [requirement],
+            }
+        ]
 
         lock_data = loader.build_lock_data(sample_manifest, applications)
 
@@ -747,19 +749,23 @@ class TestLockValidation:
     ):
         _, lock_data = generated_lock
         lock_data.pop("package_resolution")
-        lock_data["applications"][0]["package_dependencies"] = [{
-            "ecosystem": "python",
-            "name": "demo-package",
-            "version": "1.0.0",
-            "source": "https://pypi.org/simple",
-            "resolver": "uv",
-            "disposition": "runtime_compatible",
-            "install": True,
-        }]
+        lock_data["applications"][0]["package_dependencies"] = [
+            {
+                "ecosystem": "python",
+                "name": "demo-package",
+                "version": "1.0.0",
+                "source": "https://pypi.org/simple",
+                "resolver": "uv",
+                "disposition": "runtime_compatible",
+                "install": True,
+            }
+        ]
         lock_path = tmp_path / "legacy-v2-packages.lock.json"
         lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
 
-        with pytest.raises(ManifestError, match="Package-resolution migration required"):
+        with pytest.raises(
+            ManifestError, match="Package-resolution migration required"
+        ):
             loader.validate_lock_file(lock_path, sample_manifest)
 
     def test_empty_package_resolution_section_rejects_unexplained_profile(
@@ -1008,15 +1014,17 @@ class TestLockComparison:
     ):
         _, previous = generated_lock
         previous.pop("package_resolution")
-        previous["applications"][0]["package_dependencies"] = [{
-            "ecosystem": "python",
-            "name": "demo-package",
-            "version": "1.0.0",
-            "source": "https://pypi.org/simple",
-            "resolver": "uv",
-            "disposition": "runtime_compatible",
-            "install": True,
-        }]
+        previous["applications"][0]["package_dependencies"] = [
+            {
+                "ecosystem": "python",
+                "name": "demo-package",
+                "version": "1.0.0",
+                "source": "https://pypi.org/simple",
+                "resolver": "uv",
+                "disposition": "runtime_compatible",
+                "install": True,
+            }
+        ]
         lock_path = tmp_path / "legacy-v2-direct.lock.json"
         lock_path.write_text(json.dumps(previous), encoding="utf-8")
         new_lock_data = loader.build_lock_data(sample_manifest, sample_applications)
@@ -2013,27 +2021,29 @@ class TestDescriptorResolutionPrimitives:
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
-                "python": [{
-                    "name": "requests",
-                    "required": True,
-                    "version_policy": "constraint",
-                    "version": ">=2.30,<3.0",
-                    "disposition": "runtime_compatible",
-                }],
-                "node": [{
-                    "name": "vite",
-                    "required": True,
-                    "version_policy": "latest_compatible",
-                    "scope": "build",
-                    "package_manager": "yarn",
-                    "disposition": "runtime_compatible",
-                }],
+                "python": [
+                    {
+                        "name": "requests",
+                        "required": True,
+                        "version_policy": "constraint",
+                        "version": ">=2.30,<3.0",
+                        "disposition": "runtime_compatible",
+                    }
+                ],
+                "node": [
+                    {
+                        "name": "vite",
+                        "required": True,
+                        "version_policy": "latest_compatible",
+                        "scope": "build",
+                        "package_manager": "yarn",
+                        "disposition": "runtime_compatible",
+                    }
+                ],
             },
         }
 
-        result = loader._collect_descriptor_package_requirements(
-            descriptor, {}, set()
-        )
+        result = loader._collect_descriptor_package_requirements(descriptor, {}, set())
 
         assert [(item["ecosystem"], item["name"]) for item in result] == [
             ("node", "vite"),
@@ -2050,33 +2060,37 @@ class TestDescriptorResolutionPrimitives:
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
-                "python": [{
-                    "name": "optional-helper",
-                    "required": False,
-                    "version_policy": "latest_compatible",
-                    "disposition": "runtime_compatible",
-                }]
+                "python": [
+                    {
+                        "name": "optional-helper",
+                        "required": False,
+                        "version_policy": "latest_compatible",
+                        "disposition": "runtime_compatible",
+                    }
+                ]
             },
         }
 
-        assert loader._collect_descriptor_package_requirements(
-            descriptor, {}, set()
-        ) == []
+        assert (
+            loader._collect_descriptor_package_requirements(descriptor, {}, set()) == []
+        )
 
     def test_os_package_requirement_is_declarative_and_target_bound(self, loader):
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
-                "os": [{
-                    "name": "libpq-dev",
-                    "required": True,
-                    "version_policy": "constraint",
-                    "version": "16.4-1",
-                    "distribution_family": "debian",
-                    "package_manager": "apt",
-                    "scope": "build",
-                    "disposition": "environment_level",
-                }]
+                "os": [
+                    {
+                        "name": "libpq-dev",
+                        "required": True,
+                        "version_policy": "constraint",
+                        "version": "16.4-1",
+                        "distribution_family": "debian",
+                        "package_manager": "apt",
+                        "scope": "build",
+                        "disposition": "environment_level",
+                    }
+                ]
             },
         }
         target = {
@@ -2094,35 +2108,41 @@ class TestDescriptorResolutionPrimitives:
             descriptor, target, set()
         )
 
-        assert result == [{
-            "ecosystem": "os",
-            "name": "libpq-dev",
-            "version_policy": "constraint",
-            "requested_constraint": "16.4-1",
-            "source_profile": "os-debian-trixie-public-amd64-v1",
-            "disposition": "environment_level",
-            "install": True,
-            "scope": "build",
-            "package_manager": "apt",
-            "distribution_family": "debian",
-        }]
+        assert result == [
+            {
+                "ecosystem": "os",
+                "name": "libpq-dev",
+                "version_policy": "constraint",
+                "requested_constraint": "16.4-1",
+                "source_profile": "os-debian-trixie-public-amd64-v1",
+                "disposition": "environment_level",
+                "install": True,
+                "scope": "build",
+                "package_manager": "apt",
+                "distribution_family": "debian",
+            }
+        ]
 
     def test_node_requirement_rejects_non_yarn_package_manager(self, loader):
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
-                "node": [{
-                    "name": "vite",
-                    "required": True,
-                    "version_policy": "latest_compatible",
-                    "scope": "build",
-                    "package_manager": "npm",
-                    "disposition": "runtime_compatible",
-                }]
+                "node": [
+                    {
+                        "name": "vite",
+                        "required": True,
+                        "version_policy": "latest_compatible",
+                        "scope": "build",
+                        "package_manager": "npm",
+                        "disposition": "runtime_compatible",
+                    }
+                ]
             },
         }
 
-        with pytest.raises(ManifestError, match="only package_manager=yarn is supported"):
+        with pytest.raises(
+            ManifestError, match="only package_manager=yarn is supported"
+        ):
             loader._collect_descriptor_package_requirements(descriptor, {}, set())
 
 
@@ -2449,9 +2469,7 @@ class TestDescriptorCompositionClosureAndLock:
             },
         }
 
-    def test_conflicting_source_refs_for_same_descriptor_fail_closed(
-        self, loader
-    ):
+    def test_conflicting_source_refs_for_same_descriptor_fail_closed(self, loader):
         policy_dir = loader.schema_dir.parent / "policies"
         policy_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(
@@ -2645,6 +2663,8 @@ class TestDescriptorCompositionClosureAndLock:
             match="application composition does not match",
         ):
             loader.validate_lock_file(lock_path, loaded)
+
+
 class TestCompositionCyclePolicy:
     def test_application_dependency_cycles_remain_rejected(self, loader):
         applications = [
@@ -2652,7 +2672,9 @@ class TestCompositionCyclePolicy:
             {"name": "app_two", "dependencies": ["app_one"]},
         ]
 
-        with pytest.raises(ManifestError, match="Circular application dependency detected"):
+        with pytest.raises(
+            ManifestError, match="Circular application dependency detected"
+        ):
             loader.resolve_install_order(applications)
 
     def test_independent_service_cycles_remain_rejected(self, loader, monkeypatch):

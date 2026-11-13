@@ -41,7 +41,6 @@ except ImportError:
     )
 
 
-
 class ManifestError(Exception):
     """Raised when manifest loading or resolution fails."""
 
@@ -389,14 +388,19 @@ class ManifestLoader:
         """Collect declared package constraints without selecting or resolving versions."""
         os_target = target_runtime.get("os", {})
         catalogue_path = (
-            self.repository_root / "images" / "ndf" / "policies"
+            self.repository_root
+            / "images"
+            / "ndf"
+            / "policies"
             / "package-source-profiles-v1.json"
         )
         try:
             catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
             profiles = catalogue["source_profiles"]
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
-            raise ManifestError(f"Unable to load approved package source profiles: {exc}") from exc
+            raise ManifestError(
+                f"Unable to load approved package source profiles: {exc}"
+            ) from exc
 
         profile_ids = {
             "python": "python-pypi-public-v1",
@@ -468,14 +472,19 @@ class ManifestLoader:
                     )
                 if ecosystem == "os":
                     if (
-                        os_target.get("distribution_family") != profile.get("distribution")
+                        os_target.get("distribution_family")
+                        != profile.get("distribution")
                         or os_target.get("version_id") != profile.get("release")
                         or os_target.get("codename") != profile.get("codename")
                         or os_target.get("architecture") != profile.get("architecture")
-                        or os_target.get("package_manager") != profile.get("package_manager")
-                        or os_target.get("package_database") != profile.get("package_database")
-                        or dependency.get("distribution_family") != profile.get("distribution")
-                        or dependency.get("package_manager") != profile.get("package_manager")
+                        or os_target.get("package_manager")
+                        != profile.get("package_manager")
+                        or os_target.get("package_database")
+                        != profile.get("package_database")
+                        or dependency.get("distribution_family")
+                        != profile.get("distribution")
+                        or dependency.get("package_manager")
+                        != profile.get("package_manager")
                     ):
                         raise ManifestError(
                             f"{descriptor['app_id']}: OS package requirement {name} "
@@ -484,13 +493,19 @@ class ManifestLoader:
 
                 scope = dependency.get("scope")
                 if ecosystem == "python":
-                    scope = "build" if dependency.get("build_required", False) else "runtime"
+                    scope = (
+                        "build"
+                        if dependency.get("build_required", False)
+                        else "runtime"
+                    )
 
                 requirement = {
                     "ecosystem": ecosystem,
                     "name": name,
                     "version_policy": policy,
-                    "requested_constraint": constraint if policy == "constraint" else None,
+                    "requested_constraint": (
+                        constraint if policy == "constraint" else None
+                    ),
                     "source_profile": profile_id,
                     "disposition": dependency.get("disposition"),
                     "install": dependency.get("disposition") != "base",
@@ -500,7 +515,9 @@ class ManifestLoader:
                     requirement["package_manager"] = dependency.get("package_manager")
                 elif ecosystem == "os":
                     requirement["package_manager"] = dependency.get("package_manager")
-                    requirement["distribution_family"] = dependency.get("distribution_family")
+                    requirement["distribution_family"] = dependency.get(
+                        "distribution_family"
+                    )
                 requirements.append(requirement)
 
         return sorted(
@@ -1263,7 +1280,10 @@ class ManifestLoader:
             )
 
         catalogue_path = (
-            self.repository_root / "images" / "ndf" / "policies"
+            self.repository_root
+            / "images"
+            / "ndf"
+            / "policies"
             / "package-source-profiles-v1.json"
         )
         try:
@@ -1272,7 +1292,9 @@ class ManifestLoader:
             if not isinstance(catalogue_version, str) or not catalogue_version:
                 raise ValueError("catalogue_version must be a non-empty string")
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-            raise ManifestError(f"Unable to load package source catalogue version: {exc}") from exc
+            raise ManifestError(
+                f"Unable to load package source catalogue version: {exc}"
+            ) from exc
 
         if package_resolution is None:
             package_resolution_data = {
@@ -1649,7 +1671,8 @@ class ManifestLoader:
                     if (
                         not isinstance(requirement, dict)
                         or not all(
-                            isinstance(requirement.get(field), str) and requirement[field]
+                            isinstance(requirement.get(field), str)
+                            and requirement[field]
                             for field in (
                                 "ecosystem",
                                 "name",
@@ -1668,29 +1691,33 @@ class ManifestLoader:
                         or not isinstance(requirement.get("install"), bool)
                         or (
                             requirement.get("requested_constraint") is not None
-                            and not isinstance(requirement.get("requested_constraint"), str)
+                            and not isinstance(
+                                requirement.get("requested_constraint"), str
+                            )
                         )
                     ):
                         raise ManifestError(
                             f"Application '{name}' has an invalid native package requirement."
                         )
-                    if requirement.get("version_policy") == "constraint" and not requirement.get(
-                        "requested_constraint"
-                    ):
+                    if requirement.get(
+                        "version_policy"
+                    ) == "constraint" and not requirement.get("requested_constraint"):
                         raise ManifestError(
                             f"Application '{name}' has a constrained package requirement "
                             "without a constraint."
                         )
-                    if requirement.get("version_policy") == "latest_compatible" and requirement.get(
-                        "requested_constraint"
-                    ) is not None:
+                    if (
+                        requirement.get("version_policy") == "latest_compatible"
+                        and requirement.get("requested_constraint") is not None
+                    ):
                         raise ManifestError(
                             f"Application '{name}' has a latest_compatible package requirement "
                             "with a constraint."
                         )
-                    if requirement.get("ecosystem") == "node" and requirement.get(
-                        "package_manager"
-                    ) != "yarn":
+                    if (
+                        requirement.get("ecosystem") == "node"
+                        and requirement.get("package_manager") != "yarn"
+                    ):
                         raise ManifestError(
                             f"Application '{name}' has a Node package requirement that does not "
                             "use Bench's Yarn installer."

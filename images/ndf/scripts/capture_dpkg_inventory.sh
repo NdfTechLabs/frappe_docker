@@ -33,7 +33,7 @@ trap cleanup EXIT
 
 if ! docker run --rm --platform "$platform" --entrypoint /bin/sh "$image_ref" -c \
   "dpkg-query -W -f='\${binary:Package}\\t\${Version}\\t\${Architecture}\\n' 2>/dev/null" \
-  > "$raw_file"; then
+  >"$raw_file"; then
   echo "ERROR: dpkg-query failed for $image_ref; refusing to publish a partial inventory." >&2
   exit 1
 fi
@@ -43,7 +43,7 @@ if [[ ! -s "$raw_file" ]]; then
   exit 1
 fi
 
-if ! LC_ALL=C sort "$raw_file" > "$sorted_file"; then
+if ! LC_ALL=C sort "$raw_file" >"$sorted_file"; then
   echo "ERROR: Unable to sort the dpkg inventory for $image_ref." >&2
   exit 1
 fi

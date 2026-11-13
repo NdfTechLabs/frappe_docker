@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.validate_base_inventory import (
     InventoryError,
     find_base_package,
@@ -144,14 +143,10 @@ def test_unsorted_or_duplicate_records_fail_closed(tmp_path):
         validate_inventory_directory(tmp_path, SCHEMA)
 
 
-
 def test_duplicate_inventory_records_fail_closed(tmp_path):
     manifest = write_evidence(tmp_path)
     inventory = tmp_path / "builder" / "dpkg-inventory.tsv"
-    raw = (
-        "base-files\t13.8+deb13u1\tamd64\n"
-        "base-files\t13.8+deb13u1\tamd64\n"
-    ).encode()
+    raw = b"base-files\t13.8+deb13u1\tamd64\n" b"base-files\t13.8+deb13u1\tamd64\n"
     inventory.write_bytes(raw)
     manifest["inventories"]["builder"]["sha256"] = hashlib.sha256(raw).hexdigest()
     manifest["inventories"]["builder"]["package_count"] = 2

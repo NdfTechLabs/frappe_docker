@@ -3,22 +3,14 @@
   "$id": "https://ndftechlabs.com/schemas/base-inventory-manifest-v1.schema.json",
   "title": "NDF Base OS Package Inventory Manifest",
   "type": "object",
-  "required": [
-    "schema_version",
-    "producer",
-    "package_database",
-    "inventories"
-  ],
+  "required": ["schema_version", "producer", "package_database", "inventories"],
   "properties": {
     "schema_version": {
       "const": "1.0.0"
     },
     "producer": {
       "type": "object",
-      "required": [
-        "name",
-        "version"
-      ],
+      "required": ["name", "version"],
       "properties": {
         "name": {
           "const": "images/ndf/scripts/inspect_target_runtime.sh"
@@ -32,10 +24,7 @@
     },
     "package_database": {
       "type": "object",
-      "required": [
-        "name",
-        "format"
-      ],
+      "required": ["name", "format"],
       "properties": {
         "name": {
           "const": "dpkg"
@@ -48,10 +37,7 @@
     },
     "inventories": {
       "type": "object",
-      "required": [
-        "builder",
-        "runtime"
-      ],
+      "required": ["builder", "runtime"],
       "properties": {
         "builder": {
           "$ref": "#/$defs/inventory"

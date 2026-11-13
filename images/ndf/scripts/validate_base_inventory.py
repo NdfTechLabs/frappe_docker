@@ -63,11 +63,17 @@ def _validate_tsv(
             )
         record = (fields[0], fields[1], fields[2])
         if any("\r" in field or "\n" in field for field in record):
-            raise InventoryError(f"Control character in dpkg record at {path.name}:{line_number}")
+            raise InventoryError(
+                f"Control character in dpkg record at {path.name}:{line_number}"
+            )
         if record in seen:
-            raise InventoryError(f"Duplicate dpkg record at {path.name}:{line_number}: {record}")
+            raise InventoryError(
+                f"Duplicate dpkg record at {path.name}:{line_number}: {record}"
+            )
         if previous is not None and record < previous:
-            raise InventoryError(f"Inventory is not sorted deterministically: {path.name}")
+            raise InventoryError(
+                f"Inventory is not sorted deterministically: {path.name}"
+            )
         seen.add(record)
         records.append(record)
         previous = record
@@ -112,7 +118,9 @@ def validate_inventory_directory(
         image = item["image"]
         digest = image["manifest_digest"]
         if image["reference"].rsplit("@", 1)[-1] != digest:
-            raise InventoryError(f"{stage} image reference does not match manifest digest")
+            raise InventoryError(
+                f"{stage} image reference does not match manifest digest"
+            )
         path = _safe_inventory_path(root, item["file"], stage)
         parsed[stage] = _validate_tsv(path, item["package_count"], item["sha256"])
 

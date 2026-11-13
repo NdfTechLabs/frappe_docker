@@ -20,28 +20,34 @@ FINALIZE_EXISTING=false
 
 while (($#)); do
   case "$1" in
-    --platform)
-      [[ $# -ge 2 ]] || { echo "Missing value for --platform" >&2; exit 2; }
-      PLATFORM="$2"
-      shift 2
-      ;;
-    --finalize-existing)
-      FINALIZE_EXISTING=true
-      shift
-      ;;
-    --output-dir)
-      [[ $# -ge 2 ]] || { echo "Missing value for --output-dir" >&2; exit 2; }
-      OUTPUT_DIR="$2"
-      shift 2
-      ;;
-    -h|--help)
-      sed -n '1,18p' "$0"
-      exit 0
-      ;;
-    *)
-      echo "Unknown argument: $1" >&2
+  --platform)
+    [[ $# -ge 2 ]] || {
+      echo "Missing value for --platform" >&2
       exit 2
-      ;;
+    }
+    PLATFORM="$2"
+    shift 2
+    ;;
+  --finalize-existing)
+    FINALIZE_EXISTING=true
+    shift
+    ;;
+  --output-dir)
+    [[ $# -ge 2 ]] || {
+      echo "Missing value for --output-dir" >&2
+      exit 2
+    }
+    OUTPUT_DIR="$2"
+    shift 2
+    ;;
+  -h | --help)
+    sed -n '1,18p' "$0"
+    exit 0
+    ;;
+  *)
+    echo "Unknown argument: $1" >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -90,7 +96,7 @@ inspect_image() {
 
   echo
   echo "==> Resolving the mutable tag to an immutable registry digest"
-  docker buildx imagetools inspect "$image" > "$dir/registry-manifest.txt"
+  docker buildx imagetools inspect "$image" >"$dir/registry-manifest.txt"
   local index_digest platform_digest
   # Buildx aligns the Digest column with variable whitespace.
   index_digest="$(awk '$1 == "Digest:" {print $2; exit}' "$dir/registry-manifest.txt")"
@@ -121,21 +127,21 @@ inspect_image() {
   local repository="${image%%:*}"
   local index_ref="${repository}@${index_digest}"
   local resolved_ref="${repository}@${platform_digest}"
-  printf '%s\n' "$index_ref" > "$dir/registry-index-ref.txt"
-  printf '%s\n' "$resolved_ref" > "$dir/resolved-image-ref.txt"
+  printf '%s\n' "$index_ref" >"$dir/registry-index-ref.txt"
+  printf '%s\n' "$resolved_ref" >"$dir/resolved-image-ref.txt"
 
   echo "==> Pulling immutable platform image $resolved_ref"
   docker pull --platform "$PLATFORM" "$resolved_ref"
 
   echo "==> Recording local image configuration and identity"
-  docker image inspect "$resolved_ref" > "$dir/docker-image-inspect.json"
-  docker image inspect --format '{{.Id}}' "$resolved_ref" > "$dir/image-id.txt"
-  docker image inspect --format '{{json .RepoDigests}}' "$resolved_ref" > "$dir/repo-digests.json"
-  docker image inspect --format '{{.Os}}/{{.Architecture}}' "$resolved_ref" > "$dir/image-platform.txt"
+  docker image inspect "$resolved_ref" >"$dir/docker-image-inspect.json"
+  docker image inspect --format '{{.Id}}' "$resolved_ref" >"$dir/image-id.txt"
+  docker image inspect --format '{{json .RepoDigests}}' "$resolved_ref" >"$dir/repo-digests.json"
+  docker image inspect --format '{{.Os}}/{{.Architecture}}' "$resolved_ref" >"$dir/image-platform.txt"
 
   echo "==> Inspecting runtime metadata inside the selected image"
   if ! docker run --rm -i --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -s \
-    > "$dir/runtime-metadata.txt" 2> "$dir/runtime-metadata.stderr" <<'CONTAINER_SCRIPT'
+    >"$dir/runtime-metadata.txt" 2>"$dir/runtime-metadata.stderr" <<'CONTAINER_SCRIPT'
 set +e
 printf '%s\n' "NDF_RUNTIME_METADATA_BEGIN"
 
@@ -255,7 +261,7 @@ CONTAINER_SCRIPT
 
   echo "==> Recording native package database version"
   docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -c \
-    "dpkg-query -W -f='\${Version}' dpkg" > "$dir/dpkg-version.txt"
+    "dpkg-query -W -f='\${Version}' dpkg" >"$dir/dpkg-version.txt"
   [[ -s "$dir/dpkg-version.txt" ]] || {
     echo "Unable to determine dpkg version for $resolved_ref." >&2
     return 1
@@ -272,17 +278,17 @@ CONTAINER_SCRIPT
     printf 'image_id='
     cat "$dir/image-id.txt"
     printf 'repo_digests='
-    tr -d '\n' < "$dir/repo-digests.json"
+    tr -d '\n' <"$dir/repo-digests.json"
     printf '\n'
     printf 'inventory_package_count='
-    wc -l < "$dir/dpkg-inventory.tsv"
-  } > "$dir/summary.txt"
+    wc -l <"$dir/dpkg-inventory.tsv"
+  } >"$dir/summary.txt"
 
   (
     cd "$dir"
     sha256sum registry-manifest.txt registry-index-ref.txt resolved-image-ref.txt docker-image-inspect.json image-id.txt \
       repo-digests.json image-platform.txt runtime-metadata.txt runtime-metadata.stderr \
-      dpkg-inventory.tsv summary.txt > SHA256SUMS
+      dpkg-inventory.tsv summary.txt >SHA256SUMS
   )
 
   echo "Captured $image:"
@@ -299,14 +305,14 @@ if [[ "$FINALIZE_EXISTING" == true ]]; then
       }
     done
     if [[ ! -s "$dir/dpkg-version.txt" ]]; then
-      dpkg_version="$(sed -n '/=== APT \/ DPKG ===/,/=== APT SOURCE CONFIGURATION ===/p' "$dir/runtime-metadata.txt" \
-        | grep -m1 -E "^Debian 'dpkg' package management program version " \
-        | sed -E 's/.* version ([^[:space:]]+)[[:space:]]+\(.*/\1/')"
+      dpkg_version="$(sed -n '/=== APT \/ DPKG ===/,/=== APT SOURCE CONFIGURATION ===/p' "$dir/runtime-metadata.txt" |
+        grep -m1 -E "^Debian 'dpkg' package management program version " |
+        sed -E 's/.* version ([^[:space:]]+)[[:space:]]+\(.*/\1/')"
       [[ -n "$dpkg_version" ]] || {
         echo "Unable to extract dpkg version from existing $stage runtime metadata." >&2
         exit 1
       }
-      printf '%s\n' "$dpkg_version" > "$dir/dpkg-version.txt"
+      printf '%s\n' "$dpkg_version" >"$dir/dpkg-version.txt"
     fi
   done
 else
@@ -382,14 +388,13 @@ manifest = {
 )
 PYTHON
 
-
 (
   cd "$OUTPUT_DIR"
   checksum_tmp="$(mktemp)"
-  find builder runtime -type f ! -name SHA256SUMS -print0 \
-    | LC_ALL=C sort -z \
-    | xargs -0 sha256sum > "$checksum_tmp"
-  sha256sum inventory-manifest.json >> "$checksum_tmp"
+  find builder runtime -type f ! -name SHA256SUMS -print0 |
+    LC_ALL=C sort -z |
+    xargs -0 sha256sum >"$checksum_tmp"
+  sha256sum inventory-manifest.json >>"$checksum_tmp"
   mv "$checksum_tmp" SHA256SUMS
 )
 
