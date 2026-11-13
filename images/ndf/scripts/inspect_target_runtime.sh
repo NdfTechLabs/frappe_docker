@@ -385,10 +385,12 @@ PYTHON
 
 (
   cd "$OUTPUT_DIR"
+  checksum_tmp="$(mktemp)"
   find builder runtime -type f ! -name SHA256SUMS -print0 \
     | LC_ALL=C sort -z \
-    | xargs -0 sha256sum > SHA256SUMS
-  sha256sum inventory-manifest.json >> SHA256SUMS
+    | xargs -0 sha256sum > "$checksum_tmp"
+  sha256sum inventory-manifest.json >> "$checksum_tmp"
+  mv "$checksum_tmp" SHA256SUMS
 )
 
 echo
