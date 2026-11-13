@@ -1,0 +1,57 @@
+name: NDF / Python Adapter Tests
+
+on:
+  pull_request:
+    paths:
+      - "images/ndf/scripts/python_package_adapter.py"
+      - "images/ndf/scripts/resolve_manifest.py"
+      - "images/ndf/scripts/package_resolution.py"
+      - "images/ndf/tests/**"
+      - "images/ndf/policies/package-source-profiles-v1.json"
+      - "requirements-test.txt"
+      - ".github/workflows/ndf-python-adapter.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "images/ndf/scripts/python_package_adapter.py"
+      - "images/ndf/scripts/resolve_manifest.py"
+      - "images/ndf/scripts/package_resolution.py"
+      - "images/ndf/tests/**"
+      - "images/ndf/policies/package-source-profiles-v1.json"
+      - "requirements-test.txt"
+      - ".github/workflows/ndf-python-adapter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ndf-python-adapter-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python package adapter and NDF regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Run NDF test suite
+        run: python -m pytest images/ndf/tests/ -q
+
+      - name: Compile NDF scripts and tests
+        run: python -m compileall -q images/ndf/scripts/ images/ndf/tests/
