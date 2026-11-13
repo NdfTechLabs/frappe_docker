@@ -259,7 +259,8 @@ def validate_package_resolution(
     for stage in ("builder", "runtime"):
         image = images.get(stage, {})
         if (
-            image.get("platform") != "linux/amd64"
+            not isinstance(image, dict)
+            or image.get("platform") != "linux/amd64"
             or image.get("manifest_digest") != accepted_digests[stage]
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("manifest_digest", ""))
             or not isinstance(image.get("reference"), str)
@@ -347,6 +348,8 @@ def validate_package_resolution(
             raise PackageResolutionError("Unsupported package disposition.")
         if package["disposition"] == "environment_level":
             raise PackageResolutionError("Environment-level package makes this target ineligible.")
+        if ecosystem != "os" and package["disposition"] == "base":
+            raise PackageResolutionError("A.4 dpkg evidence cannot establish Python or Node base-package presence.")
         if package["install"] != (package["disposition"] != "base"):
             raise PackageResolutionError("Package install flag conflicts with its disposition.")
         if not isinstance(package["scope"], str) or package["scope"] not in {"build", "runtime"}:
@@ -416,13 +419,22 @@ def validate_package_resolution(
                 raise PackageResolutionError("Package repository metadata source identity does not match its approved profile.")
         if ecosystem == "os":
             metadata = package["repository_metadata"]
+            approved_suites = {
+                suite
+                for repository in profile.get("repositories", [])
+                if isinstance(repository, dict)
+                for suite in repository.get("suites", [])
+            }
             if (
                 not isinstance(metadata.get("release_identity"), str)
                 or not metadata["release_identity"]
                 or not isinstance(metadata.get("release_sha256"), str)
                 or not re.fullmatch(r"[a-f0-9]{64}", metadata["release_sha256"])
+                or metadata.get("signature_verified") is not True
+                or metadata.get("repository_uri") != package["source"]
+                or metadata.get("suite") not in approved_suites
             ):
-                raise PackageResolutionError("Debian package requires authenticated Release metadata identity/hash.")
+                raise PackageResolutionError("Debian package requires authenticated Release metadata identity/hash and verified repository signature.")
         source_key = (ecosystem, normalized_name)
         source_identity = (profile_id, package["source"])
         previous_source = source_by_package.setdefault(source_key, source_identity)
