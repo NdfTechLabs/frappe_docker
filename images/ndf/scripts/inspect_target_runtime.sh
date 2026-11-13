@@ -240,6 +240,14 @@ CONTAINER_SCRIPT
     "dpkg-query -W -f='\${binary:Package}\t\${Version}\t\${Architecture}\n' 2>/dev/null | LC_ALL=C sort" \
     > "$dir/dpkg-inventory.tsv"
 
+  echo "==> Recording native package database version"
+  docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -c \
+    "dpkg-query -W -f='\${Version}' dpkg" > "$dir/dpkg-version.txt"
+  [[ -s "$dir/dpkg-version.txt" ]] || {
+    echo "Unable to determine dpkg version for $resolved_ref." >&2
+    return 1
+  }
+
   echo "==> Capturing package inventory summary"
   {
     printf 'image=%s\n' "$image"
@@ -271,11 +279,81 @@ CONTAINER_SCRIPT
 inspect_image "${IMAGES[0]}" "builder"
 inspect_image "${IMAGES[1]}" "runtime"
 
+echo "==> Writing sanitized, deterministic inventory handoff manifest"
+python3 - "$OUTPUT_DIR" "$PLATFORM" <<'PYTHON'
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+platform = sys.argv[2]
+digest_pattern = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+def read_text(path):
+    return path.read_text(encoding="utf-8").strip()
+
+def inventory(stage):
+    directory = root / stage
+    image_ref = read_text(directory / "resolved-image-ref.txt")
+    index_ref = read_text(directory / "registry-index-ref.txt")
+    manifest_digest = image_ref.rsplit("@", 1)[-1]
+    index_digest = index_ref.rsplit("@", 1)[-1]
+    if not digest_pattern.fullmatch(manifest_digest):
+        raise SystemExit(f"Invalid {stage} platform manifest digest")
+    if not digest_pattern.fullmatch(index_digest):
+        raise SystemExit(f"Invalid {stage} index digest")
+    if read_text(directory / "image-platform.txt") != platform:
+        raise SystemExit(f"{stage} image platform does not match requested platform")
+
+    inventory_path = directory / "dpkg-inventory.tsv"
+    raw = inventory_path.read_bytes()
+    lines = raw.decode("utf-8").splitlines()
+    if not lines:
+        raise SystemExit(f"{stage} dpkg inventory is empty")
+    for number, line in enumerate(lines, 1):
+        fields = line.split("\\t")
+        if len(fields) != 3 or not all(fields):
+            raise SystemExit(f"Malformed {stage} dpkg inventory record at line {number}")
+    return {
+        "image": {
+            "reference": image_ref,
+            "index_digest": index_digest,
+            "manifest_digest": manifest_digest,
+            "platform": platform,
+        },
+        "package_database_version": read_text(directory / "dpkg-version.txt"),
+        "file": f"{stage}/dpkg-inventory.tsv",
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "package_count": len(lines),
+    }
+
+manifest = {
+    "schema_version": "1.0.0",
+    "producer": {
+        "name": "images/ndf/scripts/inspect_target_runtime.sh",
+        "version": "1",
+    },
+    "package_database": {"name": "dpkg", "format": "dpkg-query-tsv"},
+    "inventories": {
+        "builder": inventory("builder"),
+        "runtime": inventory("runtime"),
+    },
+}
+(root / "inventory-manifest.json").write_text(
+    json.dumps(manifest, indent=2, sort_keys=True) + "\\n",
+    encoding="utf-8",
+)
+PYTHON
+
+
 (
   cd "$OUTPUT_DIR"
   find builder runtime -type f ! -name SHA256SUMS -print0 \
     | LC_ALL=C sort -z \
     | xargs -0 sha256sum > SHA256SUMS
+  sha256sum inventory-manifest.json >> SHA256SUMS
 )
 
 echo
