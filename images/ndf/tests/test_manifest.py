@@ -994,6 +994,32 @@ class TestLockComparison:
 
         assert any("Package-resolution migration required" in item for item in changes)
 
+    def test_pre_extension_v2_with_direct_packages_is_a_migration_input(
+        self, loader, sample_manifest, sample_applications, generated_lock, tmp_path
+    ):
+        _, previous = generated_lock
+        previous.pop("package_resolution")
+        previous["applications"][0]["package_dependencies"] = [{
+            "ecosystem": "python",
+            "name": "demo-package",
+            "version": "1.0.0",
+            "source": "https://pypi.org/simple",
+            "resolver": "uv",
+            "disposition": "runtime_compatible",
+            "install": True,
+        }]
+        lock_path = tmp_path / "legacy-v2-direct.lock.json"
+        lock_path.write_text(json.dumps(previous), encoding="utf-8")
+        new_lock_data = loader.build_lock_data(sample_manifest, sample_applications)
+
+        changes = loader.compare_lock_files(
+            lock_path,
+            new_lock_data,
+            sample_manifest,
+        )
+
+        assert any("Package-resolution migration required" in item for item in changes)
+
     def test_changed_manifest_is_detected(
         self,
         loader,
