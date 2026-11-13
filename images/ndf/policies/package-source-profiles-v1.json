@@ -1,5 +1,5 @@
 {
-  "catalogue_version": "1.0.0",
+  "catalogue_version": "1.1.0",
   "description": "NDF-governed package source profiles and native resolver policy for M4.2.3. Descriptors may select approved profile identifiers only; they cannot define registry URLs, credentials, resolver commands or executable policy.",
   "source_profiles": {
     "python-pypi-public-v1": {
@@ -74,7 +74,9 @@
         "name": "pip",
         "enabled_only_after": "equivalent-target-resolution-and-integrity-tests-pass"
       },
-      "version_rule": "pin-and-record-exact-executable-version-before-adapter-acceptance"
+      "version": "0.13.7",
+      "version_rule": "exact-version-required-and-recorded-in-every-package-lock-record",
+      "upgrade_policy": "explicit-reviewed-policy-change-with-catalogue-version-increment-and-regression-acceptance"
     },
     "node": {
       "name": "npm",
