@@ -109,11 +109,14 @@ def _debian_version_satisfies(version: str, constraint: str) -> bool:
         not isinstance(version, str)
         or not version
         or version.strip() != version
-        or not isinstance(constraint, str)
+    ):
+        raise PackageResolutionError("Invalid Debian package version: expected a non-empty canonical version string.")
+    if (
+        not isinstance(constraint, str)
         or not constraint
         or constraint.strip() != constraint
     ):
-        raise PackageResolutionError("Debian package versions and constraints must be non-empty canonical strings.")
+        raise PackageResolutionError("Invalid Debian version constraint: expected a non-empty canonical relation or exact version.")
 
     match = _DEBIAN_RELATION_RE.fullmatch(constraint)
     if match:
@@ -167,6 +170,8 @@ def version_satisfies(ecosystem: str, version: str, constraint: str) -> bool:
         if ecosystem == "os":
             return _debian_version_satisfies(version, constraint)
         raise PackageResolutionError(f"Unsupported package ecosystem for version comparison: {ecosystem}")
+    except PackageResolutionError:
+        raise
     except (TypeError, ValueError) as exc:
         raise PackageResolutionError(
             f"Invalid {ecosystem} dependency constraint {constraint!r}: {exc}"
