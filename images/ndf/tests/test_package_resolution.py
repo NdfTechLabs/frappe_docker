@@ -25,7 +25,15 @@ def target_runtime():
     return {
         "frappe": "16.0.0",
         "python": "3.14.10",
+        "python_implementation": "CPython",
+        "python_cache_tag": "cpython-314",
+        "python_soabi": "cpython-314-x86_64-linux-gnu",
         "node": "24.22.2",
+        "npm": "11.19.1",
+        "node_platform": "linux",
+        "node_architecture": "x64",
+        "node_abi": "137",
+        "node_api": "10",
         "platform": {"os": "linux", "architecture": "amd64"},
         "images": {
             "builder": {
@@ -41,11 +49,15 @@ def target_runtime():
         },
         "os": {
             "distribution_family": "debian",
+            "id": "debian",
+            "version_id": "13",
             "codename": "trixie",
             "architecture": "amd64",
             "package_manager": "apt",
             "package_manager_version": "3.0.4",
             "package_database": "dpkg",
+            "package_database_version": "1.22.22",
+            "libc": {"implementation": "glibc", "version": "2.41"},
         },
     }
 
