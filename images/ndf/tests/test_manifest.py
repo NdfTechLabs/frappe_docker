@@ -1963,7 +1963,7 @@ class TestDescriptorResolutionPrimitives:
                 set(),
             )
 
-    def test_package_constraints_resolve_to_exact_target_versions(self, loader):
+    def test_python_constraints_are_deferred_to_native_adapter(self, loader):
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
@@ -2009,8 +2009,12 @@ class TestDescriptorResolutionPrimitives:
             (item["ecosystem"], item["name"], item["version"]) for item in result
         ] == [
             ("node", "vite", "6.0.0"),
-            ("python", "requests", "2.32.3"),
+            ("python", "requests", None),
         ]
+        python_request = result[1]
+        assert python_request["resolver"] == "uv"
+        assert python_request["source_profile"] == "python-pypi-public-v1"
+        assert python_request["requested_constraint"] == ">=2.30,<3.0"
 
     def test_unselected_optional_package_is_excluded_from_direct_selections(
         self, loader
