@@ -492,7 +492,11 @@ def test_base_inventory_reference_must_match_runtime_digest():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [],
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "b" * 64,
+            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+        }],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -524,7 +528,11 @@ def test_builder_only_package_cannot_satisfy_runtime_scope():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [],
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "b" * 64,
+            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+        }],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
