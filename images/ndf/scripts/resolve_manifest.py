@@ -491,6 +491,17 @@ class ManifestLoader:
                     ) from exc
                 if not profile.get("enabled") or profile.get("ecosystem") != ecosystem:
                     raise ManifestError(f"Package source profile is disabled or incompatible: {source_profile}")
+                if ecosystem == "os" and (
+                    os_target.get("distribution_family") != profile.get("distribution")
+                    or os_target.get("version_id") != profile.get("release")
+                    or os_target.get("codename") != profile.get("codename")
+                    or os_target.get("architecture") != profile.get("architecture")
+                    or os_target.get("package_manager") != profile.get("package_manager")
+                    or os_target.get("package_database") != profile.get("package_database")
+                ):
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: OS package source profile does not match the exact target runtime."
+                    )
                 approved_sources = (
                     {profile.get("registry")}
                     if ecosystem in {"python", "node"}
