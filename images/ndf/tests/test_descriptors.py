@@ -267,9 +267,10 @@ class TestMarketplaceDescriptorSchemas:
                 "evidence": [
                     {
                         "kind": "automated_test",
-                        "authority": "publisher",
+                        "authority": "ndf",
                         "reference": "https://example.com/test-report",
                         "result": "passed",
+                        "tested_at": "2026-11-13T00:00:00Z",
                         "tested_versions": {
                             "frappe": "17.0.0",
                             "python": "3.14.3",
