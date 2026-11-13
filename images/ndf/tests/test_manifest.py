@@ -211,12 +211,14 @@ def cli_environment(tmp_path):
     scripts_dir = ndf_dir / "scripts"
     manifests_dir = ndf_dir / "manifests"
     schemas_dir = ndf_dir / "schemas"
+    policies_dir = ndf_dir / "policies"
     locks_dir = ndf_dir / "locks"
 
     for directory in (
         scripts_dir,
         manifests_dir / "products",
         schemas_dir,
+        policies_dir,
         locks_dir,
     ):
         directory.mkdir(parents=True, exist_ok=True)
@@ -239,6 +241,10 @@ def cli_environment(tmp_path):
     shutil.copy2(
         project_ndf_dir / "scripts" / "validate_base_inventory.py",
         scripts_dir / "validate_base_inventory.py",
+    )
+    shutil.copy2(
+        project_ndf_dir / "policies" / "package-source-profiles-v1.json",
+        policies_dir / "package-source-profiles-v1.json",
     )
 
     shutil.copy2(
