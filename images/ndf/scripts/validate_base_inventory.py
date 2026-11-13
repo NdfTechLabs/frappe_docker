@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -41,7 +40,9 @@ def _safe_inventory_path(root: Path, relative: str, stage: str) -> Path:
     return candidate
 
 
-def _validate_tsv(path: Path, expected_count: int, expected_sha256: str) -> list[tuple[str, str, str]]:
+def _validate_tsv(
+    path: Path, expected_count: int, expected_sha256: str
+) -> list[tuple[str, str, str]]:
     raw = path.read_bytes()
     actual_sha256 = hashlib.sha256(raw).hexdigest()
     if actual_sha256 != expected_sha256:
@@ -119,7 +120,6 @@ def validate_inventory_directory(
 
 
 def find_base_package(
-    manifest: dict,
     parsed: dict[str, list[tuple[str, str, str]]],
     *,
     scope: str,
