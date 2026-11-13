@@ -313,9 +313,10 @@ class TestMarketplaceDescriptorSchemas:
         descriptor["compatibility"]["evidence"] = [
             {
                 "kind": "automated_test",
-                "authority": "publisher",
+                "authority": "ndf",
                 "reference": "https://example.com/test-report",
                 "result": "passed",
+                "tested_at": "2026-11-13T00:00:00Z",
                 "tested_versions": {
                     "frappe": "sixteen",
                     "python": "3.14.3",
