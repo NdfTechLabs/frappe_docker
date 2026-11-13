@@ -170,7 +170,7 @@ def _validate_version_syntax(descriptor: dict[str, Any]) -> None:
                 )
 
     # OS version strings are intentionally not parsed here. Their semantics
-    # belong to the declared target package manager and its native solver.
+    # are resolved and installed by upstream Bench/native package managers.
 
 
 def _load_policy_catalogue(schema_dir: Path) -> dict[str, set[str]]:
@@ -364,7 +364,7 @@ def collect_production_metadata_issues(
                 )
             elif policy == "latest_compatible" and not version:
                 # Explicit policy is complete metadata; M4.2.3 must still
-                # resolve and lock the exact selected version.
+                # capture the installed version and verify it against this declaration after the native build.
                 continue
 
     return issues
