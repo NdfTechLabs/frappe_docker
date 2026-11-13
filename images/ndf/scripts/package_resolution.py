@@ -169,7 +169,14 @@ def validate_package_resolution(
     os_target = target_runtime.get("os", {})
     if target_platform != {"os": "linux", "architecture": "amd64"}:
         raise PackageResolutionError("Package graph target is outside the accepted A.1 linux/amd64 matrix.")
-    if os_target.get("distribution_family") != "debian" or os_target.get("codename") != "trixie" or os_target.get("package_database") != "dpkg":
+    if (
+        os_target.get("distribution_family") != "debian"
+        or os_target.get("codename") != "trixie"
+        or os_target.get("package_database") != "dpkg"
+        or os_target.get("architecture") != "amd64"
+        or os_target.get("package_manager") != "apt"
+        or not os_target.get("package_manager_version")
+    ):
         raise PackageResolutionError("Package graph target OS is outside the accepted Debian Trixie/dpkg matrix.")
     accepted_digests = {
         "builder": "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b",
@@ -181,6 +188,7 @@ def validate_package_resolution(
             image.get("platform") != "linux/amd64"
             or image.get("manifest_digest") != accepted_digests[stage]
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("manifest_digest", ""))
+            or image.get("reference", "").rsplit("@", 1)[-1] != image.get("manifest_digest")
         ):
             raise PackageResolutionError(f"target_runtime.images.{stage} is not one of the accepted A.1 RT-01 digests.")
 
@@ -236,6 +244,8 @@ def validate_package_resolution(
         if ecosystem == "node" and package["source"] != profile.get("registry"):
             raise PackageResolutionError("Node package source does not match its approved profile.")
         if ecosystem == "os":
+            if package["resolver_version"] != os_target.get("package_manager_version"):
+                raise PackageResolutionError("APT resolver version does not match the accepted target runtime.")
             if architecture not in {"amd64", "all"}:
                 raise PackageResolutionError("OS package architecture is outside the accepted target.")
             if package["source"] not in {
