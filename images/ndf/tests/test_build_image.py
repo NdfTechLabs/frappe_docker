@@ -5,12 +5,12 @@ from unittest.mock import patch
 import pytest
 from scripts.build_image import (
     BuildExecutionError,
-    resolve_base_images,
     build_command,
     build_labels,
     execute_build,
     get_manifest_checksum,
     normalize_platforms,
+    resolve_base_images,
     validate_image_tags,
 )
 
@@ -91,6 +91,20 @@ def _build_command(tmp_path, **overrides):
     }
     arguments.update(overrides)
     return build_command(**arguments)
+
+
+def test_layered_containerfile_uses_required_independent_digest_inputs():
+    repository_root = Path(__file__).resolve().parents[3]
+    containerfile = (repository_root / "images" / "layered" / "Containerfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ARG FRAPPE_BUILD_IMAGE" in containerfile
+    assert "ARG FRAPPE_BASE_IMAGE" in containerfile
+    assert "FROM ${FRAPPE_BUILD_IMAGE} AS builder" in containerfile
+    assert "FROM ${FRAPPE_BASE_IMAGE} AS backend" in containerfile
+    assert "FROM frappe/build:${FRAPPE_BRANCH}" not in containerfile
+    assert "FROM frappe/base:${FRAPPE_BRANCH}" not in containerfile
 
 
 def test_resolve_base_images_uses_the_accepted_rt01_platform_digests():
