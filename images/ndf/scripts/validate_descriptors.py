@@ -363,7 +363,7 @@ def collect_production_metadata_issues(
                     "the base image cannot select a replacement version"
                 )
             elif policy == "latest_compatible" and not version:
-                # Explicit policy is complete metadata; M4.2.3 must still
+                # Explicit policy is complete metadata; downstream image verification must
                 # capture the installed version and verify it against this declaration after the native build.
                 continue
 
