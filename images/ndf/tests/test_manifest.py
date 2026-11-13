@@ -2003,22 +2003,61 @@ class TestDescriptorResolutionPrimitives:
                 set(),
             )
 
-    @pytest.mark.parametrize("ecosystem", ["python", "node", "os"])
-    def test_external_package_dependencies_are_delegated_to_native_app_files(
-        self, loader, ecosystem
+    def test_descriptor_package_dependencies_remain_declarations_not_selections(
+        self, loader
     ):
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
-                ecosystem: [{"name": "example-package"}],
+                "python": [{
+                    "name": "requests",
+                    "required": True,
+                    "version_policy": "constraint",
+                    "version": ">=2.30,<3.0",
+                    "disposition": "runtime_compatible",
+                }],
+                "node": [{
+                    "name": "vite",
+                    "required": True,
+                    "version_policy": "latest_compatible",
+                    "scope": "build",
+                    "package_manager": "yarn",
+                    "disposition": "runtime_compatible",
+                }],
             },
         }
 
-        with pytest.raises(
-            ManifestError,
-            match="Declare application dependencies in the application's native project/lock files",
-        ):
-            loader._validate_no_descriptor_package_dependencies(descriptor)
+        result = loader._collect_descriptor_package_requirements(
+            descriptor, {}, set()
+        )
+
+        assert [(item["ecosystem"], item["name"]) for item in result] == [
+            ("node", "vite"),
+            ("python", "requests"),
+        ]
+        python_requirement = result[1]
+        assert python_requirement["requested_constraint"] == ">=2.30,<3.0"
+        assert python_requirement["source_profile"] == "python-pypi-public-v1"
+        assert "version" not in python_requirement
+        assert "resolver" not in python_requirement
+        assert "source" not in python_requirement
+
+    def test_unselected_optional_native_package_requirement_is_excluded(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "dependencies": {
+                "python": [{
+                    "name": "optional-helper",
+                    "required": False,
+                    "version_policy": "latest_compatible",
+                    "disposition": "runtime_compatible",
+                }]
+            },
+        }
+
+        assert loader._collect_descriptor_package_requirements(
+            descriptor, {}, set()
+        ) == []
 
 
 class TestIndependentServiceComposition:
