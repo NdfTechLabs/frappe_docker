@@ -238,7 +238,8 @@ def validate_package_resolution(
         or target_runtime.get("python_soabi") != "cpython-314-x86_64-linux-gnu"
         or target_runtime.get("python_platform") != "linux-x86_64"
         or target_runtime.get("python_executable") != "/usr/local/bin/python3"
-        or "GCC 14.2.0" not in target_runtime.get("python_build", "")
+        or not isinstance(target_runtime.get("python_build"), str)
+        or "GCC 14.2.0" not in target_runtime["python_build"]
         or target_runtime.get("node") != "24.22.2"
         or target_runtime.get("npm") != "11.19.1"
         or target_runtime.get("node_platform") != "linux"
@@ -262,6 +263,7 @@ def validate_package_resolution(
             not isinstance(image, dict)
             or image.get("platform") != "linux/amd64"
             or image.get("manifest_digest") != accepted_digests[stage]
+            or image.get("index_digest") != accepted_index_digests[stage]
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("manifest_digest", ""))
             or not isinstance(image.get("reference"), str)
             or image["reference"].rsplit("@", 1)[-1] != image.get("manifest_digest")
