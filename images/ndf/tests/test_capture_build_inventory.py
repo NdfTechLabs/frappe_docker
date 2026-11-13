@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from scripts import capture_build_inventory as capture
 
@@ -91,6 +92,11 @@ def test_capture_records_actual_git_heads_and_lock_refs(bench_fixture, tmp_path)
     assert report["applications"][1]["name"] == "erpnext"
     assert report["applications"][1]["resolver_commit"] == "a" * 40
     assert json.loads(output.read_text(encoding="utf-8")) == report
+
+    schema_path = Path(__file__).resolve().parents[1] / "schemas" / "build-inventory-v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(report)
 
 
 def test_capture_rejects_unexpected_application_directory(bench_fixture, tmp_path):
