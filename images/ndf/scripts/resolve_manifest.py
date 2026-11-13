@@ -2331,7 +2331,7 @@ def main():
                 if dependency.get("ecosystem") != "python":
                     continue
                 normalized_name = normalize_package_name("python", dependency["name"])
-                version_key = app_id + "\\0" + normalized_name
+                version_key = app_id + "\0" + normalized_name
                 selected_version = direct_python_versions.get(version_key)
                 if not selected_version:
                     raise ManifestError(
