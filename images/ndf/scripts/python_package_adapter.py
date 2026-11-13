@@ -19,8 +19,10 @@ import urllib.request
 from pathlib import Path
 from typing import Callable
 
+from packaging.markers import Marker, default_environment
 from packaging.tags import compatible_tags, cpython_tags
 from packaging.utils import parse_wheel_filename
+from packaging.version import Version
 
 try:
     from .package_resolution import normalize_package_name, package_identity
@@ -136,16 +138,42 @@ def _bounded_run(
         stderr_path = Path(output_dir) / "stderr"
         try:
             with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
-                result = runner(
-                    command,
-                    cwd=cwd,
-                    env=env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stdout_file,
-                    stderr=stderr_file,
-                    timeout=timeout,
-                    check=False,
-                )
+                if runner is subprocess.run:
+                    process = subprocess.Popen(
+                        command,
+                        cwd=cwd,
+                        env=env,
+                        stdin=subprocess.DEVNULL,
+                        stdout=stdout_file,
+                        stderr=stderr_file,
+                        start_new_session=True,
+                    )
+                    deadline = time.monotonic() + timeout
+                    while process.poll() is None:
+                        if stdout_path.stat().st_size + stderr_path.stat().st_size > output_limit:
+                            process.kill()
+                            process.wait()
+                            raise PythonAdapterError("uv output exceeded the configured output limit.")
+                        if time.monotonic() >= deadline:
+                            process.kill()
+                            process.wait()
+                            raise PythonAdapterError(
+                                f"uv command exceeded the {timeout}s execution timeout."
+                            )
+                        time.sleep(0.05)
+                    return_code = process.returncode
+                else:
+                    result = runner(
+                        command,
+                        cwd=cwd,
+                        env=env,
+                        stdin=subprocess.DEVNULL,
+                        stdout=stdout_file,
+                        stderr=stderr_file,
+                        timeout=timeout,
+                        check=False,
+                    )
+                    return_code = result.returncode
         except subprocess.TimeoutExpired as exc:
             raise PythonAdapterError(f"uv command exceeded the {timeout}s execution timeout.") from exc
         except OSError as exc:
@@ -154,7 +182,7 @@ def _bounded_run(
             raise PythonAdapterError("uv output exceeded the configured output limit.")
         stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
         stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
-        return result.returncode, stdout, stderr
+        return return_code, stdout, stderr
 
 
 class _AllowlistedRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -228,6 +256,51 @@ def _verify_wheel(
         },
         total,
     )
+
+
+def _target_marker_environment() -> dict[str, str]:
+    environment = default_environment()
+    environment.update(
+        {
+            "implementation_name": "cpython",
+            "implementation_version": "3.14.10",
+            "os_name": "posix",
+            "platform_machine": "x86_64",
+            "platform_python_implementation": "CPython",
+            "platform_system": "Linux",
+            "python_full_version": "3.14.10",
+            "python_version": "3.14",
+            "sys_platform": "linux",
+            "extra": "",
+        }
+    )
+    return environment
+
+
+def _dependency_applies(dependency: dict, environment: dict[str, str]) -> bool:
+    marker = dependency.get("marker")
+    if marker is None:
+        return True
+    if not isinstance(marker, str):
+        raise PythonAdapterError("Malformed environment marker in uv dependency graph.")
+    marker_variables = set(
+        re.findall(
+            r"\\b(implementation_name|implementation_version|os_name|platform_machine|"
+            r"platform_python_implementation|platform_system|python_full_version|"
+            r"python_version|sys_platform|extra|platform_release|platform_version)\\b",
+            marker,
+        )
+    )
+    unsupported = marker_variables - set(environment)
+    if unsupported:
+        raise PythonAdapterError(
+            "Python dependency marker uses target attributes not represented by the accepted runtime: "
+            + ", ".join(sorted(unsupported))
+        )
+    try:
+        return Marker(marker).evaluate(environment=environment)
+    except Exception as exc:
+        raise PythonAdapterError("Invalid environment marker in uv dependency graph.") from exc
 
 
 def resolve_python_packages(
@@ -418,10 +491,17 @@ def resolve_python_packages(
         for entry in lock["packages"]:
             if not isinstance(entry, dict):
                 raise PythonAdapterError("Malformed package entry in uv pylock output.")
-            name = normalize_package_name("python", entry.get("name", ""))
+            raw_name = entry.get("name")
+            if not isinstance(raw_name, str) or not raw_name:
+                raise PythonAdapterError("Resolved Python package has no valid name.")
+            name = normalize_package_name("python", raw_name)
             version = entry.get("version")
             if not isinstance(version, str) or not version:
                 raise PythonAdapterError("Resolved Python package has no exact version.")
+            try:
+                Version(version)
+            except Exception as exc:
+                raise PythonAdapterError(f"Resolved Python package {name} has an invalid PEP 440 version.") from exc
             index = entry.get("index", PYPI_INDEX)
             if not isinstance(index, str):
                 raise PythonAdapterError(f"Package {name} has no valid approved index identity.")
@@ -464,14 +544,14 @@ def resolve_python_packages(
             remaining_time = deadline - time.monotonic()
             if remaining_time <= 0:
                 raise PythonAdapterError("Python artifact verification exceeded the overall execution timeout.")
+            if name in package_rows:
+                raise PythonAdapterError(f"uv returned multiple selected versions for normalized package {name}.")
             integrity, downloaded = _verify_wheel(
                 compatible[0][1],
                 name, version, supported_tags, opener, workspace, remaining_bytes,
                 request_timeout=max(1, min(30, int(remaining_time))),
             )
             remaining_bytes -= downloaded
-            if name in package_rows:
-                raise PythonAdapterError(f"uv returned multiple selected versions for normalized package {name}.")
             package_rows[name] = {
                 "name": name,
                 "version": version,
@@ -479,9 +559,21 @@ def resolve_python_packages(
                 "dependencies": entry.get("dependencies", []),
             }
 
-        if set(package_rows) < set(requirements):
+        if not set(requirements).issubset(package_rows):
             missing = sorted(set(requirements) - set(package_rows))
             raise PythonAdapterError("uv resolution omitted direct requirements: " + ", ".join(missing))
+
+        marker_environment = _target_marker_environment()
+        for name, row in package_rows.items():
+            if not isinstance(row["dependencies"], list):
+                raise PythonAdapterError(f"Malformed dependency list for {name}.")
+            active_dependencies = []
+            for dependency in row["dependencies"]:
+                if not isinstance(dependency, dict) or not isinstance(dependency.get("name"), str):
+                    raise PythonAdapterError(f"Malformed dependency edge for {name}.")
+                if _dependency_applies(dependency, marker_environment):
+                    active_dependencies.append(dependency)
+            row["dependencies"] = active_dependencies
 
         direct_versions = {}
         packages = []
@@ -531,25 +623,22 @@ def resolve_python_packages(
                 direct_versions[item["app_id"] + "\0" + name] = row["version"]
 
         by_name = {name: row for name, row in package_rows.items()}
+        edge_map = {}
         for name, row in package_rows.items():
-            if not isinstance(row["dependencies"], list):
-                raise PythonAdapterError(f"Malformed dependency list for {name}.")
             for dependency in row["dependencies"]:
-                if not isinstance(dependency, dict) or not isinstance(dependency.get("name"), str):
-                    raise PythonAdapterError(f"Malformed dependency edge for {name}.")
                 dependency_name = normalize_package_name("python", dependency["name"])
                 target = by_name.get(dependency_name)
                 if target is None:
                     raise PythonAdapterError(
                         f"uv dependency graph references unresolved package {dependency_name} from {name}."
                     )
-                edges.append(
-                    {
-                        "from": package_identity("python", name, row["version"]),
-                        "to": package_identity("python", dependency_name, target["version"]),
-                        "constraint": "==" + target["version"],
-                    }
-                )
+                edge = {
+                    "from": package_identity("python", name, row["version"]),
+                    "to": package_identity("python", dependency_name, target["version"]),
+                    "constraint": "==" + target["version"],
+                }
+                edge_map[(edge["from"], edge["to"], edge["constraint"])] = edge
+        edges = list(edge_map.values())
 
         package_resolution = {
             "schema_version": 1,
