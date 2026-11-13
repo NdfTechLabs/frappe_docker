@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 import tomllib
@@ -243,7 +242,6 @@ def resolve_python_packages(
     by (app_id, normalized_name) joined with a NUL separator.
     """
     supported_tags = _supported_wheel_tags(target_runtime)
-    proxy = _validate_proxy(egress_proxy or os.environ.get("NDF_PACKAGE_EGRESS_PROXY"))
     requirements: dict[str, list[dict]] = {}
     for app in applications:
         app_id = app.get("_app_id") or app.get("app_id")
@@ -322,6 +320,7 @@ def resolve_python_packages(
             {},
         )
 
+    proxy = _validate_proxy(egress_proxy or os.environ.get("NDF_PACKAGE_EGRESS_PROXY"))
     with tempfile.TemporaryDirectory(prefix="ndf-python-resolution-") as temporary:
         workspace = Path(temporary)
         input_path = workspace / "requirements.in"
