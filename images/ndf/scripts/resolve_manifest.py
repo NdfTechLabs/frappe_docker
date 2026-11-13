@@ -1637,26 +1637,52 @@ class ManifestLoader:
                     raise ManifestError(
                         f"Application '{name}' has invalid package dependency selections."
                     )
-                for package in package_dependencies:
+                for requirement in package_dependencies:
                     if (
-                        not isinstance(package, dict)
+                        not isinstance(requirement, dict)
                         or not all(
-                            isinstance(package.get(field), str) and package[field]
+                            isinstance(requirement.get(field), str) and requirement[field]
                             for field in (
                                 "ecosystem",
                                 "name",
-                                "version",
-                                "source",
-                                "resolver",
+                                "version_policy",
+                                "source_profile",
+                                "disposition",
+                                "scope",
                             )
                         )
-                        or package.get("ecosystem") not in {"python", "node", "os"}
-                        or not isinstance(package.get("install"), bool)
-                        or package.get("disposition")
+                        or requirement.get("ecosystem") not in {"python", "node", "os"}
+                        or requirement.get("version_policy") not in {"constraint", "latest_compatible"}
+                        or requirement.get("disposition")
                         not in {"base", "runtime_compatible", "environment_level"}
+                        or requirement.get("scope") not in {"build", "runtime"}
+                        or not isinstance(requirement.get("install"), bool)
+                        or (
+                            requirement.get("requested_constraint") is not None
+                            and not isinstance(requirement.get("requested_constraint"), str)
+                        )
                     ):
                         raise ManifestError(
-                            f"Application '{name}' has an incomplete package selection."
+                            f"Application '{name}' has an invalid native package requirement."
+                        )
+                    if requirement.get("version_policy") == "constraint" and not requirement.get(
+                        "requested_constraint"
+                    ):
+                        raise ManifestError(
+                            f"Application '{name}' has a constrained package requirement without a constraint."
+                        )
+                    if requirement.get("version_policy") == "latest_compatible" and requirement.get(
+                        "requested_constraint"
+                    ) is not None:
+                        raise ManifestError(
+                            f"Application '{name}' has a latest_compatible package requirement with a constraint."
+                        )
+                    if requirement.get("ecosystem") == "os" and not all(
+                        isinstance(requirement.get(field), str) and requirement[field]
+                        for field in ("package_manager", "distribution_family")
+                    ):
+                        raise ManifestError(
+                            f"Application '{name}' has an OS package requirement without target manager metadata."
                         )
             available_apps[name] = app
             previous_order = order
