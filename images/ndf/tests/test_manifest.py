@@ -590,29 +590,33 @@ class TestLockGeneration:
         assert lock_data["framework"]["reference_kind"] == frappe_lock["reference_kind"]
         assert lock_data["framework"]["resolved_ref"] == frappe_lock["resolved_ref"]
 
-    def test_direct_only_package_selections_cannot_generate_complete_lock(
+    def test_declared_package_requirements_do_not_require_candidate_resolution(
         self, loader, sample_manifest, sample_applications
     ):
-        applications = [
-            {
-                **sample_applications[0],
-                "package_dependencies": [{
-                    "ecosystem": "python",
-                    "name": "demo-package",
-                    "version": "1.0.0",
-                    "source": "https://pypi.org/simple",
-                    "resolver": "uv",
-                    "version_policy": "latest_compatible",
-                    "requested_constraint": None,
-                    "source_profile": "python-pypi-public-v1",
-                    "disposition": "runtime_compatible",
-                    "install": True,
-                    "scope": "runtime",
-                }],
-            }
-        ]
-        with pytest.raises(ManifestError, match="complete transitive closure"):
-            loader.build_lock_data(sample_manifest, applications)
+        requirement = {
+            "ecosystem": "python",
+            "name": "demo-package",
+            "version_policy": "constraint",
+            "requested_constraint": ">=1,<2",
+            "source_profile": "python-pypi-public-v1",
+            "disposition": "runtime_compatible",
+            "install": True,
+            "scope": "runtime",
+        }
+        applications = [{
+            **sample_applications[0],
+            "_app_id": "demo_app",
+            "_release_version": "1.0.0",
+            "_descriptor_path": "images/ndf/descriptors/apps/demo_app.json",
+            "_descriptor_sha256": "b" * 64,
+            "package_dependencies": [requirement],
+        }]
+
+        lock_data = loader.build_lock_data(sample_manifest, applications)
+
+        assert lock_data["package_resolution"]["packages"] == []
+        assert lock_data["package_resolution"]["dependency_edges"] == []
+        assert lock_data["applications"][0]["package_dependencies"] == [requirement]
 
     def test_lock_generation_is_deterministic(
         self,
