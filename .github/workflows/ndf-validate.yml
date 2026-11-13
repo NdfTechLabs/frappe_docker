@@ -54,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(uv --version)" = "uv 0.13.7"
+          uv --version | grep -E '^uv 0\\.13\\.7($|[[:space:]])'
           uv pip compile --help > "${RUNNER_TEMP}/uv-pip-compile-help.txt"
           for option in --format --python-version --python-platform --no-build --no-config --no-cache; do
             grep -F -- "${option}" "${RUNNER_TEMP}/uv-pip-compile-help.txt" >/dev/null
