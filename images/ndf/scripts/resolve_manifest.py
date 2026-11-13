@@ -2330,47 +2330,49 @@ def main():
                     resolve_python_packages,
                 )
             except ImportError:
-                from python_package_adapter import (
-                    PythonAdapterError,
-                    resolve_python_packages,
-                )
-            package_resolution, direct_python_versions = resolve_python_packages(
-                ordered_applications,
-                manifest.get("target_runtime", {}),
-                repository_root=loader.repository_root,
-            )
-        for app in ordered_applications:
-            app_id = app.get("_app_id")
-            for dependency in app.get("package_dependencies", []):
-                if dependency.get("ecosystem") != "python":
-                    continue
-                normalized_name = normalize_package_name("python", dependency["name"])
-                version_key = app_id + "\0" + normalized_name
-                selected_version = direct_python_versions.get(version_key)
-                if not selected_version:
-                    raise ManifestError(
-                        f"{app_id}: Python adapter did not return a selection for {dependency['name']}."
+                try:
+                    from python_package_adapter import (
+                        PythonAdapterError,
+                        resolve_python_packages,
                     )
-                dependency["version"] = selected_version
-                normalized_package = next(
-                    (
-                        package for package in package_resolution.get("packages", [])
-                        if package.get("ecosystem") == "python"
-                        and package.get("name") == normalized_name
-                    ),
-                    None,
-                )
-                if normalized_package is None:
+                except ImportError as exc:
                     raise ManifestError(
-                        f"{app_id}: Python adapter omitted normalized package {normalized_name}."
+                        f"Python package adapter is unavailable: {exc}"
+                    ) from exc
+            try:
+                package_resolution, direct_python_versions = resolve_python_packages(
+                    ordered_applications,
+                    manifest.get("target_runtime", {}),
+                    repository_root=loader.repository_root,
+                )
+            except PythonAdapterError as exc:
+                raise ManifestError(f"Python package resolution failed: {exc}") from exc
+            for app in ordered_applications:
+                app_id = app.get("_app_id")
+                for dependency in app.get("package_dependencies", []):
+                    if dependency.get("ecosystem") != "python":
+                        continue
+                    normalized_name = normalize_package_name("python", dependency["name"])
+                    version_key = app_id + "\0" + normalized_name
+                    selected_version = direct_python_versions.get(version_key)
+                    if not selected_version:
+                        raise ManifestError(
+                            f"{app_id}: Python adapter did not return a selection for {dependency['name']}."
+                        )
+                    dependency["version"] = selected_version
+                    normalized_package = next(
+                        (
+                            package for package in package_resolution.get("packages", [])
+                            if package.get("ecosystem") == "python"
+                            and package.get("name") == normalized_name
+                        ),
+                        None,
                     )
-                dependency["scope"] = normalized_package["scope"]
-    except ImportError as exc:
-        print(f"ERROR: Python package adapter is unavailable: {exc}", file=sys.stderr)
-        sys.exit(1)
-    except PythonAdapterError as exc:
-        print(f"ERROR: Python package resolution failed: {exc}", file=sys.stderr)
-        sys.exit(1)
+                    if normalized_package is None:
+                        raise ManifestError(
+                            f"{app_id}: Python adapter omitted normalized package {normalized_name}."
+                        )
+                    dependency["scope"] = normalized_package["scope"]
     except ManifestError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
