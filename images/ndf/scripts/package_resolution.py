@@ -94,7 +94,7 @@ _DEBIAN_RELATION_OPERATORS = {
     ">=": "ge",
     ">>": "gt",
 }
-_DEBIAN_RELATION_RE = re.compile(r"^(<<|<=|=|>=|>>)\\s+(\\S+)$")
+_DEBIAN_RELATION_RE = re.compile(r"^(<<|<=|=|>=|>>)\s+(\S+)$")
 
 
 def _debian_version_satisfies(version: str, constraint: str) -> bool:
@@ -120,7 +120,7 @@ def _debian_version_satisfies(version: str, constraint: str) -> bool:
         operator, required_version = match.groups()
     else:
         # Bare Debian version constraints retain exact-match semantics.
-        if any(char.isspace() for char in constraint):
+        if any(char.isspace() or char in "<>=" for char in constraint):
             raise PackageResolutionError(
                 f"Invalid Debian version constraint {constraint!r}; expected an exact version or a Debian relation."
             )
