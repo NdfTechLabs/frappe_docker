@@ -70,15 +70,18 @@ def _build_command(tmp_path, **overrides):
     root = tmp_path
     dockerfile = root / "images" / "layered" / "Containerfile"
     apps_json = root / "images" / "ndf" / ".build" / "dalali" / "apps.json"
+    build_lock = root / "images" / "ndf" / ".build" / "dalali" / "dalali-v16.lock-v2.json"
     dockerfile.parent.mkdir(parents=True, exist_ok=True)
     apps_json.parent.mkdir(parents=True, exist_ok=True)
     dockerfile.touch()
     apps_json.write_text("[]", encoding="utf-8")
+    build_lock.write_text('{"lock_version": 2}', encoding="utf-8")
 
     arguments = {
         "repository_root": root,
         "dockerfile": dockerfile,
         "apps_json": apps_json,
+        "build_lock": build_lock,
         "image_repository": "ghcr.io/ndftechlabs/dalali",
         "image_tag": "local",
         "frappe_branch": "version-16",
@@ -103,6 +106,11 @@ def test_layered_containerfile_uses_required_independent_digest_inputs():
     assert "ARG FRAPPE_BASE_IMAGE" in containerfile
     assert "FROM ${FRAPPE_BUILD_IMAGE} AS builder" in containerfile
     assert "FROM ${FRAPPE_BASE_IMAGE} AS backend" in containerfile
+    assert "capture_build_inventory.py" in containerfile
+    assert "id=build_lock" in containerfile
+    capture_position = containerfile.index("capture_build_inventory.py \\\n")
+    cleanup_position = containerfile.index('find apps -mindepth 1 -path "*/.git"')
+    assert capture_position < cleanup_position
     assert "FROM frappe/build:${FRAPPE_BRANCH}" not in containerfile
     assert "FROM frappe/base:${FRAPPE_BRANCH}" not in containerfile
 
@@ -138,6 +146,7 @@ def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
     assert "--push" not in command
     assert "--secret" in command
     assert any(item.startswith("id=apps_json,src=") for item in command)
+    assert any(item.startswith("id=build_lock,src=") for item in command)
     assert "FRAPPE_BRANCH=version-16" in command
     assert "FRAPPE_BUILD_IMAGE=frappe/build@sha256:" + "1" * 64 in command
     assert "FRAPPE_BASE_IMAGE=frappe/base@sha256:" + "2" * 64 in command
