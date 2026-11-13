@@ -35,7 +35,6 @@ SUPPORTED_PLATFORM = "linux/amd64"
 
 def resolve_base_images(
     ndf_dir: Path,
-    evidence_dir: Path | None,
     platforms: list[str],
 ) -> dict[str, Any]:
     """Validate the accepted base inventory and return immutable stage refs."""
@@ -45,9 +44,7 @@ def resolve_base_images(
             "ARM64 and multi-platform builds remain unsupported."
         )
 
-    configured_dir = evidence_dir or DEFAULT_BASE_INVENTORY
-    root = configured_dir if configured_dir.is_absolute() else ndf_dir / configured_dir
-    root = root.resolve()
+    root = (ndf_dir / DEFAULT_BASE_INVENTORY).resolve()
     ndf_root = ndf_dir.resolve()
     if not root.is_relative_to(ndf_root):
         raise BuildExecutionError("Base inventory directory must be inside images/ndf.")
@@ -351,7 +348,6 @@ def build_image(
     cache_from: list[str] | None = None,
     cache_to: list[str] | None = None,
     dry_run: bool = False,
-    base_inventory_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Prepare and build one NDF product image locally or to a registry."""
     repository_root = repository_root.resolve()
@@ -368,7 +364,7 @@ def build_image(
             "ARM64 and multi-platform builds remain unsupported."
         )
 
-    base_images = resolve_base_images(ndf_dir, base_inventory_dir, platforms)
+    base_images = resolve_base_images(ndf_dir, platforms)
 
     prepared = prepare_build(
         ndf_dir=ndf_dir,
@@ -532,14 +528,6 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--base-inventory",
-        type=Path,
-        help=(
-            "Accepted base-image inventory directory relative to images/ndf. "
-            "Defaults to the RT-01 Debian Trixie AMD64 evidence."
-        ),
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Prepare inputs and print the command without running Docker.",
@@ -562,7 +550,6 @@ def main() -> int:
             cache_from=args.cache_from,
             cache_to=args.cache_to,
             dry_run=args.dry_run,
-            base_inventory_dir=args.base_inventory,
         )
     except (BuildPreparationError, BuildExecutionError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
