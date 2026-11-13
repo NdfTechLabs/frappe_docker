@@ -516,6 +516,14 @@ class ManifestLoader:
                     raise ManifestError(
                         f"{descriptor['app_id']}: {key} source does not match approved NDF profile {source_profile}."
                     )
+                package_architecture = None
+                if ecosystem == "os":
+                    package_architecture = selection.get("architecture")
+                    if package_architecture not in {"amd64", "all"}:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: OS package {name} must include "
+                            "the native resolver-selected architecture."
+                        )
                 resolved.append(
                     {
                         "ecosystem": ecosystem,
@@ -531,6 +539,11 @@ class ManifestLoader:
                         "scope": scope,
                         "package_manager": dependency.get("package_manager"),
                         "distribution_family": dependency.get("distribution_family"),
+                        **(
+                            {"architecture": package_architecture}
+                            if ecosystem == "os"
+                            else {}
+                        ),
                     }
                 )
         return sorted(resolved, key=lambda item: (item["ecosystem"], item["name"]))
