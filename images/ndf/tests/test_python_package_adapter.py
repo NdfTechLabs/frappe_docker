@@ -451,7 +451,9 @@ def test_rejects_redirect_outside_the_approved_artifact_host():
             runner=runner,
             opener_factory=lambda *_args: RedirectedOpener(),
         )
-\ndef test_no_python_requirements_returns_empty_lock_without_invoking_uv():
+
+
+def test_no_python_requirements_returns_empty_lock_without_invoking_uv():
     def unexpected_runner(*_args, **_kwargs):
         raise AssertionError("uv must not run when there are no Python requirements")
 
