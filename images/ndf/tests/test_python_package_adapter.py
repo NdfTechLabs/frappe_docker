@@ -245,15 +245,15 @@ def test_uv_0137_emits_pep751_pylock_for_local_wheel_without_network(tmp_path):
 
     dist_info = "demo_pylock_fixture-1.0.0.dist-info"
     metadata = (
-        "Metadata-Version: 2.3\\n"
-        "Name: demo-pylock-fixture\\n"
-        "Version: 1.0.0\\n"
+        "Metadata-Version: 2.3\n"
+        "Name: demo-pylock-fixture\n"
+        "Version: 1.0.0\n"
     ).encode()
     wheel_metadata = (
-        "Wheel-Version: 1.0\\n"
-        "Generator: NDF test fixture\\n"
-        "Root-Is-Purelib: true\\n"
-        "Tag: py3-none-any\\n"
+        "Wheel-Version: 1.0\n"
+        "Generator: NDF test fixture\n"
+        "Root-Is-Purelib: true\n"
+        "Tag: py3-none-any\n"
     ).encode()
     wheel_path = tmp_path / "demo_pylock_fixture-1.0.0-py3-none-any.whl"
     record_rows = []
@@ -267,10 +267,10 @@ def test_uv_0137_emits_pep751_pylock_for_local_wheel_without_network(tmp_path):
     with zipfile.ZipFile(wheel_path, "w") as archive:
         archive.writestr(f"{dist_info}/METADATA", metadata)
         archive.writestr(f"{dist_info}/WHEEL", wheel_metadata)
-        archive.writestr(f"{dist_info}/RECORD", "\\n".join(record_rows) + "\\n")
+        archive.writestr(f"{dist_info}/RECORD", "\n".join(record_rows) + "\n")
 
     requirements = tmp_path / "requirements.in"
-    requirements.write_text("demo-pylock-fixture==1.0.0\\n", encoding="utf-8")
+    requirements.write_text("demo-pylock-fixture==1.0.0\n", encoding="utf-8")
     output = tmp_path / "pylock.toml"
     completed = subprocess.run(
         [
