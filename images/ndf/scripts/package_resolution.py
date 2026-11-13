@@ -150,6 +150,14 @@ def validate_package_resolution(
     else:
         if edges or profiles or section["base_inventory"] is not None:
             raise PackageResolutionError("Empty package graph must not carry edges, profiles or base inventory.")
+        if any(
+            app.get("package_dependencies")
+            for app in applications
+            if isinstance(app, dict)
+        ):
+            raise PackageResolutionError(
+                "Direct package selections are not represented by a normalized package graph."
+            )
         return True
 
     catalogue_profiles = catalogue["source_profiles"]
@@ -277,6 +285,59 @@ def validate_package_resolution(
 
     if sorted(used_profiles) != profiles:
         raise PackageResolutionError("source_profiles must exactly match profiles used by package records.")
+
+    expected_requesters: dict[str, set[str]] = {}
+    for app in applications:
+        if not isinstance(app, dict):
+            continue
+        app_id = app.get("app_id")
+        for direct in app.get("package_dependencies", []):
+            if not isinstance(direct, dict):
+                raise PackageResolutionError("Direct package dependency record is malformed.")
+            ecosystem = direct.get("ecosystem")
+            name = direct.get("name")
+            version = direct.get("version")
+            if ecosystem not in {"python", "node", "os"} or not isinstance(name, str) or not isinstance(version, str):
+                raise PackageResolutionError("Direct package dependency identity is incomplete.")
+            normalized = normalize_package_name(ecosystem, name)
+            candidates = [
+                item for item in packages
+                if item["ecosystem"] == ecosystem
+                and item["name"] == normalized
+                and item["version"] == version
+                and item["direct"] is True
+            ]
+            if len(candidates) != 1:
+                raise PackageResolutionError(
+                    f"Direct package dependency {ecosystem}:{name}={version} "
+                    "does not map to exactly one normalized package instance."
+                )
+            package = candidates[0]
+            if not isinstance(app_id, str) or app_id not in package["requested_by"]:
+                raise PackageResolutionError("Direct package requester is missing from requested_by.")
+            if (
+                direct.get("source") != package["source"]
+                or direct.get("resolver") != package["resolver"]
+                or direct.get("disposition") != package["disposition"]
+                or direct.get("install") != package["install"]
+            ):
+                raise PackageResolutionError("Direct package provenance/disposition differs from normalized package record.")
+            policy = direct.get("version_policy")
+            constraint = direct.get("requested_constraint")
+            if policy == "constraint":
+                if not isinstance(constraint, str) or not _constraint_satisfied(ecosystem, version, constraint):
+                    raise PackageResolutionError("Selected package does not satisfy a direct incoming constraint.")
+            elif policy == "latest_compatible":
+                if constraint is not None:
+                    raise PackageResolutionError("latest_compatible direct selection must not carry a requested constraint.")
+            else:
+                raise PackageResolutionError("Direct package selection has an unsupported version policy.")
+            expected_requesters.setdefault(package["id"], set()).add(app_id)
+
+    for package in packages:
+        expected = sorted(expected_requesters.get(package["id"], set()))
+        if package["requested_by"] != expected or package["direct"] != bool(expected):
+            raise PackageResolutionError("Package direct/requested_by provenance does not match application declarations.")
 
     edge_keys = set()
     adjacency = {package_id: [] for package_id in by_id}
