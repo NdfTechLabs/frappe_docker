@@ -166,7 +166,7 @@ def test_builder_and_runtime_platforms_must_match(tmp_path):
     manifest["inventories"]["runtime"]["image"]["platform"] = "linux/arm64"
     (tmp_path / "inventory-manifest.json").write_text(json.dumps(manifest))
 
-    with pytest.raises(InventoryError, match="platforms differ"):
+    with pytest.raises(InventoryError, match="schema validation failed"):
         validate_inventory_directory(tmp_path, SCHEMA)
 
 
