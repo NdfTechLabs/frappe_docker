@@ -2338,6 +2338,19 @@ def main():
                         f"{app_id}: Python adapter did not return a selection for {dependency['name']}."
                     )
                 dependency["version"] = selected_version
+                normalized_package = next(
+                    (
+                        package for package in package_resolution.get("packages", [])
+                        if package.get("ecosystem") == "python"
+                        and package.get("name") == normalized_name
+                    ),
+                    None,
+                )
+                if normalized_package is None:
+                    raise ManifestError(
+                        f"{app_id}: Python adapter omitted normalized package {normalized_name}."
+                    )
+                dependency["scope"] = normalized_package["scope"]
     except PythonAdapterError as exc:
         print(f"ERROR: Python package resolution failed: {exc}", file=sys.stderr)
         sys.exit(1)
