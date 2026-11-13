@@ -303,7 +303,9 @@ def validate_package_resolution(
                     or not name
                     or not isinstance(profile_id, str)
                 ):
-                    raise PackageResolutionError("Declared package requirement has an invalid identity or source profile.")
+                    raise PackageResolutionError(
+                        "Declared package requirement has an invalid identity or source profile."
+                    )
                 expected_profile = {
                     "python": "python-pypi-public-v1",
                     "node": "node-npm-public-v1",
@@ -317,30 +319,60 @@ def validate_package_resolution(
                     or profile.get("ecosystem") != ecosystem
                 ):
                     raise PackageResolutionError(
-                        f"Declared {ecosystem} requirement {name} uses an unapproved source profile."
+                        f"Declared {ecosystem} requirement {name} uses an "
+                        "unapproved source profile."
                     )
                 version_policy = requirement.get("version_policy")
-                if not isinstance(version_policy, str) or version_policy not in {"constraint", "latest_compatible"}:
-                    raise PackageResolutionError("Declared package requirement has an invalid version policy.")
+                if (
+                    not isinstance(version_policy, str)
+                    or version_policy not in {"constraint", "latest_compatible"}
+                ):
+                    raise PackageResolutionError(
+                        "Declared package requirement has an invalid version policy."
+                    )
                 constraint = requirement.get("requested_constraint")
                 if version_policy == "constraint":
                     if not isinstance(constraint, str) or not constraint:
-                        raise PackageResolutionError("Constrained package requirement has no requested_constraint.")
+                        raise PackageResolutionError(
+                            "Constrained package requirement has no requested_constraint."
+                        )
                 elif constraint is not None:
-                    raise PackageResolutionError("latest_compatible package requirement must not include a constraint.")
+                    raise PackageResolutionError(
+                        "latest_compatible package requirement must not include a constraint."
+                    )
                 disposition = requirement.get("disposition")
                 scope = requirement.get("scope")
-                if not isinstance(disposition, str) or disposition not in {"base", "runtime_compatible", "environment_level"}:
-                    raise PackageResolutionError("Declared package requirement has an invalid disposition.")
-                if not isinstance(scope, str) or scope not in {"build", "runtime"} or not isinstance(requirement.get("install"), bool):
-                    raise PackageResolutionError("Declared package requirement has an invalid scope/install decision.")
+                if (
+                    not isinstance(disposition, str)
+                    or disposition not in {"base", "runtime_compatible", "environment_level"}
+                ):
+                    raise PackageResolutionError(
+                        "Declared package requirement has an invalid disposition."
+                    )
+                if (
+                    not isinstance(scope, str)
+                    or scope not in {"build", "runtime"}
+                    or not isinstance(requirement.get("install"), bool)
+                ):
+                    raise PackageResolutionError(
+                        "Declared package requirement has an invalid scope/install decision."
+                    )
                 if ecosystem == "node":
-                    expected_manager = catalogue.get("resolver_policy", {}).get("node", {}).get("installer")
+                    expected_manager = (
+                        catalogue.get("resolver_policy", {}).get("node", {}).get("installer")
+                    )
                     if requirement.get("package_manager") != expected_manager:
-                        raise PackageResolutionError("Node package requirement does not match the Bench-native installer policy.")
+                        raise PackageResolutionError(
+                            "Node package requirement does not match the Bench-native installer policy."
+                        )
                 if ecosystem == "os":
-                    if not isinstance(target_runtime, dict) or not isinstance(target_runtime.get("os"), dict):
-                        raise PackageResolutionError("OS package requirement requires an exact target OS.")
+                    if (
+                        not isinstance(target_runtime, dict)
+                        or not isinstance(target_runtime.get("os"), dict)
+                    ):
+                        raise PackageResolutionError(
+                            "OS package requirement requires an exact target OS."
+                        )
                     os_target = target_runtime["os"]
                     if (
                         requirement.get("package_manager") != profile.get("package_manager")
@@ -352,7 +384,9 @@ def validate_package_resolution(
                         or os_target.get("package_manager") != profile.get("package_manager")
                         or os_target.get("package_database") != profile.get("package_database")
                     ):
-                        raise PackageResolutionError("OS package requirement does not match the accepted target/source profile.")
+                        raise PackageResolutionError(
+                            "OS package requirement does not match the accepted target/source profile."
+                        )
         return True
     if not isinstance(target_runtime, dict):
         raise PackageResolutionError("Package graph requires an exact target_runtime.")
