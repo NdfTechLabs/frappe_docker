@@ -705,3 +705,132 @@ def test_same_package_name_cannot_mix_source_profiles_or_sources(tmp_path):
 
     with pytest.raises(PackageResolutionError, match="Conflicting package sources"):
         validate(section, catalogue_path=catalogue_path)
+
+
+
+def test_selected_optional_dependency_is_represented_as_direct_package():
+    package = python_package("optional-feature", "1.2.0", direct=True, requested_by=["demo_app"])
+    section = package_resolution([package])
+    app = {
+        "name": "demo_app",
+        "app_id": "demo_app",
+        "package_dependencies": [{
+            "ecosystem": "python",
+            "name": "optional-feature",
+            "version": "1.2.0",
+            "source": "https://pypi.org/simple",
+            "resolver": "uv",
+            "source_profile": "python-pypi-public-v1",
+            "scope": "runtime",
+            "version_policy": "latest_compatible",
+            "requested_constraint": None,
+            "disposition": "runtime_compatible",
+            "install": True,
+        }],
+    }
+
+    assert validate(section, apps=[app]) is True
+
+
+def test_base_inventory_builder_digest_must_match_target_image():
+    package = {
+        "id": "os|libbrotli-dev|1.1.0-2+deb13u1|amd64",
+        "ecosystem": "os",
+        "name": "libbrotli-dev",
+        "version": "1.1.0-2+deb13u1",
+        "architecture": "amd64",
+        "source_profile": "os-debian-trixie-public-amd64-v1",
+        "source": "http://deb.debian.org/debian",
+        "resolver": "apt",
+        "resolver_version": "3.0.4",
+        "direct": True,
+        "requested_by": ["demo_app"],
+        "disposition": "base",
+        "install": False,
+        "scope": "build",
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "e" * 64,
+            "artifact": "pool/main/b/brotli/libbrotli-dev_1.1.0-2+deb13u1_amd64.deb",
+        }],
+        "repository_metadata": {
+            "release_identity": "Debian Trixie InRelease fixture",
+            "release_sha256": "a" * 64,
+        },
+    }
+    section = package_resolution([package])
+    section["base_inventory"] = _repository_inventory_reference()
+    section["base_inventory"]["inventories"]["builder"]["image_manifest_digest"] = (
+        "sha256:" + "f" * 64
+    )
+
+    with pytest.raises(PackageResolutionError, match="builder digest does not match"):
+        validate(section)
+
+
+def test_base_inventory_platform_must_match_target_image():
+    package = {
+        "id": "os|dpkg|1.22.22|amd64",
+        "ecosystem": "os",
+        "name": "dpkg",
+        "version": "1.22.22",
+        "architecture": "amd64",
+        "source_profile": "os-debian-trixie-public-amd64-v1",
+        "source": "http://deb.debian.org/debian",
+        "resolver": "apt",
+        "resolver_version": "3.0.4",
+        "direct": True,
+        "requested_by": ["demo_app"],
+        "disposition": "base",
+        "install": False,
+        "scope": "runtime",
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "f" * 64,
+            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+        }],
+        "repository_metadata": {
+            "release_identity": "Debian Trixie InRelease fixture",
+            "release_sha256": "a" * 64,
+        },
+    }
+    section = package_resolution([package])
+    section["base_inventory"] = _repository_inventory_reference()
+    section["base_inventory"]["inventories"]["runtime"]["platform"] = "linux/arm64"
+
+    with pytest.raises(PackageResolutionError, match="metadata does not match evidence"):
+        validate(section)
+
+
+def test_base_inventory_manifest_checksum_is_verified_offline():
+    package = {
+        "id": "os|dpkg|1.22.22|amd64",
+        "ecosystem": "os",
+        "name": "dpkg",
+        "version": "1.22.22",
+        "architecture": "amd64",
+        "source_profile": "os-debian-trixie-public-amd64-v1",
+        "source": "http://deb.debian.org/debian",
+        "resolver": "apt",
+        "resolver_version": "3.0.4",
+        "direct": True,
+        "requested_by": ["demo_app"],
+        "disposition": "base",
+        "install": False,
+        "scope": "runtime",
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "a" * 64,
+            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+        }],
+        "repository_metadata": {
+            "release_identity": "Debian Trixie InRelease fixture",
+            "release_sha256": "a" * 64,
+        },
+    }
+    section = package_resolution([package])
+    section["base_inventory"] = _repository_inventory_reference()
+    section["base_inventory"]["manifest_sha256"] = "0" * 64
+
+    with pytest.raises(PackageResolutionError, match="manifest checksum mismatch"):
+        validate(section)
