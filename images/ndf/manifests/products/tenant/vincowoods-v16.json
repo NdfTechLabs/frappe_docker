@@ -4,22 +4,26 @@
   "id": "vincowoods-v16",
   "name": "Vincowoods",
   "description": "Vincowoods tenant product for portfolio, product catalogue and ecommerce deployments on DhanaERP Frappe v16.",
+
   "framework": {
     "name": "frappe",
     "version": "16",
     "release_channel": "stable",
     "target_ref": "version-16"
   },
+
   "profile": {
     "type": "product",
     "required": true,
     "install_by_default": true
   },
+
   "deployment": {
     "role": "tenant",
     "product": "vincowoods",
     "purpose": "portfolio_and_ecommerce"
   },
+
   "resolution": {
     "strategy": "locked",
     "require_immutable_commit": true,
@@ -36,6 +40,7 @@
       "All production application references must resolve to immutable commit SHAs."
     ]
   },
+
   "includes": [
     {
       "manifest": "core/dhana-base-v16.json",
@@ -50,6 +55,7 @@
       "required": true
     }
   ],
+
   "capabilities": [
     {
       "manifest": "capabilities/ai-automation-v16.json",
@@ -58,6 +64,7 @@
       "description": "Optional AI and automation functionality for Vincowoods."
     }
   ],
+
   "applications": [
     {
       "name": "dt_vincowoods",
@@ -77,6 +84,7 @@
       "notes": "Vincowoods-specific portfolio and ecommerce application. Requires the shared Dhana ecommerce and recommendation applications."
     }
   ],
+
   "validation": {
     "required_checks": [
       "all_included_manifests_exist",
