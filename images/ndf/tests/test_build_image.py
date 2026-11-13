@@ -108,7 +108,7 @@ def test_layered_containerfile_uses_required_independent_digest_inputs():
     assert "FROM ${FRAPPE_BASE_IMAGE} AS backend" in containerfile
     assert "capture_build_inventory.py" in containerfile
     assert "id=build_lock" in containerfile
-    capture_position = containerfile.index("capture_build_inventory.py \\\n")
+    capture_position = containerfile.index("--bench /home/frappe/frappe-bench")
     cleanup_position = containerfile.index('find apps -mindepth 1 -path "*/.git"')
     assert capture_position < cleanup_position
     assert "FROM frappe/build:${FRAPPE_BRANCH}" not in containerfile
