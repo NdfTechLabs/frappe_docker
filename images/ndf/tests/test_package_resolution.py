@@ -86,10 +86,31 @@ def applications():
 
 
 def validate(section, *, target=None, apps=None):
+    if apps is None:
+        direct_dependencies = []
+        for package in section["packages"]:
+            if not package["direct"]:
+                continue
+            direct_dependencies.append({
+                "ecosystem": package["ecosystem"],
+                "name": package["name"],
+                "version": package["version"],
+                "source": package["source"],
+                "resolver": package["resolver"],
+                "version_policy": "latest_compatible",
+                "requested_constraint": None,
+                "disposition": package["disposition"],
+                "install": package["install"],
+            })
+        apps = [{
+            "name": "demo_app",
+            "app_id": "demo_app",
+            "package_dependencies": direct_dependencies,
+        }]
     return validate_package_resolution(
         section,
         target_runtime=target if target is not None else target_runtime(),
-        applications=apps if apps is not None else applications(),
+        applications=apps,
         repository_root=REPOSITORY_ROOT,
         catalogue_path=CATALOGUE,
     )
