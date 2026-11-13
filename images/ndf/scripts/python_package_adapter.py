@@ -548,7 +548,6 @@ def resolve_python_packages(
                 if not isinstance(requires_python, str):
                     raise PythonAdapterError("Malformed package requires-python metadata.")
                 try:
-                    from packaging.specifiers import SpecifierSet
                     if Version("3.14.10") not in SpecifierSet(requires_python):
                         raise PythonAdapterError("Resolved package is incompatible with target Python 3.14.10.")
                 except PythonAdapterError:
