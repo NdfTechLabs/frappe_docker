@@ -21,7 +21,6 @@ from scripts.python_package_adapter import (
 
 NDF_DIR = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = NDF_DIR.parents[1]
-PROXY = "http://egress-proxy.example:3128"
 
 
 def target_runtime():
@@ -341,7 +340,6 @@ def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
         [app_with_python(("demo-root", "constraint", ">=1,<2", "runtime"))],
         target_runtime(),
         repository_root=REPOSITORY_ROOT,
-        egress_proxy=PROXY,
         runner=runner,
         opener_factory=lambda *_args: opener,
     )
@@ -374,8 +372,10 @@ def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
     assert compile_command[compile_command.index("--index-url") + 1] == PYPI_INDEX
     assert all("extra-index-url" not in arg for arg in compile_command)
     resolver_env = calls[1][1]["env"]
-    assert resolver_env["HTTPS_PROXY"] == PROXY
-    assert resolver_env["NO_PROXY"] == ""
+    assert not any(
+        key.lower() in {"http_proxy", "https_proxy", "all_proxy", "no_proxy"}
+        for key in resolver_env
+    )
     assert "PYTHONPATH" not in resolver_env
     assert "PIP_INDEX_URL" not in resolver_env
     assert {url for url, _timeout in opener.requested} == {
@@ -404,7 +404,6 @@ def test_latest_compatible_direct_requirement_is_passed_without_a_range():
         [app_with_python(("demo-latest", "latest_compatible", None, "build"))],
         target_runtime(),
         repository_root=REPOSITORY_ROOT,
-        egress_proxy=PROXY,
         runner=runner,
         opener_factory=lambda *_args: opener,
     )
@@ -424,7 +423,6 @@ def test_rejects_source_distribution_only_result_without_building():
             [app_with_python(("demo-root", "constraint", ">=1", "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=runner,
             opener_factory=lambda *_args: FakeOpener({}),
         )
@@ -438,7 +436,6 @@ def test_rejects_unapproved_resolver_version():
             [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=runner,
         )
 
@@ -452,18 +449,37 @@ def test_rejects_unsupported_python_implementation_and_platform():
             [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
             target,
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
         )
 
 
-def test_requires_configured_allowlist_egress_proxy():
-    with pytest.raises(PythonAdapterError, match="NDF_PACKAGE_EGRESS_PROXY is required"):
-        resolve_python_packages(
-            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
-            target_runtime(),
-            repository_root=REPOSITORY_ROOT,
-            egress_proxy=None,
-        )
+def test_direct_artifact_transport_ignores_ambient_proxy_environment(monkeypatch):
+    wheel_bytes = b"direct HTTPS wheel"
+    wheel = wheel_entry("demo-direct", "1.0.0", wheel_bytes)
+    runner, calls = make_runner(
+        pylock([{"name": "demo-direct", "version": "1.0.0", "wheels": [wheel]}])
+    )
+    opener = FakeOpener({wheel["url"]: wheel_bytes})
+    observed_handlers = []
+
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        monkeypatch.setenv(key, "http://unexpected-proxy.invalid:8080")
+
+    result, _selected = resolve_python_packages(
+        [app_with_python(("demo-direct", "latest_compatible", None, "runtime"))],
+        target_runtime(),
+        repository_root=REPOSITORY_ROOT,
+        runner=runner,
+        opener_factory=lambda direct_handler, redirect_handler: (
+            observed_handlers.append(direct_handler) or opener
+        ),
+    )
+
+    assert [item["name"] for item in result["packages"]] == ["demo-direct"]
+    assert observed_handlers[0].proxies == {}
+    resolver_env = calls[1][1]["env"]
+    assert not any(key.lower() in {
+        "http_proxy", "https_proxy", "all_proxy", "no_proxy"
+    } for key in resolver_env)
 
 
 def test_rejects_wheel_from_unapproved_artifact_host():
@@ -478,7 +494,6 @@ def test_rejects_wheel_from_unapproved_artifact_host():
             [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=runner,
             opener_factory=lambda *_args: FakeOpener({}),
         )
@@ -496,7 +511,6 @@ def test_rejects_wheel_digest_mismatch():
             [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=runner,
             opener_factory=lambda *_args: FakeOpener({wheel["url"]: body}),
         )
@@ -513,7 +527,6 @@ def test_enforces_uv_execution_timeout():
             [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=runner,
             timeout=1,
         )
@@ -533,7 +546,6 @@ def test_rejects_uv_output_exceeding_the_configured_limit():
             [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=runner,
             output_limit=64,
             opener_factory=lambda *_args: FakeOpener({wheel["url"]: wheel_bytes}),
@@ -549,7 +561,6 @@ def test_rejects_invalid_python_constraint_before_invoking_uv():
             [app_with_python(("demo-root", "constraint", "=>1.0", "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=unexpected_runner,
         )
 
@@ -570,7 +581,6 @@ def test_rejects_redirect_outside_the_approved_artifact_host():
             [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
             target_runtime(),
             repository_root=REPOSITORY_ROOT,
-            egress_proxy=PROXY,
             runner=runner,
             opener_factory=lambda *_args: RedirectedOpener(),
         )
@@ -592,7 +602,6 @@ def test_merges_multiple_direct_requesters_and_constraints_for_one_package():
         [first, second],
         target_runtime(),
         repository_root=REPOSITORY_ROOT,
-        egress_proxy=PROXY,
         runner=runner,
         opener_factory=lambda *_args: opener,
     )
