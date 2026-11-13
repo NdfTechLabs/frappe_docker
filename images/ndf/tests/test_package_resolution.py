@@ -8,6 +8,7 @@ from scripts.package_resolution import (
     PackageResolutionError,
     package_identity,
     validate_package_resolution,
+    version_satisfies,
 )
 from scripts.resolve_manifest import ManifestLoader, ManifestError
 
@@ -961,3 +962,34 @@ def test_base_inventory_manifest_checksum_is_verified_offline():
 
     with pytest.raises(PackageResolutionError, match="manifest checksum mismatch"):
         validate(section)
+
+
+
+@pytest.mark.parametrize(
+    ("selected", "constraint", "expected"),
+    [
+        ("1.2.3", "1.2.3", True),
+        ("1.2.3", "1.2.4", False),
+        ("1:1.0-1", ">= 1.0-1", True),
+        ("1:1.0-1", ">> 2:0", False),
+        ("1.0~rc1-1", "<< 1.0-1", True),
+        ("1.0-2", ">> 1.0-1", True),
+        ("1.10-1", ">> 1.9-9", True),
+        ("1.0-1", "<= 1.0-1", True),
+        ("1.0-1", ">= 1.0-2", False),
+    ],
+)
+def test_debian_version_constraints_use_dpkg_semantics(selected, constraint, expected):
+    assert version_satisfies("os", selected, constraint) is expected
+
+
+@pytest.mark.parametrize("constraint", ["=> 1.0", "!= 1.0", ">=1.0", ">= 1.0 extra", ""])
+def test_debian_version_constraints_reject_unsupported_relation_syntax(constraint):
+    with pytest.raises(PackageResolutionError, match="Invalid Debian version constraint"):
+        version_satisfies("os", "1.0", constraint)
+
+
+def test_version_comparison_dispatches_by_ecosystem():
+    assert version_satisfies("python", "2.4.0", ">=2,<3") is True
+    assert version_satisfies("node", "2.4.0", ">=2 <3") is True
+    assert version_satisfies("os", "2.4.0-1", ">= 2.0-1") is True
