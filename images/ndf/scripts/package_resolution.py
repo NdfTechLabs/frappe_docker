@@ -54,8 +54,8 @@ def normalize_package_name(ecosystem: str, name: str) -> str:
             raise PackageResolutionError(f"Invalid or non-canonical npm package name: {name}")
         return name
     if ecosystem == "os":
-        if any(char in name for char in "|\t\r\n"):
-            raise PackageResolutionError("OS package name contains an identity delimiter.")
+        if re.fullmatch(r"[a-z0-9][a-z0-9+.-]*(?::[a-z0-9]+)?", name) is None:
+            raise PackageResolutionError(f"Invalid Debian package name: {name}")
         return name
     raise PackageResolutionError(f"Unsupported package ecosystem: {ecosystem}")
 
