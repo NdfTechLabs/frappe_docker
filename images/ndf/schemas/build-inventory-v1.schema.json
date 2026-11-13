@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/build-inventory-v1.schema.json",
+  "title": "NDF Post-Bench Build Inventory",
+  "description": "Versioned evidence captured from the initialized Frappe Bench builder stage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "stage",
+    "lock",
+    "framework",
+    "applications",
+    "runtime",
+    "installed_packages",
+    "dependency_files",
+    "installers"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "stage": { "const": "builder" },
+    "lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sha256"],
+      "properties": {
+        "version": { "const": 2 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "framework": { "$ref": "#/$defs/application" },
+    "applications": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/application" }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "node", "yarn", "bench", "platform"],
+      "properties": {
+        "python": {
+          "type": "object",
+          "required": ["executable", "version", "implementation"],
+          "properties": {
+            "executable": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "implementation": { "type": "string", "minLength": 1 }
+          }
+        },
+        "node": { "$ref": "#/$defs/optionalVersion" },
+        "yarn": { "$ref": "#/$defs/optionalVersion" },
+        "bench": {
+          "type": "object",
+          "required": ["version"],
+          "properties": { "version": { "type": "string", "minLength": 1 } }
+        },
+        "platform": {
+          "type": "object",
+          "required": ["system", "machine", "oci"],
+          "properties": {
+            "system": { "type": "string", "minLength": 1 },
+            "machine": { "type": "string", "minLength": 1 },
+            "oci": { "type": "string", "pattern": "^linux/.+$" }
+          }
+        }
+      }
+    },
+    "installed_packages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "node", "debian"],
+      "properties": {
+        "python": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "version": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "node": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "name", "version"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "name": { "type": "string", "minLength": 1 },
+              "version": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "debian": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version", "architecture"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "version": { "type": "string", "minLength": 1 },
+              "architecture": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "dependency_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["application", "path", "sha256"],
+        "properties": {
+          "application": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "installers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uv", "pip"],
+      "properties": {
+        "uv": { "$ref": "#/$defs/optionalVersion" },
+        "pip": { "$ref": "#/$defs/optionalVersion" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "optionalVersion": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": { "type": ["string", "null"] }
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "repository", "requested_ref", "resolver_commit", "actual_commit"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string", "pattern": "^[^/@:]+/.+$" },
+        "requested_ref": { "type": "string", "minLength": 1 },
+        "resolver_commit": { "type": "string" },
+        "actual_commit": { "type": "string", "pattern": "^[a-f0-9]{40,64}$" }
+      }
+    }
+  }
+}
