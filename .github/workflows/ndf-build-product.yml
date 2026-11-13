@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feat/m4.2.4-immutable-image-construction
     paths:
       - "images/ndf/**"
       - "images/layered/Containerfile"
@@ -49,7 +50,7 @@ jobs:
       - name: Configure product matrix
         id: set-matrix
         env:
-          SELECTED_PRODUCT: ${{ inputs.product || 'all' }}
+          SELECTED_PRODUCT: ${{ inputs.product || (github.ref_name == 'feat/m4.2.4-immutable-image-construction' && 'dalali-v16') || 'all' }}
         shell: bash
         run: |
           set -euo pipefail
