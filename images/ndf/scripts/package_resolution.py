@@ -234,18 +234,18 @@ def validate_package_resolution(
     if (
         target_runtime.get("python") != "3.14.10"
         or target_runtime.get("python_implementation") != "CPython"
-        or not target_runtime.get("python_cache_tag")
-        or not target_runtime.get("python_soabi")
-        or not target_runtime.get("python_platform")
-        or not target_runtime.get("python_executable")
-        or not target_runtime.get("python_build")
+        or target_runtime.get("python_cache_tag") != "cpython-314"
+        or target_runtime.get("python_soabi") != "cpython-314-x86_64-linux-gnu"
+        or target_runtime.get("python_platform") != "linux-x86_64"
+        or target_runtime.get("python_executable") != "/usr/local/bin/python3"
+        or "GCC 14.2.0" not in target_runtime.get("python_build", "")
         or target_runtime.get("node") != "24.22.2"
         or target_runtime.get("npm") != "11.19.1"
         or target_runtime.get("node_platform") != "linux"
         or target_runtime.get("node_architecture") != "x64"
-        or not target_runtime.get("node_abi")
-        or not target_runtime.get("node_api")
-        or not target_runtime.get("node_executable")
+        or target_runtime.get("node_abi") != "137"
+        or target_runtime.get("node_api") != "10"
+        or target_runtime.get("node_executable") != "/home/frappe/.nvm/current/bin/node"
     ):
         raise PackageResolutionError("Package graph target Python/Node identity is incomplete or outside accepted RT-01.")
     accepted_digests = {
