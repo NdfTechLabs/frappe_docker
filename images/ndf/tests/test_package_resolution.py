@@ -9,6 +9,7 @@ from scripts.package_resolution import (
     package_identity,
     validate_package_resolution,
 )
+from scripts.resolve_manifest import ManifestLoader, ManifestError
 
 NDF_DIR = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = NDF_DIR.parents[1]
@@ -141,6 +142,101 @@ def validate(section, *, target=None, apps=None):
         repository_root=REPOSITORY_ROOT,
         catalogue_path=CATALOGUE,
     )
+
+
+def _build_package_lock(tmp_path):
+    manifests_dir = tmp_path / "manifests"
+    manifests_dir.mkdir()
+    source_path = manifests_dir / "demo-product.json"
+    source_path.write_text('{"id":"demo-product"}', encoding="utf-8")
+    loader = ManifestLoader(manifests_dir)
+    loader.repository_root = REPOSITORY_ROOT
+    loader.schema_dir = NDF_DIR / "schemas"
+    manifest = {
+        "manifest_version": "1.0",
+        "id": "demo-product",
+        "name": "Demo Product",
+        "profile": {"type": "product", "required": True, "install_by_default": True},
+        "framework": {
+            "name": "frappe",
+            "version": "16",
+            "release_channel": "stable",
+            "target_ref": "version-16",
+        },
+        "resolution": {
+            "require_immutable_commit": True,
+            "fail_on_unverified_compatibility": True,
+        },
+        "target_runtime": target_runtime(),
+        "_source_path": str(source_path),
+        "_loaded_includes": [],
+        "_loaded_capabilities": [],
+        "_capability_selections": [],
+    }
+    applications_list = [
+        {
+            "name": "frappe",
+            "repository": "https://github.com/frappe/frappe",
+            "target_ref": "version-16",
+            "ref": "a" * 40,
+            "dependencies": [],
+            "compatibility_status": "verified",
+            "_reference_kind": "tag",
+            "_resolved_ref": "refs/tags/version-16",
+        },
+        {
+            "name": "demo_app",
+            "repository": "https://github.com/example/demo_app",
+            "target_ref": "main",
+            "ref": "b" * 40,
+            "dependencies": ["frappe"],
+            "compatibility_status": "verified",
+            "_reference_kind": "branch",
+            "_resolved_ref": "refs/heads/main",
+            "_app_id": "demo_app",
+            "_release_version": "1.0.0",
+            "_descriptor_path": "images/ndf/descriptors/apps/demo_app.json",
+            "_descriptor_sha256": "c" * 64,
+            "package_dependencies": [],
+        },
+    ]
+    lock = loader.build_lock_data(manifest, applications_list)
+    package = python_package(
+        "requests", "2.32.3", direct=True, requested_by=["demo_app"]
+    )
+    direct = {
+        "ecosystem": "python",
+        "name": "requests",
+        "version": "2.32.3",
+        "source": "https://pypi.org/simple",
+        "resolver": "uv",
+        "source_profile": "python-pypi-public-v1",
+        "scope": "runtime",
+        "version_policy": "constraint",
+        "requested_constraint": ">=2.30,<3.0",
+        "disposition": "runtime_compatible",
+        "install": True,
+    }
+    lock["applications"][1]["package_dependencies"] = [direct]
+    lock["package_resolution"] = package_resolution([package])
+    lock_path = tmp_path / "demo-product.lock.json"
+    loader.write_lock_file(lock, lock_path)
+    return loader, manifest, lock_path, lock
+
+
+def test_manifest_loader_validates_package_resolution_offline(tmp_path):
+    loader, manifest, lock_path, _ = _build_package_lock(tmp_path)
+
+    assert loader.validate_lock_file(lock_path, manifest) is True
+
+
+def test_manifest_loader_rejects_package_resolution_tampering(tmp_path):
+    loader, manifest, lock_path, lock = _build_package_lock(tmp_path)
+    lock["package_resolution"]["packages"][0]["resolver_version"] = ""
+    loader.write_lock_file(lock, lock_path)
+
+    with pytest.raises(ManifestError, match="unpinned resolver"):
+        loader.validate_lock_file(lock_path, manifest)
 
 
 def test_python_package_identity_uses_pep503_normalization():
