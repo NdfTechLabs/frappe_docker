@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from scripts.build_image import (
     BuildExecutionError,
+    resolve_base_images,
     build_command,
     build_labels,
     execute_build,
@@ -92,6 +93,26 @@ def _build_command(tmp_path, **overrides):
     return build_command(**arguments)
 
 
+def test_resolve_base_images_uses_the_accepted_rt01_platform_digests():
+    ndf_dir = Path(__file__).resolve().parents[1]
+    resolved = resolve_base_images(ndf_dir, None, ["linux/amd64"])
+
+    assert resolved["platform"] == "linux/amd64"
+    assert resolved["builder"] == (
+        "frappe/build@sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
+    )
+    assert resolved["runtime"] == (
+        "frappe/base@sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+    )
+    assert resolved["inventory_manifest_sha256"]
+
+
+def test_resolve_base_images_rejects_unsupported_platforms():
+    ndf_dir = Path(__file__).resolve().parents[1]
+    with pytest.raises(BuildExecutionError, match="only linux/amd64"):
+        resolve_base_images(ndf_dir, None, ["linux/arm64"])
+
+
 def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
     command = _build_command(
         tmp_path,
@@ -108,6 +129,7 @@ def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
     assert "FRAPPE_BASE_IMAGE=frappe/base@sha256:" + "2" * 64 in command
     assert "ghcr.io/ndftechlabs/dalali:local" in command
     assert "linux/amd64" in command
+    assert "--build-arg" in command
     assert "--no-cache" in command
     assert "ndf-local" in command
 
