@@ -264,6 +264,32 @@ def test_valid_direct_and_transitive_graph_passes_offline_validation():
     assert validate(section) is True
 
 
+def test_package_graph_fixture_is_deterministic_for_equivalent_input_order():
+    root = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
+    dependency = python_package("demo-dependency", "2.4.0")
+    edge = {
+        "from": root["id"],
+        "to": dependency["id"],
+        "constraint": ">=2,<3",
+    }
+
+    first = package_resolution([root, dependency], [edge])
+    second = package_resolution([dependency, root], [edge])
+
+    assert first == second
+    assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+
+def test_noncanonical_package_record_order_fails_closed():
+    root = python_package("z-root", "1.0.0", direct=True, requested_by=["demo_app"])
+    dependency = python_package("a-dependency", "2.4.0")
+    section = package_resolution([root, dependency])
+    section["packages"].reverse()
+
+    with pytest.raises(PackageResolutionError, match="sorted by id"):
+        validate(section)
+
+
 def test_direct_request_constraint_is_preserved_and_enforced():
     package = python_package("demo-root", "1.5.0", direct=True, requested_by=["demo_app"])
     section = package_resolution([package])
