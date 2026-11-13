@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Any
 
@@ -161,10 +163,18 @@ def validate_package_resolution(
         raise PackageResolutionError("Package graph target is outside the accepted A.1 linux/amd64 matrix.")
     if os_target.get("distribution_family") != "debian" or os_target.get("codename") != "trixie" or os_target.get("package_database") != "dpkg":
         raise PackageResolutionError("Package graph target OS is outside the accepted Debian Trixie/dpkg matrix.")
+    accepted_digests = {
+        "builder": "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b",
+        "runtime": "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c",
+    }
     for stage in ("builder", "runtime"):
         image = images.get(stage, {})
-        if image.get("platform") != "linux/amd64" or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("manifest_digest", "")):
-            raise PackageResolutionError(f"target_runtime.images.{stage} is incomplete or unsupported.")
+        if (
+            image.get("platform") != "linux/amd64"
+            or image.get("manifest_digest") != accepted_digests[stage]
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("manifest_digest", ""))
+        ):
+            raise PackageResolutionError(f"target_runtime.images.{stage} is not one of the accepted A.1 RT-01 digests.")
 
     by_id: dict[str, dict] = {}
     seen_singletons: set[tuple[str, str, str]] = set()
@@ -182,12 +192,15 @@ def validate_package_resolution(
         ecosystem = package["ecosystem"]
         architecture = package["architecture"]
         expected_id = package_identity(ecosystem, package["name"], package["version"], architecture)
-        if package["id"] != expected_id:
+        normalized_name = normalize_package_name(ecosystem, package["name"])
+        if package["name"] != normalized_name or package["id"] != expected_id:
             raise PackageResolutionError(f"Non-canonical package identity: {package.get('id')}")
         if expected_id in by_id:
             raise PackageResolutionError(f"Duplicate package identity: {expected_id}")
-        if ecosystem in {"python", "node"} and expected_id in seen_singletons:
-            raise PackageResolutionError(f"Duplicate installed {ecosystem} package: {expected_id}")
+        singleton_key = (ecosystem, normalized_name, architecture if ecosystem == "os" else "")
+        if ecosystem in {"python", "os"} and singleton_key in seen_singletons:
+            raise PackageResolutionError(f"Conflicting installed {ecosystem} package instance: {normalized_name}")
+        seen_singletons.add(singleton_key)
         by_id[expected_id] = package
         profile_id = package["source_profile"]
         profile = catalogue_profiles.get(profile_id)
@@ -203,8 +216,13 @@ def validate_package_resolution(
         }[ecosystem]
         if resolver not in allowed or not isinstance(package["resolver_version"], str) or not package["resolver_version"]:
             raise PackageResolutionError(f"Unsupported or unpinned resolver for {ecosystem}.")
-        if not isinstance(package["source"], str) or not package["source"] or "@" in package["source"] or "://" not in package["source"]:
+        if not isinstance(package["source"], str) or not package["source"]:
             raise PackageResolutionError("Package source must be a credential-free absolute source URI.")
+        parsed_source = urlsplit(package["source"])
+        if parsed_source.scheme != "https" and ecosystem != "os":
+            raise PackageResolutionError("Python and Node package sources must use HTTPS.")
+        if not parsed_source.netloc or parsed_source.username or parsed_source.password or parsed_source.query or parsed_source.fragment:
+            raise PackageResolutionError("Package source URI is invalid or contains credentials/query data.")
         if ecosystem == "python" and package["source"] != profile.get("registry"):
             raise PackageResolutionError("Python package source does not match its approved profile.")
         if ecosystem == "node" and package["source"] != profile.get("registry"):
@@ -212,8 +230,14 @@ def validate_package_resolution(
         if ecosystem == "os":
             if architecture not in {"amd64", "all"}:
                 raise PackageResolutionError("OS package architecture is outside the accepted target.")
-            if architecture not in {"amd64", "all"}:
-                raise PackageResolutionError("Unsupported Debian package architecture.")
+            if package["source"] not in {
+                repository["uri"]
+                for repository in profile.get("repositories", [])
+                if isinstance(repository, dict)
+            }:
+                raise PackageResolutionError("OS package source is not an approved Debian repository.")
+            if profile.get("architecture") != "amd64":
+                raise PackageResolutionError("OS source profile is not approved for amd64.")
         if not isinstance(package["direct"], bool) or not isinstance(package["install"], bool):
             raise PackageResolutionError("Package direct/install fields must be booleans.")
         if package["disposition"] not in {"base", "runtime_compatible", "environment_level"}:
@@ -231,6 +255,24 @@ def validate_package_resolution(
             raise PackageResolutionError("Direct package status must agree with requested_by.")
         if not isinstance(package["integrity"], list) or not isinstance(package["repository_metadata"], dict):
             raise PackageResolutionError("Package integrity/repository_metadata provenance is malformed.")
+        for integrity in package["integrity"]:
+            if (
+                not isinstance(integrity, dict)
+                or not isinstance(integrity.get("algorithm"), str)
+                or not isinstance(integrity.get("digest"), str)
+                or not integrity["algorithm"]
+                or not re.fullmatch(r"[a-fA-F0-9]+", integrity["digest"])
+            ):
+                raise PackageResolutionError("Package integrity record is malformed.")
+        if ecosystem == "os":
+            metadata = package["repository_metadata"]
+            if (
+                not isinstance(metadata.get("release_identity"), str)
+                or not metadata["release_identity"]
+                or not isinstance(metadata.get("release_sha256"), str)
+                or not re.fullmatch(r"[a-f0-9]{64}", metadata["release_sha256"])
+            ):
+                raise PackageResolutionError("Debian package requires authenticated Release metadata identity/hash.")
         used_profiles.add(profile_id)
 
     if sorted(used_profiles) != profiles:
@@ -284,8 +326,10 @@ def validate_package_resolution(
     if not evidence_dir.is_relative_to(repository_root.resolve()):
         raise PackageResolutionError("Base inventory evidence path escapes repository root.")
     manifest_path = evidence_dir / "inventory-manifest.json"
+    if inventory_ref.get("manifest_file") != "inventory-manifest.json":
+        raise PackageResolutionError("Base inventory manifest_file must be inventory-manifest.json.")
     try:
-        manifest_sha = __import__("hashlib").sha256(manifest_path.read_bytes()).hexdigest()
+        manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
         if manifest_sha != inventory_ref.get("manifest_sha256"):
             raise PackageResolutionError("Base inventory manifest checksum mismatch.")
         schema_path = Path(__file__).resolve().parents[1] / "schemas" / "base-inventory-manifest-v1.schema.json"
