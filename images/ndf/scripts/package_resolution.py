@@ -7,8 +7,8 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from urllib.parse import urlsplit
 from typing import Any
+from urllib.parse import urlsplit
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version as PythonVersion
@@ -368,11 +368,12 @@ def validate_package_resolution(
             raise PackageResolutionError("Direct package status must agree with requested_by.")
         if (
             not isinstance(package["integrity"], list)
+            or not package["integrity"]
             or not isinstance(package["repository_metadata"], dict)
         ):
             raise PackageResolutionError("Package integrity/repository_metadata provenance is incomplete.")
-        # An empty integrity list is an explicit statement that the approved
-        # source did not publish an artifact hash; never invent one.
+        # All currently approved A.2 profiles publish artifact hashes.
+        # Missing integrity therefore fails closed for this target matrix.
         for integrity in package["integrity"]:
             if not isinstance(integrity, dict):
                 raise PackageResolutionError("Package integrity record is malformed.")
@@ -405,11 +406,7 @@ def validate_package_resolution(
                     raise PackageResolutionError(
                         "Package artifact URI must be credential-free HTTPS without query or fragment data."
                     )
-                allowed_hosts = (
-                    profile.get("artifact_hosts", [])
-                    if ecosystem == "python"
-                    else ["registry.npmjs.org"]
-                )
+                allowed_hosts = profile.get("artifact_hosts", [])
                 if parsed_artifact.hostname not in allowed_hosts:
                     raise PackageResolutionError("Package artifact host is not approved by its source profile.")
             elif artifact.startswith("/") or ".." in Path(artifact).parts:
