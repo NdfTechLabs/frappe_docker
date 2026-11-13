@@ -39,7 +39,7 @@ Governing principle:
 
 - A Bench Environment is the runtime/deployment boundary and may use Host or Docker execution.
 - A Bench Environment has one resolved Python runtime and one resolved Node.js runtime, plus the framework and other approved runtime components.
-- Application compatibility declarations express supported version ranges; the resolved Bench composition records exact selected versions.
+- Application compatibility declarations express supported release-line/version ranges. For the current core platform, Frappe and ERPNext target the rolling upstream v16 release line through `version-16`; candidate-specific installed versions and actual acquired Git commits are captured as build evidence, not frozen as historical compatibility constants.
 - Every application in a shared Bench composition must be compatible with the same resolved runtime and dependency environment.
 - Bench-level application availability is distinct from site-level application installation.
 - A new or changed Bench composition is built as a new immutable image and deployed through a replacement Bench Environment.
