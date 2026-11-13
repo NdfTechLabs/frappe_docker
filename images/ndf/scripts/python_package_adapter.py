@@ -7,6 +7,7 @@ disposable workspace solely for digest verification.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -20,6 +21,7 @@ from pathlib import Path
 from typing import Callable
 
 from packaging.markers import Marker, default_environment
+from packaging.specifiers import SpecifierSet
 from packaging.tags import compatible_tags, cpython_tags
 from packaging.utils import parse_wheel_filename
 from packaging.version import Version
@@ -363,14 +365,16 @@ def resolve_python_packages(
             name = item.get("name")
             if not isinstance(name, str) or not name.strip():
                 raise PythonAdapterError(f"{app_id}: Python dependency name is missing.")
-            normalized = normalize_package_name("python", name)
+            try:
+                normalized = normalize_package_name("python", name)
+            except Exception as exc:
+                raise PythonAdapterError(f"{app_id}: invalid Python package name {name!r}.") from exc
             policy = item.get("version_policy")
             constraint = item.get("requested_constraint")
             if policy == "constraint":
                 if not isinstance(constraint, str) or not constraint:
                     raise PythonAdapterError(f"{app_id}: {name} requires a PEP 440 constraint.")
                 try:
-                    from packaging.specifiers import SpecifierSet
                     SpecifierSet(constraint)
                 except Exception as exc:
                     raise PythonAdapterError(f"{app_id}: invalid PEP 440 constraint for {name}.") from exc
@@ -402,7 +406,6 @@ def resolve_python_packages(
 
     catalogue_path = repository_root / "images/ndf/policies/package-source-profiles-v1.json"
     try:
-        import json
         catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
         profile = catalogue["source_profiles"][SOURCE_PROFILE]
         policy_version = catalogue["catalogue_version"]
@@ -411,7 +414,11 @@ def resolve_python_packages(
         raise PythonAdapterError("Unable to load the approved Python source/resolver policy.") from exc
     if (
         not profile.get("enabled")
+        or profile.get("ecosystem") != "python"
         or profile.get("registry") != PYPI_INDEX
+        or profile.get("source_identity") != "official-public-pypi"
+        or not isinstance(profile.get("artifact_hosts"), list)
+        or set(profile.get("artifact_hosts", [])) != ARTIFACT_HOSTS
         or profile.get("artifact_hosts") != sorted(profile.get("artifact_hosts", []))
         or approved_uv != UV_VERSION
         or not isinstance(policy_version, str)
@@ -474,6 +481,8 @@ def resolve_python_packages(
             "HTTP_PROXY": proxy,
             "https_proxy": proxy,
             "http_proxy": proxy,
+            "ALL_PROXY": proxy,
+            "all_proxy": proxy,
             "NO_PROXY": "",
             "no_proxy": "",
         }
