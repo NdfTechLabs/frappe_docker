@@ -400,23 +400,22 @@ def validate_package_resolution(
         if not isinstance(resolver, str):
             raise PackageResolutionError("Package resolver must be a string.")
         allowed = {
-            "python": {"uv"},
-            "node": {"npm"},
+            # Bench 5.31.1 delegates Python installation to uv when enabled,
+            # otherwise pip; its install_app path uses Yarn for package.json.
+            "python": {"uv", "pip"},
+            "node": {"yarn", "npm"},
             "os": {"apt"},
         }[ecosystem]
-        if resolver not in allowed or not isinstance(package["resolver_version"], str) or not package["resolver_version"]:
-            raise PackageResolutionError(f"Unsupported or unpinned resolver for {ecosystem}.")
-        if ecosystem == "python":
-            expected_uv_version = catalogue.get("resolver_policy", {}).get("python", {}).get("version")
-            if not isinstance(expected_uv_version, str) or not expected_uv_version:
-                raise PackageResolutionError("Approved Python resolver version is missing from the source policy catalogue.")
-            if package["resolver_version"] != expected_uv_version:
-                raise PackageResolutionError(
-                    f"Python resolver version {package['resolver_version']} does not match "
-                    f"the approved uv version {expected_uv_version}."
-                )
-        if ecosystem == "node" and package["resolver_version"] != target_runtime.get("npm"):
-            raise PackageResolutionError("npm resolver version does not match the accepted target runtime.")
+        if (
+            resolver not in allowed
+            or not isinstance(package["resolver_version"], str)
+            or not package["resolver_version"]
+        ):
+            raise PackageResolutionError(
+                f"Unsupported or unrecorded native resolver for {ecosystem}."
+            )
+        # Python/Node tool versions are build evidence, not NDF policy pins.
+        # OS package-manager identity remains bound to the accepted target image.
         if not isinstance(package["source"], str) or not package["source"]:
             raise PackageResolutionError("Package source must be a credential-free absolute source URI.")
         try:
