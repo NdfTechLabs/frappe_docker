@@ -171,6 +171,15 @@ def test_package_cycle_fails_closed():
         validate(section)
 
 
+def test_unreachable_transitive_package_record_fails_closed():
+    root = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
+    orphan = python_package("orphan", "2.0.0")
+    section = package_resolution([root, orphan])
+
+    with pytest.raises(PackageResolutionError, match="unreachable package records"):
+        validate(section)
+
+
 def test_missing_transitive_package_endpoint_fails_closed():
     root = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
     section = package_resolution(
@@ -188,7 +197,7 @@ def test_missing_transitive_package_endpoint_fails_closed():
 
 def test_multiple_incoming_constraints_must_all_be_satisfied():
     first = python_package("first", "1.0.0", direct=True, requested_by=["demo_app"])
-    second = python_package("second", "1.0.0")
+    second = python_package("second", "1.0.0", direct=True, requested_by=["demo_app"])
     shared = python_package("shared", "1.5.0")
     section = package_resolution(
         [first, second, shared],
