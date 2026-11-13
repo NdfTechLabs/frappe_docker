@@ -75,7 +75,7 @@
       "all_bench_app_dependencies_are_included",
       "bench_app_dependency_graph_is_acyclic",
       "bench_app_install_order_respects_dependencies",
-      "production_refs_are_not_development_branches",
+      "all_required_applications_have_verified_target_compatibility",
       "dt_ecommerce_installs_and_migrates_on_target_frappe_v16",
       "dt_recomendations_installs_and_migrates_on_target_frappe_v16",
       "dt_delivery_repository_is_published_before_production",
