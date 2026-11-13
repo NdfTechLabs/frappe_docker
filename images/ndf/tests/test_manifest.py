@@ -1949,6 +1949,40 @@ class TestDescriptorResolutionPrimitives:
             ("python", "requests", "2.32.3"),
         ]
 
+    def test_unselected_optional_package_is_excluded_from_direct_selections(
+        self, loader
+    ):
+        descriptor = {
+            "app_id": "example_app",
+            "dependencies": {
+                "python": [{
+                    "name": "optional-helper",
+                    "required": False,
+                    "version_policy": "latest_compatible",
+                    "disposition": "runtime_compatible",
+                }]
+            },
+        }
+        target_runtime = {
+            "package_versions": {
+                "python:optional-helper": {
+                    "version": "1.2.0",
+                    "source": "https://pypi.org/simple",
+                    "resolver": "uv",
+                }
+            }
+        }
+
+        assert loader._resolve_descriptor_packages(descriptor, target_runtime, set()) == []
+        selected = loader._resolve_descriptor_packages(
+            descriptor, target_runtime, {"python:optional-helper"}
+        )
+        assert len(selected) == 1
+        assert selected[0]["name"] == "optional-helper"
+        assert selected[0]["requested_constraint"] is None
+        assert selected[0]["source_profile"] == "python-pypi-public-v1"
+
+
     def test_os_package_versions_require_exact_native_selection_and_matching_target(
         self, loader
     ):
