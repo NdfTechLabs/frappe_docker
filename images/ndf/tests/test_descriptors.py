@@ -220,6 +220,23 @@ class TestMarketplaceDescriptorSchemas:
         ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_ndf_maintainer_attestation_can_establish_verified_compatibility(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"] = {
+            "status": "verified",
+            "evidence": [
+                {
+                    "kind": "maintainer_attestation",
+                    "authority": "ndf",
+                    "reference": "M4.2.4 platform-owner compatibility disposition",
+                    "result": "passed",
+                    "attested_at": "2026-11-13T00:00:00Z",
+                    "attested_by": "NDF platform owner",
+                }
+            ],
+        }
+        validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_verified_compatibility_requires_ndf_test_matrix(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"] = {
