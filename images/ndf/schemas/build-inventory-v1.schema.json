@@ -41,9 +41,10 @@
       "properties": {
         "python": {
           "type": "object",
-          "required": ["executable", "version", "implementation"],
+          "required": ["executable", "environment", "version", "implementation"],
           "properties": {
             "executable": { "type": "string", "minLength": 1 },
+            "environment": { "type": "string", "minLength": 1 },
             "version": { "type": "string", "minLength": 1 },
             "implementation": { "type": "string", "minLength": 1 }
           }
