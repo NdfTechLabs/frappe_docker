@@ -96,6 +96,7 @@ def generate_build_lock(
     )
     manifest_relative_path = manifest_path.relative_to(manifests_dir).as_posix()
 
+    lock_path = output_dir / f"{image['id']}.lock-v2.json"
     try:
         loader = ManifestLoader(manifests_dir)
         manifest = loader.load(manifest_relative_path)
@@ -113,11 +114,11 @@ def generate_build_lock(
             package_resolution=None,
         )
 
-        lock_path = output_dir / f"{image['id']}.lock-v2.json"
         loader.write_lock_file(lock_data, lock_path)
         loader.validate_lock_file(lock_path, manifest)
         lock_data = load_json(lock_path)
     except (ManifestError, ImageDefinitionError) as exc:
+        lock_path.unlink(missing_ok=True)
         raise BuildPreparationError(str(exc)) from exc
 
     product_id = lock_data.get("product", {}).get("id")
@@ -277,6 +278,11 @@ def prepare_build(
     )
 
     output_dir = (output_dir or (ndf_dir / ".build" / image_id)).resolve()
+    locks_dir = (ndf_dir / "locks").resolve()
+    if output_dir.is_relative_to(locks_dir):
+        raise BuildPreparationError(
+            "Per-build output directory must not be inside the obsolete checked-in locks directory."
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     lock_data, lock_path, manifest_relative_path = generate_build_lock(
