@@ -10,6 +10,7 @@ from scripts.python_package_adapter import (
     PYPI_INDEX,
     UV_VERSION,
     PythonAdapterError,
+    _dependency_applies,
     resolve_python_packages,
 )
 
@@ -453,13 +454,72 @@ def test_rejects_redirect_outside_the_approved_artifact_host():
         )
 
 
+
+def test_merges_multiple_direct_requesters_and_constraints_for_one_package():
+    wheel_bytes = b"shared wheel"
+    wheel = wheel_entry("shared-package", "1.5.0", wheel_bytes)
+    runner, _calls = make_runner(
+        pylock([{"name": "shared-package", "version": "1.5.0", "wheels": [wheel]}])
+    )
+    opener = FakeOpener({wheel["url"]: wheel_bytes})
+    first = app_with_python(("shared-package", "constraint", ">=1,<2", "runtime"))
+    second = app_with_python(("shared-package", "constraint", "<2.0", "build"))
+    second["_app_id"] = second["app_id"] = "second_app"
+
+    result, selected = resolve_python_packages(
+        [first, second],
+        target_runtime(),
+        repository_root=REPOSITORY_ROOT,
+        egress_proxy=PROXY,
+        runner=runner,
+        opener_factory=lambda *_args: opener,
+    )
+
+    assert selected == {
+        "demo_app\\0shared-package": "1.5.0",
+        "second_app\\0shared-package": "1.5.0",
+    }
+    package = result["packages"][0]
+    assert package["direct"] is True
+    assert package["requested_by"] == ["demo_app", "second_app"]
+    assert package["scope"] == "runtime"
+
+
+def test_dependency_markers_use_only_the_accepted_target_environment():
+    environment = {
+        "implementation_name": "cpython",
+        "implementation_version": "3.14.10",
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_python_implementation": "CPython",
+        "platform_system": "Linux",
+        "python_full_version": "3.14.10",
+        "python_version": "3.14",
+        "sys_platform": "linux",
+        "extra": "",
+    }
+
+    assert _dependency_applies(
+        {"marker": "python_full_version >= '3.14' and sys_platform == 'linux'"},
+        environment,
+    )
+    assert not _dependency_applies(
+        {"marker": "python_version < '3.14'"},
+        environment,
+    )
+    with pytest.raises(PythonAdapterError, match="not represented by the accepted runtime"):
+        _dependency_applies(
+            {"marker": "platform_release == '6.8.0'"},
+            environment,
+        )
+
 def test_no_python_requirements_returns_empty_lock_without_invoking_uv():
     def unexpected_runner(*_args, **_kwargs):
         raise AssertionError("uv must not run when there are no Python requirements")
 
     result, versions = resolve_python_packages(
         [{"_app_id": "demo_app", "package_dependencies": []}],
-        target_runtime(),
+        None,
         repository_root=REPOSITORY_ROOT,
         runner=unexpected_runner,
     )
