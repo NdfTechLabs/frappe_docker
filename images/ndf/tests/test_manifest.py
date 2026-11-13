@@ -2086,6 +2086,7 @@ class TestDescriptorResolutionPrimitives:
                         "version": "16.4-1",
                         "source": "http://deb.debian.org/debian",
                         "resolver": "apt",
+                        "architecture": "amd64",
                     }
                 },
             },
@@ -2093,6 +2094,7 @@ class TestDescriptorResolutionPrimitives:
         )
         assert result[0]["install"] is True
         assert result[0]["disposition"] == "environment_level"
+        assert result[0]["architecture"] == "amd64"
 
     def test_missing_exact_package_selection_fails_closed(self, loader):
         descriptor = {
