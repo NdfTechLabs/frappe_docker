@@ -370,7 +370,7 @@ def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
     assert "--no-config" in compile_command
     assert "--no-cache" in compile_command
     assert compile_command[compile_command.index("--python-version") + 1] == "3.14.10"
-    assert compile_command[compile_command.index("--python-platform") + 1] == "x86_64-manylinux_2_41"
+    assert compile_command[compile_command.index("--python-platform") + 1] == "x86_64-manylinux_2_40"
     assert compile_command[compile_command.index("--index-url") + 1] == PYPI_INDEX
     assert all("extra-index-url" not in arg for arg in compile_command)
     resolver_env = calls[1][1]["env"]
