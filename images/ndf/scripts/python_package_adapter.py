@@ -83,10 +83,18 @@ def _target_platforms(target: dict) -> list[str]:
         or target.get("python_cache_tag") != "cpython-314"
         or target.get("python_soabi") != "cpython-314-x86_64-linux-gnu"
         or target.get("python_platform") != "linux-x86_64"
-        or target.get("platform", {}).get("architecture") != "amd64"
+        or target.get("python_executable") != "/usr/local/bin/python3"
+        or "GCC 14.2.0" not in target.get("python_build", "")
+        or target.get("platform") != {"os": "linux", "architecture": "amd64"}
+        or os_data.get("id") != "debian"
         or os_data.get("distribution_family") != "debian"
         or os_data.get("version_id") != "13"
         or os_data.get("codename") != "trixie"
+        or os_data.get("architecture") != "amd64"
+        or os_data.get("package_manager") != "apt"
+        or os_data.get("package_manager_version") != "3.0.4"
+        or os_data.get("package_database") != "dpkg"
+        or os_data.get("package_database_version") != "1.22.22"
         or libc.get("implementation") != "glibc"
         or libc.get("version") != "2.41"
     ):
@@ -508,9 +516,24 @@ def resolve_python_packages(
         )
         package_rows = {}
         remaining_bytes = MAX_TOTAL_WHEEL_BYTES
+        marker_environment = _target_marker_environment()
         for entry in lock["packages"]:
             if not isinstance(entry, dict):
                 raise PythonAdapterError("Malformed package entry in uv pylock output.")
+            if not _dependency_applies({"marker": entry.get("marker")}, marker_environment):
+                continue
+            requires_python = entry.get("requires-python")
+            if requires_python is not None:
+                if not isinstance(requires_python, str):
+                    raise PythonAdapterError("Malformed package requires-python metadata.")
+                try:
+                    from packaging.specifiers import SpecifierSet
+                    if Version("3.14.10") not in SpecifierSet(requires_python):
+                        raise PythonAdapterError("Resolved package is incompatible with target Python 3.14.10.")
+                except PythonAdapterError:
+                    raise
+                except Exception as exc:
+                    raise PythonAdapterError("Invalid package requires-python metadata.") from exc
             raw_name = entry.get("name")
             if not isinstance(raw_name, str) or not raw_name:
                 raise PythonAdapterError("Resolved Python package has no valid name.")
@@ -584,7 +607,6 @@ def resolve_python_packages(
             missing = sorted(set(requirements) - set(package_rows))
             raise PythonAdapterError("uv resolution omitted direct requirements: " + ", ".join(missing))
 
-        marker_environment = _target_marker_environment()
         for name, row in package_rows.items():
             if not isinstance(row["dependencies"], list):
                 raise PythonAdapterError(f"Malformed dependency list for {name}.")
