@@ -2096,7 +2096,7 @@ class TestDescriptorResolutionPrimitives:
         assert result[0]["disposition"] == "environment_level"
         assert result[0]["architecture"] == "amd64"
 
-    def test_missing_exact_package_selection_fails_closed(self, loader):
+    def test_python_latest_compatible_request_is_deferred_to_uv(self, loader):
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
@@ -2110,10 +2110,16 @@ class TestDescriptorResolutionPrimitives:
                 ]
             },
         }
-        with pytest.raises(ManifestError, match="must provide an exact selection"):
-            loader._resolve_descriptor_packages(
-                descriptor, {"package_versions": {}}, set()
-            )
+
+        result = loader._resolve_descriptor_packages(
+            descriptor, {"package_versions": {}}, set()
+        )
+
+        assert len(result) == 1
+        assert result[0]["ecosystem"] == "python"
+        assert result[0]["version"] is None
+        assert result[0]["resolver"] == "uv"
+        assert result[0]["requested_constraint"] is None
 
 
 class TestIndependentServiceComposition:
