@@ -300,12 +300,12 @@ if [[ "$FINALIZE_EXISTING" == true ]]; then
     if [[ ! -s "$dir/dpkg-version.txt" ]]; then
       dpkg_version="$(sed -n '/=== APT \/ DPKG ===/,/=== APT SOURCE CONFIGURATION ===/p' "$dir/runtime-metadata.txt" \
         | grep -m1 -E "^Debian 'dpkg' package management program version " \
-        | sed -E "s/.* version ([^ ]+)\\..*/\\1/")"
+        | sed -E 's/.* version ([^[:space:]]+)[[:space:]]+\(.*/\1/')"
       [[ -n "$dpkg_version" ]] || {
         echo "Unable to extract dpkg version from existing $stage runtime metadata." >&2
         exit 1
       }
-      printf '%s\\n' "$dpkg_version" > "$dir/dpkg-version.txt"
+      printf '%s\n' "$dpkg_version" > "$dir/dpkg-version.txt"
     fi
   done
 else
