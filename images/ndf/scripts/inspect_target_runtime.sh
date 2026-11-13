@@ -14,6 +14,7 @@ set -Eeuo pipefail
 
 PLATFORM="linux/amd64"
 OUTPUT_DIR=""
+FINALIZE_EXISTING=false
 
 while (($#)); do
   case "$1" in
@@ -21,6 +22,10 @@ while (($#)); do
       [[ $# -ge 2 ]] || { echo "Missing value for --platform" >&2; exit 2; }
       PLATFORM="$2"
       shift 2
+      ;;
+    --finalize-existing)
+      FINALIZE_EXISTING=true
+      shift
       ;;
     --output-dir)
       [[ $# -ge 2 ]] || { echo "Missing value for --output-dir" >&2; exit 2; }
@@ -43,18 +48,25 @@ if [[ "$PLATFORM" != "linux/amd64" ]]; then
   exit 2
 fi
 
-command -v docker >/dev/null 2>&1 || {
-  echo "Docker CLI is required." >&2
-  exit 1
-}
-docker info >/dev/null 2>&1 || {
-  echo "Docker Engine is unavailable or the current user lacks permission." >&2
-  exit 1
-}
-docker buildx version >/dev/null 2>&1 || {
-  echo "Docker Buildx is required to inspect registry manifest metadata." >&2
-  exit 1
-}
+if [[ "$FINALIZE_EXISTING" != true ]]; then
+  command -v docker >/dev/null 2>&1 || {
+    echo "Docker CLI is required." >&2
+    exit 1
+  }
+  docker info >/dev/null 2>&1 || {
+    echo "Docker Engine is unavailable or the current user lacks permission." >&2
+    exit 1
+  }
+  docker buildx version >/dev/null 2>&1 || {
+    echo "Docker Buildx is required to inspect registry manifest metadata." >&2
+    exit 1
+  }
+else
+  [[ -n "$OUTPUT_DIR" ]] || {
+    echo "--output-dir is required with --finalize-existing." >&2
+    exit 2
+  }
+fi
 
 if [[ -z "$OUTPUT_DIR" ]]; then
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -276,8 +288,30 @@ CONTAINER_SCRIPT
   cat "$dir/summary.txt"
 }
 
-inspect_image "${IMAGES[0]}" "builder"
-inspect_image "${IMAGES[1]}" "runtime"
+if [[ "$FINALIZE_EXISTING" == true ]]; then
+  for stage in builder runtime; do
+    dir="$OUTPUT_DIR/$stage"
+    for required_file in resolved-image-ref.txt registry-index-ref.txt image-platform.txt dpkg-inventory.tsv runtime-metadata.txt; do
+      [[ -s "$dir/$required_file" ]] || {
+        echo "Missing required existing evidence: $dir/$required_file" >&2
+        exit 1
+      }
+    done
+    if [[ ! -s "$dir/dpkg-version.txt" ]]; then
+      dpkg_version="$(sed -n '/=== APT \/ DPKG ===/,/=== APT SOURCE CONFIGURATION ===/p' "$dir/runtime-metadata.txt" \
+        | grep -m1 -E "^Debian 'dpkg' package management program version " \
+        | sed -E "s/.* version ([^ ]+)\\..*/\\1/")"
+      [[ -n "$dpkg_version" ]] || {
+        echo "Unable to extract dpkg version from existing $stage runtime metadata." >&2
+        exit 1
+      }
+      printf '%s\\n' "$dpkg_version" > "$dir/dpkg-version.txt"
+    fi
+  done
+else
+  inspect_image "${IMAGES[0]}" "builder"
+  inspect_image "${IMAGES[1]}" "runtime"
+fi
 
 echo "==> Writing sanitized, deterministic inventory handoff manifest"
 python3 - "$OUTPUT_DIR" "$PLATFORM" <<'PYTHON'
