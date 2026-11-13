@@ -93,6 +93,14 @@ def test_capture_records_actual_git_heads_and_lock_refs(bench_fixture, tmp_path)
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
 
+def test_capture_rejects_unexpected_application_directory(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    (apps / "unlocked_app").mkdir()
+
+    with pytest.raises(capture.InventoryCaptureError, match="composition differs from lock-v2"):
+        capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
+
+
 def test_capture_rejects_repository_identity_mismatch(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     git(["remote", "set-url", "origin", "https://github.com/other/erpnext.git"], apps / "erpnext")
