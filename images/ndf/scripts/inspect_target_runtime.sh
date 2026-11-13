@@ -313,7 +313,7 @@ def inventory(stage):
     if not lines:
         raise SystemExit(f"{stage} dpkg inventory is empty")
     for number, line in enumerate(lines, 1):
-        fields = line.split("\\t")
+        fields = line.split("\t")
         if len(fields) != 3 or not all(fields):
             raise SystemExit(f"Malformed {stage} dpkg inventory record at line {number}")
     return {
@@ -342,7 +342,7 @@ manifest = {
     },
 }
 (root / "inventory-manifest.json").write_text(
-    json.dumps(manifest, indent=2, sort_keys=True) + "\\n",
+    json.dumps(manifest, indent=2, sort_keys=True) + "\n",
     encoding="utf-8",
 )
 PYTHON
