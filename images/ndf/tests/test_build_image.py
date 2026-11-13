@@ -95,7 +95,7 @@ def _build_command(tmp_path, **overrides):
 
 def test_resolve_base_images_uses_the_accepted_rt01_platform_digests():
     ndf_dir = Path(__file__).resolve().parents[1]
-    resolved = resolve_base_images(ndf_dir, None, ["linux/amd64"])
+    resolved = resolve_base_images(ndf_dir, ["linux/amd64"])
 
     assert resolved["platform"] == "linux/amd64"
     assert resolved["builder"] == (
@@ -110,7 +110,7 @@ def test_resolve_base_images_uses_the_accepted_rt01_platform_digests():
 def test_resolve_base_images_rejects_unsupported_platforms():
     ndf_dir = Path(__file__).resolve().parents[1]
     with pytest.raises(BuildExecutionError, match="only linux/amd64"):
-        resolve_base_images(ndf_dir, None, ["linux/arm64"])
+        resolve_base_images(ndf_dir, ["linux/arm64"])
 
 
 def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
