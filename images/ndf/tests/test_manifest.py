@@ -265,10 +265,6 @@ def cli_environment(tmp_path):
     )
 
     # Create a local Git repository so tests don't depend on GitHub.
-        schemas_dir / "application-manifest-v1.schema.json",
-    )
-
-    # Create a local Git repository so tests don't depend on GitHub.
     repository_dir = tmp_path / "test-app-repository"
     repository_dir.mkdir()
 
