@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Prepare deterministic inputs for an NDF product image build.
+"""Prepare fresh lock-v2 and Bench inputs for one NDF product image build.
 
-The image definition selects the product and image repository. The product
-manifest is used to validate the corresponding lock file. Bench receives the
-branch/tag references recorded in that lock file; resolved SHAs are retained
-in build metadata for traceability.
+The current manifest tree is the composition authority for every build.
+Checked-in lock-v1 product files are obsolete and are never read or migrated.
+Bench receives the requested rolling Git refs; resolver-time SHAs are retained
+as provenance, not substituted for those requested refs.
 """
 
 import argparse
@@ -82,29 +82,39 @@ def load_image_definition(
     return definitions, matches[0]
 
 
-def validate_build_lock(
+def generate_build_lock(
     ndf_dir: Path,
     image: dict[str, Any],
+    output_dir: Path,
 ) -> tuple[dict[str, Any], Path, str]:
-    """Load and validate the lock file associated with the image manifest."""
+    """Resolve the current manifest composition and write a fresh lock-v2."""
     manifests_dir = ndf_dir / "manifests"
     manifest_path = resolve_inside(
         manifests_dir,
         image["manifest"],
         "Product manifest",
     )
-
     manifest_relative_path = manifest_path.relative_to(manifests_dir).as_posix()
-    lock_path = ndf_dir / "locks" / f"{manifest_path.stem}.lock.json"
-
-    if not lock_path.is_file():
-        raise BuildPreparationError(
-            f"Lock file not found for image '{image['id']}': {lock_path}"
-        )
 
     try:
         loader = ManifestLoader(manifests_dir)
         manifest = loader.load(manifest_relative_path)
+        effective_policy = loader.resolve_policy(manifest)
+        applications = loader.compose_applications(manifest)
+        loader.validate_dependencies(applications)
+        ordered_applications = loader.resolve_install_order(applications)
+        resolved_applications = loader.resolve_application_refs(
+            ordered_applications,
+            effective_policy,
+        )
+        lock_data = loader.build_lock_data(
+            manifest,
+            resolved_applications,
+            package_resolution=None,
+        )
+
+        lock_path = output_dir / f"{image['id']}.lock-v2.json"
+        loader.write_lock_file(lock_data, lock_path)
         loader.validate_lock_file(lock_path, manifest)
         lock_data = load_json(lock_path)
     except (ManifestError, ImageDefinitionError) as exc:
@@ -112,37 +122,43 @@ def validate_build_lock(
 
     product_id = lock_data.get("product", {}).get("id")
     if product_id != image["id"]:
+        lock_path.unlink(missing_ok=True)
         raise BuildPreparationError(
-            f"Lock product ID '{product_id}' does not match image ID '{image['id']}'."
+            f"Generated lock product ID '{product_id}' does not match image ID '{image['id']}'."
         )
 
     framework = lock_data.get("framework")
     if not isinstance(framework, dict):
-        raise BuildPreparationError("Lock file has no valid framework section.")
+        lock_path.unlink(missing_ok=True)
+        raise BuildPreparationError("Generated lock has no valid framework section.")
 
     frappe_apps = [app for app in lock_data["applications"] if app["name"] == "frappe"]
     if len(frappe_apps) != 1:
+        lock_path.unlink(missing_ok=True)
         raise BuildPreparationError(
-            "Lock file must contain exactly one 'frappe' application."
+            "Generated lock must contain exactly one 'frappe' application."
         )
 
     frappe_app = frappe_apps[0]
     if framework.get("name") != "frappe":
+        lock_path.unlink(missing_ok=True)
         raise BuildPreparationError("Only the Frappe framework is currently supported.")
 
     if framework.get("target_ref") != frappe_app.get("target_ref"):
+        lock_path.unlink(missing_ok=True)
         raise BuildPreparationError(
             "Framework target_ref does not match the Frappe application target_ref."
         )
 
     if not isinstance(framework.get("version"), str) or not framework["version"]:
-        raise BuildPreparationError("Framework version is missing from lock file.")
+        lock_path.unlink(missing_ok=True)
+        raise BuildPreparationError("Framework version is missing from generated lock.")
 
     return lock_data, lock_path, manifest_relative_path
 
 
 def build_apps_json(lock_data: dict[str, Any]) -> list[dict[str, str]]:
-    """Create Bench apps.json entries in lock installation order.
+    """Create Bench apps.json entries using requested refs in lock order.
 
     Frappe is excluded because images/layered/Containerfile installs it through
     FRAPPE_PATH and FRAPPE_BRANCH.
@@ -187,7 +203,7 @@ def build_metadata(
     lock_path: Path,
     manifest_relative_path: str,
 ) -> dict[str, Any]:
-    """Create traceability metadata for the image build."""
+    """Create pre-build traceability metadata from the fresh lock-v2."""
     lock_bytes = lock_path.read_bytes()
     framework = lock_data["framework"]
 
@@ -205,6 +221,7 @@ def build_metadata(
             "version": lock_data["lock_version"],
             "path": lock_path.name,
             "sha256": hashlib.sha256(lock_bytes).hexdigest(),
+            "generated_from_current_manifests": True,
         },
         "applications": [
             {
@@ -212,6 +229,8 @@ def build_metadata(
                 "repository": app["repository"],
                 "target_ref": app["target_ref"],
                 "resolved_sha": app["ref"],
+                "reference_kind": app.get("reference_kind"),
+                "resolved_ref": app.get("resolved_ref"),
                 "dependencies": app["dependencies"],
                 "installation_order": app["installation_order"],
             }
@@ -248,7 +267,7 @@ def prepare_build(
     definitions_relative_path: str = "image-definitions/images-v1.json",
     output_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Prepare Bench apps.json and NDF build metadata for one product image."""
+    """Generate fresh lock-v2, Bench apps.json and metadata for one image."""
     ndf_dir = ndf_dir.resolve()
 
     _, image = load_image_definition(
@@ -257,11 +276,14 @@ def prepare_build(
         image_id,
     )
 
-    lock_data, lock_path, manifest_relative_path = validate_build_lock(
+    output_dir = (output_dir or (ndf_dir / ".build" / image_id)).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    lock_data, lock_path, manifest_relative_path = generate_build_lock(
         ndf_dir,
         image,
+        output_dir,
     )
-
     apps_json = build_apps_json(lock_data)
     metadata = build_metadata(
         image,
@@ -269,9 +291,6 @@ def prepare_build(
         lock_path,
         manifest_relative_path,
     )
-
-    output_dir = output_dir or (ndf_dir / ".build" / image_id)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     apps_json_path = write_json(output_dir / "apps.json", apps_json)
     metadata_path = write_json(output_dir / "build-metadata.json", metadata)
@@ -291,7 +310,7 @@ def main() -> int:
     ndf_dir = Path(__file__).resolve().parents[1]
 
     parser = argparse.ArgumentParser(
-        description="Prepare NDF build inputs from an image definition and lock file."
+        description="Generate fresh lock-v2 build inputs for an NDF product image."
     )
     parser.add_argument(
         "--image",
@@ -306,7 +325,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        help="Output directory (defaults to images/ndf/.build/<image-id>).",
+        help="Build output directory (defaults to images/ndf/.build/<image-id>).",
     )
 
     args = parser.parse_args()
@@ -328,7 +347,7 @@ def main() -> int:
     print(f"Prepared image: {image['id']}")
     print(f"Repository: {image['repository']}")
     print(f"Frappe branch: {framework['target_ref']}")
-    print(f"Lock file: {result['lock_path']}")
+    print(f"Fresh lock-v2: {result['lock_path']}")
     print(f"Applications in lock: {result['applications_count']}")
     print(f"Applications for Bench: {result['bench_apps_count']}")
     print(f"Bench apps.json: {result['apps_json_path']}")
