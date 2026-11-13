@@ -567,7 +567,7 @@ class TestLockGeneration:
         assert len(lock_data["applications"]) == 1
         assert lock_data["package_resolution"] == {
             "schema_version": 1,
-            "source_policy_catalogue_version": "1.1.0",
+            "source_policy_catalogue_version": "1.2.0",
             "source_profiles": [],
             "base_inventory": None,
             "packages": [],
