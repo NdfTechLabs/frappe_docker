@@ -280,7 +280,7 @@ def test_uv_0137_emits_pep751_pylock_for_local_wheel_without_network(tmp_path):
             "--no-index",
             "--find-links", str(tmp_path),
             "--python-version", "3.14.10",
-            "--python-platform", "x86_64-manylinux_2_41",
+            "--python-platform", "x86_64-manylinux_2_40",
             "--no-build",
             "--no-config",
             "--no-cache",
