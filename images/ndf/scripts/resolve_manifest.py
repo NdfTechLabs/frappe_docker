@@ -418,7 +418,8 @@ class ManifestLoader:
                 if policy == "constraint":
                     if not isinstance(constraint, str) or not constraint:
                         raise ManifestError(
-                            f"{descriptor['app_id']}: {ecosystem}:{name} constraint policy requires a version."
+                            f"{descriptor['app_id']}: {ecosystem}:{name} constraint policy "
+                            "requires a version."
                         )
                     try:
                         if ecosystem == "python":
@@ -437,7 +438,8 @@ class ManifestLoader:
                         )
                 else:
                     raise ManifestError(
-                        f"{descriptor['app_id']}: unsupported version policy for {ecosystem}:{name}."
+                        f"{descriptor['app_id']}: unsupported version policy "
+                        f"for {ecosystem}:{name}."
                     )
 
                 profile_id = profile_ids[ecosystem]
@@ -448,7 +450,8 @@ class ManifestLoader:
                     or profile.get("ecosystem") != ecosystem
                 ):
                     raise ManifestError(
-                        f"{descriptor['app_id']}: approved source profile is unavailable: {profile_id}."
+                        f"{descriptor['app_id']}: approved source profile is unavailable: "
+                        f"{profile_id}."
                     )
 
                 source_hint = dependency.get("source")
@@ -1657,7 +1660,8 @@ class ManifestLoader:
                             )
                         )
                         or requirement.get("ecosystem") not in {"python", "node", "os"}
-                        or requirement.get("version_policy") not in {"constraint", "latest_compatible"}
+                        or requirement.get("version_policy")
+                        not in {"constraint", "latest_compatible"}
                         or requirement.get("disposition")
                         not in {"base", "runtime_compatible", "environment_level"}
                         or requirement.get("scope") not in {"build", "runtime"}
@@ -1674,26 +1678,30 @@ class ManifestLoader:
                         "requested_constraint"
                     ):
                         raise ManifestError(
-                            f"Application '{name}' has a constrained package requirement without a constraint."
+                            f"Application '{name}' has a constrained package requirement "
+                            "without a constraint."
                         )
                     if requirement.get("version_policy") == "latest_compatible" and requirement.get(
                         "requested_constraint"
                     ) is not None:
                         raise ManifestError(
-                            f"Application '{name}' has a latest_compatible package requirement with a constraint."
+                            f"Application '{name}' has a latest_compatible package requirement "
+                            "with a constraint."
                         )
                     if requirement.get("ecosystem") == "node" and requirement.get(
                         "package_manager"
                     ) != "yarn":
                         raise ManifestError(
-                            f"Application '{name}' has a Node package requirement that does not use Bench's Yarn installer."
+                            f"Application '{name}' has a Node package requirement that does not "
+                            "use Bench's Yarn installer."
                         )
                     if requirement.get("ecosystem") == "os" and not all(
                         isinstance(requirement.get(field), str) and requirement[field]
                         for field in ("package_manager", "distribution_family")
                     ):
                         raise ManifestError(
-                            f"Application '{name}' has an OS package requirement without target manager metadata."
+                            f"Application '{name}' has an OS package requirement without "
+                            "target manager metadata."
                         )
             available_apps[name] = app
             previous_order = order
