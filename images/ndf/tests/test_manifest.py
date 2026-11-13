@@ -259,6 +259,14 @@ def cli_environment(tmp_path):
         project_ndf_dir / "schemas" / "application-manifest-v1.schema.json",
         schemas_dir / "application-manifest-v1.schema.json",
     )
+    shutil.copy2(
+        project_ndf_dir / "schemas" / "base-inventory-manifest-v1.schema.json",
+        schemas_dir / "base-inventory-manifest-v1.schema.json",
+    )
+
+    # Create a local Git repository so tests don't depend on GitHub.
+        schemas_dir / "application-manifest-v1.schema.json",
+    )
 
     # Create a local Git repository so tests don't depend on GitHub.
     repository_dir = tmp_path / "test-app-repository"
