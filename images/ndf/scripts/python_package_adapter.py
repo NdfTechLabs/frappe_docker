@@ -317,7 +317,8 @@ def resolve_python_packages(
         or profile.get("registry") != PYPI_INDEX
         or profile.get("artifact_hosts") != sorted(profile.get("artifact_hosts", []))
         or approved_uv != UV_VERSION
-        or policy_version != "1.1.0"
+        or not isinstance(policy_version, str)
+        or not policy_version
     ):
         raise PythonAdapterError("Python source profile or uv version does not match the approved B.1 policy.")
 
