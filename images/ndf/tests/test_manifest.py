@@ -127,6 +127,7 @@ def loader(tmp_path):
         "marketplace-app-descriptor-v1.schema.json",
         "dependency-v1.schema.json",
         "service-descriptor-v1.schema.json",
+        "base-inventory-manifest-v1.schema.json",
     ):
         shutil.copy2(
             project_ndf_dir / "schemas" / schema_name,
