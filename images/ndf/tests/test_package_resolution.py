@@ -529,6 +529,9 @@ def test_runtime_scoped_base_package_is_verified_against_committed_inventory():
             "signature_verified": True,
             "repository_uri": "http://deb.debian.org/debian",
             "suite": "trixie",
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
         },
     }
     section = package_resolution([package])
@@ -570,6 +573,9 @@ def test_base_package_version_or_architecture_mismatch_fails(
             "signature_verified": True,
             "repository_uri": "http://deb.debian.org/debian",
             "suite": "trixie",
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
         },
     }
     section = package_resolution([package])
@@ -603,6 +609,9 @@ def test_base_inventory_reference_must_match_runtime_digest():
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
             "signature_verified": True,
             "repository_uri": "http://deb.debian.org/debian",
             "suite": "trixie",
@@ -656,6 +665,9 @@ def test_builder_only_package_cannot_satisfy_runtime_scope():
             "signature_verified": True,
             "repository_uri": "http://deb.debian.org/debian",
             "suite": "trixie",
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
         },
     }
     section = package_resolution([package])
@@ -666,12 +678,13 @@ def test_builder_only_package_cannot_satisfy_runtime_scope():
 
 
 
-def test_empty_integrity_is_valid_when_source_publishes_no_artifact_hash():
+def test_empty_integrity_fails_for_approved_sources_that_publish_hashes():
     package = python_package("demo", "1.0.0", direct=True, requested_by=["demo_app"])
     package["integrity"] = []
     section = package_resolution([package])
 
-    assert validate(section) is True
+    with pytest.raises(PackageResolutionError, match="integrity"):
+        validate(section)
 
 
 @pytest.mark.parametrize(
@@ -804,6 +817,9 @@ def test_base_inventory_builder_digest_must_match_target_image():
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
         },
     }
     section = package_resolution([package])
@@ -840,6 +856,9 @@ def test_base_inventory_platform_must_match_target_image():
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
         },
     }
     section = package_resolution([package])
@@ -874,6 +893,9 @@ def test_base_inventory_manifest_checksum_is_verified_offline():
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
         },
     }
     section = package_resolution([package])
