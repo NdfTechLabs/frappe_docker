@@ -2402,6 +2402,60 @@ class TestDescriptorCompositionClosureAndLock:
             },
         }
 
+    def test_conflicting_source_refs_for_same_descriptor_fail_closed(
+        self, loader
+    ):
+        descriptor_dir = (
+            loader.repository_root / "images" / "ndf" / "descriptors" / "apps"
+        )
+        descriptor_dir.mkdir(parents=True, exist_ok=True)
+        descriptor = self._descriptor("example_app", "1.0.0")
+        (descriptor_dir / "example_app.json").write_text(
+            json.dumps(descriptor), encoding="utf-8"
+        )
+        manifest = {
+            "manifest_version": "2.0.0",
+            "id": "source-ref-conflict",
+            "name": "Source Ref Conflict",
+            "framework": {
+                "name": "frappe",
+                "version": "16",
+                "release_channel": "stable",
+                "target_ref": "version-16",
+            },
+            "target_runtime": {"frappe": "16.0.0", "python": "3.14.3"},
+            "profile": {
+                "type": "product",
+                "required": True,
+                "install_by_default": True,
+            },
+            "resolution": {
+                "strategy": "locked",
+                "require_immutable_commit": True,
+                "fail_on_unverified_compatibility": True,
+            },
+            "applications": [
+                {
+                    "descriptor": "images/ndf/descriptors/apps/example_app.json",
+                    "required": True,
+                    "target_ref": "main",
+                },
+                {
+                    "descriptor": "images/ndf/descriptors/apps/example_app.json",
+                    "required": True,
+                    "target_ref": "develop",
+                },
+            ],
+            "validation": {},
+        }
+        (loader.manifests_dir / "source-ref-conflict.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        loaded = loader.load("source-ref-conflict.json")
+        with pytest.raises(ManifestError, match="Conflicting source-ref selections"):
+            loader.compose_applications(loaded)
+
     def test_required_descriptor_dependency_closure_and_lock_identity(
         self, loader, tmp_path, monkeypatch
     ):
