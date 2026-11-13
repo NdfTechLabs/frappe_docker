@@ -87,7 +87,11 @@ def python_package(name, version, *, direct=False, requested_by=None):
         "disposition": "runtime_compatible",
         "install": True,
         "scope": "runtime",
-        "integrity": [],
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "a" * 64,
+            "artifact": "https://files.pythonhosted.org/packages/demo/demo.whl",
+        }],
         "repository_metadata": {"source_identity": "official-public-pypi"},
     }
 
@@ -417,7 +421,11 @@ def test_runtime_scoped_base_package_is_verified_against_committed_inventory():
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [],
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "b" * 64,
+            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+        }],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
@@ -451,7 +459,11 @@ def test_base_package_version_or_architecture_mismatch_fails(
         "disposition": "base",
         "install": False,
         "scope": "runtime",
-        "integrity": [],
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "b" * 64,
+            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+        }],
         "repository_metadata": {
             "release_identity": "Debian Trixie InRelease fixture",
             "release_sha256": "a" * 64,
