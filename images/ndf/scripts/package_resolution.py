@@ -6,6 +6,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -85,17 +87,95 @@ def package_identity(ecosystem: str, name: str, version: str, architecture: str 
     return f"{ecosystem}|{normalized}|{version}|{architecture}"
 
 
-def _constraint_satisfied(ecosystem: str, version: str, constraint: str) -> bool:
+_DEBIAN_RELATION_OPERATORS = {
+    "<<": "lt",
+    "<=": "le",
+    "=": "eq",
+    ">=": "ge",
+    ">>": "gt",
+}
+_DEBIAN_RELATION_RE = re.compile(r"^(<<|<=|=|>=|>>)\\s+(\\S+)$")
+
+
+def _debian_version_satisfies(version: str, constraint: str) -> bool:
+    """Evaluate a Debian version relation with the native dpkg comparator.
+
+    A bare version means exact equality. Relational constraints use the Debian
+    relationship operators <<, <=, =, >= and >>. This is an offline comparison:
+    dpkg is invoked only with two supplied version strings and never accesses
+    package repositories or selects candidates.
+    """
+    if (
+        not isinstance(version, str)
+        or not version
+        or version.strip() != version
+        or not isinstance(constraint, str)
+        or not constraint
+        or constraint.strip() != constraint
+    ):
+        raise PackageResolutionError("Debian package versions and constraints must be non-empty canonical strings.")
+
+    match = _DEBIAN_RELATION_RE.fullmatch(constraint)
+    if match:
+        operator, required_version = match.groups()
+    else:
+        # Bare Debian version constraints retain exact-match semantics.
+        if any(char.isspace() for char in constraint):
+            raise PackageResolutionError(
+                f"Invalid Debian version constraint {constraint!r}; expected an exact version or a Debian relation."
+            )
+        operator, required_version = "=", constraint
+
+    dpkg = shutil.which("dpkg")
+    if dpkg is None:
+        raise PackageResolutionError(
+            "dpkg is required for Debian-native version comparison; refusing an approximate fallback."
+        )
+
+    try:
+        result = subprocess.run(
+            [
+                dpkg,
+                "--compare-versions",
+                version,
+                _DEBIAN_RELATION_OPERATORS[operator],
+                required_version,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise PackageResolutionError(f"Unable to execute the dpkg version comparator: {exc}") from exc
+
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    detail = (result.stderr or result.stdout or "dpkg rejected the version relation").strip()
+    raise PackageResolutionError(f"Invalid Debian version relation {constraint!r}: {detail}")
+
+
+def version_satisfies(ecosystem: str, version: str, constraint: str) -> bool:
+    """Compare a selected version using its ecosystem-native semantics."""
     try:
         if ecosystem == "python":
             return PythonVersion(version) in SpecifierSet(constraint)
         if ecosystem == "node":
             return SemVerVersion(version) in NpmSpec(constraint)
-        return version == constraint
+        if ecosystem == "os":
+            return _debian_version_satisfies(version, constraint)
+        raise PackageResolutionError(f"Unsupported package ecosystem for version comparison: {ecosystem}")
     except (TypeError, ValueError) as exc:
         raise PackageResolutionError(
             f"Invalid {ecosystem} dependency constraint {constraint!r}: {exc}"
         ) from exc
+
+
+def _constraint_satisfied(ecosystem: str, version: str, constraint: str) -> bool:
+    # Kept as the internal compatibility name used by graph validation.
+    return version_satisfies(ecosystem, version, constraint)
 
 
 def _contains_secret_or_credential(value: Any) -> bool:
