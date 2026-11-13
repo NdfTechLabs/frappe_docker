@@ -1,6 +1,6 @@
 {
-  "catalogue_version": "1.1.0",
-  "description": "NDF-governed package source profiles and native resolver policy for M4.2.3. Descriptors may select approved profile identifiers only; they cannot define registry URLs, credentials, resolver commands or executable policy.",
+  "catalogue_version": "1.2.0",
+  "description": "NDF-governed package source profiles for native Bench dependency installation and downstream verification. Descriptors cannot define registry URLs, credentials, resolver commands or executable policy.",
   "source_profiles": {
     "python-pypi-public-v1": {
       "ecosystem": "python",
@@ -69,26 +69,26 @@
   },
   "resolver_policy": {
     "python": {
-      "preferred": "uv",
-      "fallback": {
-        "name": "pip",
-        "enabled_only_after": "equivalent-target-resolution-and-integrity-tests-pass"
-      },
-      "version": "0.13.7",
-      "version_rule": "exact-version-required-and-recorded-in-every-package-lock-record",
-      "upgrade_policy": "explicit-reviewed-policy-change-with-catalogue-version-increment-and-regression-acceptance"
+      "owner": "upstream-bench",
+      "allowed_native_installers": [
+        "uv",
+        "pip"
+      ],
+      "version_rule": "detect-and-record-the-exact-installer-version-used-by-bench-for-each-build; no-ndf-managed-version-pin"
     },
     "node": {
-      "name": "npm",
-      "version_rule": "use-and-record-exact-npm-version-from-the-selected-target-runtime"
+      "owner": "upstream-bench",
+      "installer": "yarn",
+      "registry_protocol": "npm-compatible",
+      "version_rule": "record-the-exact-yarn-version-used-by-bench-for-each-build"
     },
     "os": {
-      "resolver": "apt",
+      "owner": "base-image-and-approved-build-steps",
+      "package_manager": "apt",
       "inventory_and_version_semantics": "dpkg",
-      "version_rule": "use-and-record-exact-apt-and-dpkg-versions-from-the-disposable-target-environment"
+      "version_rule": "record-the-exact-apt-and-dpkg-versions-from-the-target-image"
     },
     "unsupported": [
-      "yarn",
       "pnpm",
       "dnf",
       "yum",
