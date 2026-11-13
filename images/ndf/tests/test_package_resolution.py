@@ -19,6 +19,8 @@ INVENTORY_ROOT = (
 )
 BUILDER_DIGEST = "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
 RUNTIME_DIGEST = "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+BUILDER_INDEX_DIGEST = "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe"
+RUNTIME_INDEX_DIGEST = "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0"
 
 
 def target_runtime():
@@ -28,21 +30,27 @@ def target_runtime():
         "python_implementation": "CPython",
         "python_cache_tag": "cpython-314",
         "python_soabi": "cpython-314-x86_64-linux-gnu",
+        "python_platform": "linux-x86_64",
+        "python_executable": "/usr/local/bin/python",
+        "python_build": "CPython 3.14.10 release build",
         "node": "24.22.2",
         "npm": "11.19.1",
         "node_platform": "linux",
         "node_architecture": "x64",
         "node_abi": "137",
         "node_api": "10",
+        "node_executable": "/usr/local/bin/node",
         "platform": {"os": "linux", "architecture": "amd64"},
         "images": {
             "builder": {
                 "reference": f"frappe/build@{BUILDER_DIGEST}",
+                "index_digest": BUILDER_INDEX_DIGEST,
                 "manifest_digest": BUILDER_DIGEST,
                 "platform": "linux/amd64",
             },
             "runtime": {
                 "reference": f"frappe/base@{RUNTIME_DIGEST}",
+                "index_digest": RUNTIME_INDEX_DIGEST,
                 "manifest_digest": RUNTIME_DIGEST,
                 "platform": "linux/amd64",
             },
