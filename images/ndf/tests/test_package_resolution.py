@@ -252,17 +252,29 @@ def _build_package_lock(tmp_path):
     )
     lock_path = tmp_path / "demo-product.lock.json"
     loader.write_lock_file(lock, lock_path)
-    return loader, manifest, lock_path, lock
+    return loader, manifest, lock_path, lock, applications_list
 
 
 def test_manifest_loader_validates_package_resolution_offline(tmp_path):
-    loader, manifest, lock_path, _ = _build_package_lock(tmp_path)
+    loader, manifest, lock_path, _, _ = _build_package_lock(tmp_path)
 
     assert loader.validate_lock_file(lock_path, manifest) is True
 
 
+def test_manifest_loader_builds_deterministic_nonempty_package_lock(tmp_path):
+    loader, manifest, _, lock, applications_list = _build_package_lock(tmp_path)
+
+    rebuilt = loader.build_lock_data(
+        manifest,
+        applications_list,
+        package_resolution=lock["package_resolution"],
+    )
+
+    assert json.dumps(rebuilt, sort_keys=True) == json.dumps(lock, sort_keys=True)
+
+
 def test_manifest_loader_rejects_package_resolution_tampering(tmp_path):
-    loader, manifest, lock_path, lock = _build_package_lock(tmp_path)
+    loader, manifest, lock_path, lock, _ = _build_package_lock(tmp_path)
     lock["package_resolution"]["packages"][0]["resolver_version"] = ""
     loader.write_lock_file(lock, lock_path)
 
