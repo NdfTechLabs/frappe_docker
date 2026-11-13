@@ -61,7 +61,7 @@
       "all_bench_app_dependencies_are_included",
       "bench_app_dependency_graph_is_acyclic",
       "bench_app_install_order_respects_dependencies",
-      "production_refs_are_not_development_branches",
+      "all_required_applications_have_verified_target_compatibility",
       "csf_ke_installs_and_migrates_on_target_frappe_v16",
       "kenya_compliance_via_slade_installs_and_migrates_on_target_frappe_v16",
       "slade360_advantage_configuration_is_documented",

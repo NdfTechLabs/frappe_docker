@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/service-descriptor-v1.schema.json",
+  "title": "NDF Independent Service Descriptor",
+  "description": "Describes an independently distributed service artifact or an external managed requirement. It is not a Bench application descriptor.",
+  "type": "object",
+  "required": ["descriptor_version", "service_id", "name", "service_kind"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "descriptor_version": { "const": "1.0.0" },
+    "service_id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "service_kind": { "enum": ["container", "external"] },
+    "artifact": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-fA-F0-9]{64}$"
+        },
+        "platforms": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "provider": {
+      "type": "object",
+      "required": ["name", "requirement"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "requirement": { "type": "string", "minLength": 1 },
+        "documentation": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "service_kind": { "const": "container" } },
+        "required": ["service_kind"]
+      },
+      "then": { "required": ["artifact"], "not": { "required": ["provider"] } }
+    },
+    {
+      "if": {
+        "properties": { "service_kind": { "const": "external" } },
+        "required": ["service_kind"]
+      },
+      "then": { "required": ["provider"], "not": { "required": ["artifact"] } }
+    }
+  ],
+  "additionalProperties": false
+}

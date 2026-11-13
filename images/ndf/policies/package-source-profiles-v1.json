@@ -1,0 +1,87 @@
+{
+  "catalogue_version": "1.2.0",
+  "description": "NDF-governed package source profiles for native Bench dependency installation and downstream verification. Descriptors cannot define registry URLs, credentials, resolver commands or executable policy.",
+  "source_profiles": {
+    "python-pypi-public-v1": {
+      "ecosystem": "python",
+      "enabled": true,
+      "registry": "https://pypi.org/simple",
+      "artifact_hosts": ["files.pythonhosted.org"],
+      "transport": "https",
+      "credentials": "none",
+      "redirect_policy": "same-origin-or-explicit-artifact-host-only",
+      "repository_snapshot": "not-provided-by-profile",
+      "integrity": "record-and-verify-artifact-hashes-when-published",
+      "source_identity": "official-public-pypi"
+    },
+    "node-npm-public-v1": {
+      "ecosystem": "node",
+      "enabled": true,
+      "registry": "https://registry.npmjs.org",
+      "artifact_hosts": ["registry.npmjs.org"],
+      "transport": "https",
+      "credentials": "none",
+      "redirect_policy": "same-origin-only",
+      "repository_snapshot": "not-provided-by-profile",
+      "integrity": "record-and-verify-package-dist-integrity-when-published",
+      "source_identity": "official-public-npm-registry"
+    },
+    "os-debian-trixie-public-amd64-v1": {
+      "ecosystem": "os",
+      "distribution": "debian",
+      "release": "13",
+      "codename": "trixie",
+      "architecture": "amd64",
+      "enabled": true,
+      "repositories": [
+        {
+          "uri": "http://deb.debian.org/debian",
+          "suites": ["trixie", "trixie-updates"],
+          "components": ["main"]
+        },
+        {
+          "uri": "http://deb.debian.org/debian-security",
+          "suites": ["trixie-security"],
+          "components": ["main"]
+        }
+      ],
+      "package_manager": "apt",
+      "package_database": "dpkg",
+      "credentials": "none",
+      "trust": "require-valid-debian-archive-signatures-and-apt-authenticated-release-metadata",
+      "repository_snapshot": "not-provided-by-profile",
+      "repository_identity": "record-authenticated-inrelease-or-release-metadata-identity-and-hash",
+      "architecture_scope": "amd64-only-until-arm64-target-validation"
+    }
+  },
+  "resolver_policy": {
+    "python": {
+      "owner": "upstream-bench",
+      "allowed_native_installers": ["uv", "pip"],
+      "version_rule": "detect-and-record-the-exact-installer-version-used-by-bench-for-each-build; no-ndf-managed-version-pin"
+    },
+    "node": {
+      "owner": "upstream-bench",
+      "installer": "yarn",
+      "registry_protocol": "npm-compatible",
+      "version_rule": "record-the-exact-yarn-version-used-by-bench-for-each-build"
+    },
+    "os": {
+      "owner": "base-image-and-approved-build-steps",
+      "package_manager": "apt",
+      "inventory_and_version_semantics": "dpkg",
+      "version_rule": "record-the-exact-apt-and-dpkg-versions-from-the-target-image"
+    },
+    "unsupported": ["pnpm", "dnf", "yum", "apk"]
+  },
+  "global_rules": {
+    "profile_selection": "identifier-only",
+    "publisher_supplied_registry_urls": "rejected",
+    "descriptor_source_hints": "hints-only-and-must-match-an-enabled-ndf-profile",
+    "credential_bearing_urls": "rejected",
+    "credentials_in_descriptors_locks_logs_or_errors": "prohibited",
+    "unapproved_redirects_or_source_substitutions": "rejected",
+    "mutable_upstream_metadata": "record-exact-selected-versions-source-identity-and-integrity-metadata-where-available;-do-not-claim-immutable-snapshot-reproducibility",
+    "unsupported_profiles_or_incomplete_trust_metadata": "fail-closed"
+  }
+}

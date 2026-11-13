@@ -21,7 +21,7 @@
     "fail_on_unverified_compatibility": true,
     "notes": [
       "The resolver must resolve every approved ref to an immutable commit SHA.",
-      "Do not use develop branches or floating refs in production builds.",
+      "The requested Git ref may be a branch, tag or commit; its name does not determine compatibility or production eligibility. Require target-specific compatibility evidence, preserve the requested ref for Bench acquisition, and record the resolver-time SHA separately.",
       "Applications with pending v16 compatibility verification must be blocked from a production lock until verified."
     ]
   },
@@ -135,7 +135,7 @@
       "all_declared_dependencies_are_included",
       "dependency_graph_is_acyclic",
       "install_order_respects_dependencies",
-      "production_refs_are_not_development_branches"
+      "all_required_applications_have_verified_target_compatibility"
     ]
   }
 }

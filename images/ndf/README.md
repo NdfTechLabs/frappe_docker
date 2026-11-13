@@ -9,7 +9,7 @@ It owns how Frappe product environments are composed, resolved, built, validated
 - Maintain NDF product manifests and image definitions.
 - Resolve application source references and application-to-application dependencies.
 - Validate application and framework compatibility.
-- Resolve Python, Node.js and OS-level dependencies into deterministic build inputs.
+- Preserve approved package-source and runtime policies; rely on upstream Bench/native package managers to resolve and install application dependencies; capture and verify installed inventories and build evidence.
 - Build and validate product and candidate images.
 - Publish immutable OCI images to GHCR.
 - Generate versioned deployment descriptors tied to exact image digests.
@@ -24,12 +24,12 @@ It owns how Frappe product environments are composed, resolved, built, validated
 
 The M4 architecture establishes the following ownership boundaries:
 
-| Component         | Responsibility                                                                                                                                     |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NDF Frappe Docker | Product composition, dependency resolution, image construction, validation, immutable publishing and deployment descriptors                        |
-| GHCR              | Distribution of immutable images and associated artifacts                                                                                          |
-| DT Master         | Infrastructure Nodes, Bench Environments, Docker/Compose orchestration, site lifecycle, deployment execution, migration, verification and rollback |
-| DT Tenant         | Tenant-facing marketplace/subscription experience and authenticated requests to DT Master                                                          |
+| Component         | Responsibility                                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| NDF Frappe Docker | Product composition, Bench-native dependency build inputs, installed-state verification, image construction, validation, immutable publishing and deployment descriptors |
+| GHCR              | Distribution of immutable images and associated artifacts                                                                                                                |
+| DT Master         | Infrastructure Nodes, Bench Environments, Docker/Compose orchestration, site lifecycle, deployment execution, migration, verification and rollback                       |
+| DT Tenant         | Tenant-facing marketplace/subscription experience and authenticated requests to DT Master                                                                                |
 
 Governing principle:
 
@@ -39,7 +39,7 @@ Governing principle:
 
 - A Bench Environment is the runtime/deployment boundary and may use Host or Docker execution.
 - A Bench Environment has one resolved Python runtime and one resolved Node.js runtime, plus the framework and other approved runtime components.
-- Application compatibility declarations express supported version ranges; the resolved Bench composition records exact selected versions.
+- Application compatibility declarations express supported release-line/version ranges. For the current core platform, Frappe and ERPNext target the rolling upstream v16 release line through `version-16`; candidate-specific installed versions and actual acquired Git commits are captured as build evidence, not frozen as historical compatibility constants.
 - Every application in a shared Bench composition must be compatible with the same resolved runtime and dependency environment.
 - Bench-level application availability is distinct from site-level application installation.
 - A new or changed Bench composition is built as a new immutable image and deployed through a replacement Bench Environment.
@@ -51,16 +51,16 @@ Governing principle:
 
 M4.1 defined and approved the NDF contracts consumed by DT Master.
 
-| Workstream                    | NDF responsibility                                                                                   | Expected output                        |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| Marketplace App Descriptor    | Define and validate app source, version, framework/runtime compatibility and dependency declarations | Versioned app descriptor schema        |
-| Deployment Candidate          | Validate the requested complete Bench composition and build parameters                               | Candidate input schema                 |
-| Runtime resolution            | Resolve compatible Python, Node.js, Yarn and framework versions                                      | Exact runtime selection                |
-| Dependency resolution         | Resolve Python, Node.js and OS package dependencies                                                  | Deterministic dependency lock          |
-| Candidate manifest generation | Convert a candidate composition into NDF build inputs                                                | Resolved manifest and lock             |
-| Image build and validation    | Build and test the requested composition                                                             | Validated immutable OCI image          |
-| Deployment descriptor         | Describe the image actually produced, not merely the requested manifest                              | Versioned descriptor with image digest |
-| Publishing                    | Publish image and associated descriptor/artifacts                                                    | Immutable GHCR reference and digest    |
+| Workstream                    | NDF responsibility                                                                                                                                          | Expected output                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Marketplace App Descriptor    | Define and validate app source, version, framework/runtime compatibility and dependency declarations                                                        | Versioned app descriptor schema               |
+| Deployment Candidate          | Validate the requested complete Bench composition and build parameters                                                                                      | Candidate input schema                        |
+| Runtime compatibility         | Define and validate the target Python, Node.js and framework compatibility contract                                                                         | Target runtime policy                         |
+| Dependency installation       | Delegate Python, Node.js and OS dependency resolution/installation to upstream Bench/native tools; capture actual installed state and provenance downstream | Installed inventory and verification evidence |
+| Candidate manifest generation | Convert a candidate composition into NDF build inputs                                                                                                       | Resolved manifest and lock                    |
+| Image build and validation    | Build and test the requested composition                                                                                                                    | Validated immutable OCI image                 |
+| Deployment descriptor         | Describe the image actually produced, not merely the requested manifest                                                                                     | Versioned descriptor with image digest        |
+| Publishing                    | Publish image and associated descriptor/artifacts                                                                                                           | Immutable GHCR reference and digest           |
 
 ### M4.2 — Runtime Infrastructure Enhancements
 
@@ -76,8 +76,15 @@ The central implementation priority is to prove exactly what source revisions we
 - [M4.2 Implementation Tracker](M4.2-IMPLEMENTATION-TRACKER.md) — work-package status, acceptance evidence and execution log.
 - [M4.2.1 Resolver Implementation](M4.2.1-RESOLVER-IMPLEMENTATION.md) — baseline findings, source-reference policy, resolution-time SHA/provenance, lock v2 contract and focused test requirements.
 - [M4.2.2 Application Descriptor Contract](M4.2.2-APPLICATION-DESCRIPTOR.md) — descriptor/composition ownership, schema versioning, typed dependencies, compatibility evidence and migration boundaries.
+- [M4.2.3 Composition and Service Resolution](M4.2.3-COMPOSITION-RESOLUTION.md) — resolver integration, dependency closure, explicit capability selection, independent service inventories and lock-integrity requirements.
+- [M4.2.3-A Package Resolution Contract](M4.2.3-A-PACKAGE-RESOLUTION-CONTRACT.md) — accepted target-platform/source-policy/base-inventory foundations and the controlling native Bench dependency ownership decision.
+- [M4.2.3-A.1 NDF Target-Runtime Matrix](M4.2.3-A.1-TARGET-RUNTIME-MATRIX.md) — authoritative v16 target OS/runtime/architecture baseline and digest-bound inventory evidence.
 
-**Current execution:** M4.2.1 — Build Foundation and Resolver Correction is Complete (2026-11-10). Its final user-run validation passed: 47 resolver tests and 88 full NDF tests. PR #8 is open into `main`; it has not been merged. M4.2.2 — Application and Dependency Descriptors is Complete (2026-11-10). Its final user-run validation passed: 37 focused descriptor tests and 125 full NDF tests; Python compilation completed without errors and pre-commit passed after formatting corrections. The accepted contract separates authoring validity from production metadata readiness, validates supplied SemVer/PEP 440 constraints, requires NDF-controlled compatibility evidence for verified status, uses an NDF-owned build/install policy catalogue and enforces canonical descriptor catalogue paths. Resolver/lock integration tests are explicitly assigned to M4.2.3 and remain mandatory; no resolver code or product manifests/locks were changed in M4.2.2. M4.2.3 — Composition and Service Resolution is now the next work package. The resolver does not classify branch names as development-only.
+**Current execution:** M4.2.1 and M4.2.2 are Complete. M4.2.3 — Composition and Service Resolution implementation is complete and its local regression acceptance has passed; PR #11 remains draft pending formatter/lint cleanup and review before merge into `main`. A.1–A.5 are accepted. The B.1 Python candidate adapter and dedicated tests have been removed after consumer/test audit. Descriptor package dependencies remain declarative constraints; NDF no longer selects candidates or builds a competing transitive package graph. The accepted source profiles remain in catalogue version 1.2.0, with native installer identity/version recorded per build rather than an NDF-owned `uv` pin.
+
+The accepted RT-01 builder image contains Bench 5.31.1. Its inspected `install_app()` installs Python dependencies with uv when `use_uv()` is enabled or pip otherwise, and installs app `package.json` dependencies with Yarn. The active Python branch must be captured during the build. M4.2.4 owns actual Bench-acquired Git HEADs, dependency-file hashes and post-install Python/Node/OS inventories; M4.2.5 independently verifies installed state, source/runtime policy and base inventory. B.2 Node and B.3 OS candidate adapters are cancelled.
+
+User-run verification on 2026-11-13: focused regression **172 passed in 4.70s**; full NDF suite **225 passed in 8.82s**; `python -m compileall -q scripts tests` completed successfully; `git diff --check` reported no findings. These local results are distinct from PR CI. NDF / Validate passed on the initial PR head; the lint workflow identified formatter/script-quality cleanup still pending. The product-image matrix stopped at build preparation with `Unsupported lock version: 1`, before Docker Buildx; this is the known M4.2.4 fresh lock-v2 generation dependency. Existing lock-v1 product files are obsolete, not migration inputs; M4.2.4 must generate fresh lock-v2 composition data from current manifests and requested rolling refs. No image was produced, published or deployed.
 
 Approved work packages:
 
@@ -105,6 +112,7 @@ Current relevant components include:
 - `images/ndf/scripts/prepare_build.py`
 - `images/ndf/scripts/build_image.py`
 - `images/ndf/scripts/validate_image.py`
+- `images/ndf/scripts/inspect_target_runtime.sh` — read-only RT-01 inspection of upstream v16 builder/runtime images, including digests, runtime metadata and dpkg inventory.
 - `.github/workflows/ndf-build-product.yml`
 - `.github/workflows/ndf-publish-product.yml`
 - `.github/workflows/ndf-release-product.yml`

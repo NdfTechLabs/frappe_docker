@@ -1,0 +1,37 @@
+{
+  "inventories": {
+    "builder": {
+      "file": "builder/dpkg-inventory.tsv",
+      "image": {
+        "index_digest": "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe",
+        "manifest_digest": "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b",
+        "platform": "linux/amd64",
+        "reference": "frappe/build@sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
+      },
+      "package_count": 408,
+      "package_database_version": "1.22.22",
+      "sha256": "98e7b3a541af9a91bae550181d359227f263cff943d94ff327d6e16a3a05a86a"
+    },
+    "runtime": {
+      "file": "runtime/dpkg-inventory.tsv",
+      "image": {
+        "index_digest": "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0",
+        "manifest_digest": "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c",
+        "platform": "linux/amd64",
+        "reference": "frappe/base@sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+      },
+      "package_count": 286,
+      "package_database_version": "1.22.22",
+      "sha256": "d561c69e454cbc679b74fb1b5fb78f7748985e8b42ce5e98b2d0dada974be0c7"
+    }
+  },
+  "package_database": {
+    "format": "dpkg-query-tsv",
+    "name": "dpkg"
+  },
+  "producer": {
+    "name": "images/ndf/scripts/inspect_target_runtime.sh",
+    "version": "1"
+  },
+  "schema_version": "1.0.0"
+}
