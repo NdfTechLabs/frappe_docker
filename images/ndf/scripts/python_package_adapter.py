@@ -246,19 +246,18 @@ def resolve_python_packages(
     proxy = _validate_proxy(egress_proxy or os.environ.get("NDF_PACKAGE_EGRESS_PROXY"))
     requirements: dict[str, list[dict]] = {}
     for app in applications:
-        descriptor = app.get("_descriptor")
-        app_id = app.get("_app_id")
-        if not isinstance(descriptor, dict) or not isinstance(app_id, str):
+        app_id = app.get("_app_id") or app.get("app_id")
+        if not isinstance(app_id, str):
             continue
-        for item in descriptor.get("dependencies", {}).get("python", []):
-            if not item.get("required", True):
+        for item in app.get("package_dependencies", []):
+            if item.get("ecosystem") != "python":
                 continue
             name = item.get("name")
             if not isinstance(name, str) or not name.strip():
                 raise PythonAdapterError(f"{app_id}: Python dependency name is missing.")
             normalized = normalize_package_name("python", name)
             policy = item.get("version_policy")
-            constraint = item.get("version")
+            constraint = item.get("requested_constraint")
             if policy == "constraint":
                 if not isinstance(constraint, str) or not constraint:
                     raise PythonAdapterError(f"{app_id}: {name} requires a PEP 440 constraint.")
@@ -277,7 +276,9 @@ def resolve_python_packages(
                     f"{app_id}: Python dependency {name} must be runtime_compatible; "
                     "Python base inventory and environment-level changes are outside B.1."
                 )
-            scope = "build" if item.get("build_required", False) else "runtime"
+            scope = item.get("scope", "runtime")
+            if scope not in {"build", "runtime"}:
+                raise PythonAdapterError(f"{app_id}: unsupported Python dependency scope for {name}.")
             requirements.setdefault(normalized, []).append(
                 {
                     "app_id": app_id,
@@ -462,13 +463,28 @@ def resolve_python_packages(
         direct_versions = {}
         packages = []
         edges = []
+        scope_by_name = {name: ("runtime" if any(item["scope"] == "runtime" for item in requests) else "build")
+                         for name, requests in requirements.items()}
+        # Propagate the strongest installation scope through the resolved graph.
+        changed = True
+        while changed:
+            changed = False
+            for parent_name, row in package_rows.items():
+                parent_scope = scope_by_name.get(parent_name)
+                for dependency in row["dependencies"]:
+                    child_name = normalize_package_name("python", dependency.get("name", ""))
+                    if child_name not in package_rows:
+                        continue
+                    if parent_scope == "runtime" and scope_by_name.get(child_name) != "runtime":
+                        scope_by_name[child_name] = "runtime"
+                        changed = True
+
         for name in sorted(package_rows):
             row = package_rows[name]
             direct_requests = requirements.get(name, [])
             direct = bool(direct_requests)
             requesters = sorted({item["app_id"] for item in direct_requests})
-            scopes = {item["scope"] for item in direct_requests}
-            scope = "runtime" if "runtime" in scopes else "build"
+            scope = scope_by_name.get(name, "build")
             package = {
                 "id": package_identity("python", name, row["version"]),
                 "ecosystem": "python",
