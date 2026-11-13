@@ -413,6 +413,23 @@ def validate_package_resolution(
     for package_id in sorted(adjacency):
         visit(package_id)
 
+    reachable: set[str] = set()
+    def mark_reachable(node: str) -> None:
+        if node in reachable:
+            return
+        reachable.add(node)
+        for child in adjacency[node]:
+            mark_reachable(child)
+    for package in packages:
+        if package["direct"]:
+            mark_reachable(package["id"])
+    if reachable != set(by_id):
+        missing = sorted(set(by_id) - reachable)
+        raise PackageResolutionError(
+            "Package graph contains orphaned or unreachable package records: "
+            + ", ".join(missing)
+        )
+
     base_packages = [item for item in packages if item["ecosystem"] == "os" and item["disposition"] == "base"]
     inventory_ref = section["base_inventory"]
     if not base_packages:
