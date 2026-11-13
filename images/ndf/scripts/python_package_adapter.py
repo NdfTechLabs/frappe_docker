@@ -1,0 +1,523 @@
+"""Isolated CPython package resolution using the policy-pinned uv executable.
+
+This adapter resolves descriptor-declared requirements only. It never installs
+packages into the runner, a Bench, or an image. Wheel bytes are downloaded to a
+disposable workspace solely for digest verification.
+"""
+from __future__ import annotations
+
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import tomllib
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from typing import Callable
+
+from packaging.tags import compatible_tags, cpython_tags
+from packaging.utils import parse_wheel_filename
+
+try:
+    from .package_resolution import normalize_package_name, package_identity
+except ImportError:
+    from package_resolution import normalize_package_name, package_identity
+
+
+UV_VERSION = "0.13.7"
+SOURCE_PROFILE = "python-pypi-public-v1"
+PYPI_INDEX = "https://pypi.org/simple"
+ARTIFACT_HOSTS = frozenset({"files.pythonhosted.org"})
+MAX_OUTPUT_BYTES = 2 * 1024 * 1024
+MAX_WHEEL_BYTES = 512 * 1024 * 1024
+MAX_TOTAL_WHEEL_BYTES = 2 * 1024 * 1024 * 1024
+DEFAULT_TIMEOUT_SECONDS = 300
+
+
+class PythonAdapterError(RuntimeError):
+    """Raised when Python package resolution cannot complete safely."""
+
+
+def _safe_url(value: str, allowed_hosts: frozenset[str]) -> urllib.parse.ParseResult:
+    try:
+        parsed = urllib.parse.urlparse(value)
+        port = parsed.port
+    except (TypeError, ValueError) as exc:
+        raise PythonAdapterError("Malformed package URL.") from exc
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.hostname.lower() not in allowed_hosts
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or port not in (None, 443)
+    ):
+        raise PythonAdapterError("Package URL is outside the approved HTTPS source profile.")
+    return parsed
+
+
+def _target_platforms(target: dict) -> list[str]:
+    os_data = target.get("os", {})
+    libc = os_data.get("libc", {})
+    if (
+        target.get("python") != "3.14.10"
+        or target.get("python_implementation") != "CPython"
+        or target.get("python_cache_tag") != "cpython-314"
+        or target.get("python_soabi") != "cpython-314-x86_64-linux-gnu"
+        or target.get("python_platform") != "linux-x86_64"
+        or target.get("platform", {}).get("architecture") != "amd64"
+        or os_data.get("distribution_family") != "debian"
+        or os_data.get("version_id") != "13"
+        or os_data.get("codename") != "trixie"
+        or libc.get("implementation") != "glibc"
+        or libc.get("version") != "2.41"
+    ):
+        raise PythonAdapterError("Unsupported Python target; only the accepted RT-01 CPython 3.14.10 AMD64 target is supported.")
+    return (
+        [f"manylinux_2_{minor}_x86_64" for minor in range(41, 4, -1)]
+        + ["manylinux2014_x86_64", "manylinux2010_x86_64", "manylinux1_x86_64", "linux_x86_64"]
+    )
+
+
+def _supported_wheel_tags(target: dict) -> set:
+    platforms = _target_platforms(target)
+    py_version = (3, 14)
+    interpreter = "cp314"
+    tags = set(cpython_tags(py_version, abis=("cp314", "abi3", "none"), platforms=platforms))
+    tags.update(compatible_tags(py_version, interpreter=interpreter, platforms=platforms))
+    return tags
+
+
+def _validate_proxy(proxy: str | None) -> str:
+    if not proxy:
+        raise PythonAdapterError(
+            "NDF_PACKAGE_EGRESS_PROXY is required; configure an egress proxy that permits "
+            "only pypi.org and files.pythonhosted.org."
+        )
+    try:
+        parsed = urllib.parse.urlparse(proxy)
+        port = parsed.port
+    except ValueError as exc:
+        raise PythonAdapterError("Malformed package egress proxy URL.") from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or port is None
+    ):
+        raise PythonAdapterError("Package egress proxy URL must be credential-free HTTP(S) with an explicit port.")
+    return proxy
+
+
+def _bounded_run(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+    output_limit: int,
+    runner: Callable = subprocess.run,
+) -> tuple[int, str, str]:
+    with tempfile.TemporaryDirectory(prefix="ndf-uv-output-") as output_dir:
+        stdout_path = Path(output_dir) / "stdout"
+        stderr_path = Path(output_dir) / "stderr"
+        try:
+            with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
+                result = runner(
+                    command,
+                    cwd=cwd,
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    timeout=timeout,
+                    check=False,
+                )
+        except subprocess.TimeoutExpired as exc:
+            raise PythonAdapterError(f"uv command exceeded the {timeout}s execution timeout.") from exc
+        except OSError as exc:
+            raise PythonAdapterError(f"Unable to execute the approved uv resolver: {exc}") from exc
+        if stdout_path.stat().st_size + stderr_path.stat().st_size > output_limit:
+            raise PythonAdapterError("uv output exceeded the configured output limit.")
+        stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
+        stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
+        return result.returncode, stdout, stderr
+
+
+class _AllowlistedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def __init__(self, allowed_hosts: frozenset[str]):
+        super().__init__()
+        self.allowed_hosts = allowed_hosts
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _safe_url(newurl, self.allowed_hosts)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _verify_wheel(
+    wheel: dict,
+    package_name: str,
+    package_version: str,
+    supported_tags: set,
+    opener,
+    workspace: Path,
+    remaining_bytes: int,
+) -> tuple[dict, int]:
+    url = wheel.get("url")
+    _safe_url(url, ARTIFACT_HOSTS)
+    filename = urllib.parse.urlparse(url).path.rsplit("/", 1)[-1]
+    try:
+        wheel_name, wheel_version, _build, wheel_tags = parse_wheel_filename(filename)
+    except Exception as exc:
+        raise PythonAdapterError(f"Invalid wheel filename for {package_name}.") from exc
+    if (
+        normalize_package_name("python", str(wheel_name)) != package_name
+        or str(wheel_version) != package_version
+        or not (wheel_tags & supported_tags)
+    ):
+        raise PythonAdapterError(f"Wheel identity or target tags do not match {package_name}=={package_version}.")
+    hashes = wheel.get("hashes")
+    if not isinstance(hashes, dict) or not isinstance(hashes.get("sha256"), str):
+        raise PythonAdapterError(f"PyPI did not provide a SHA-256 wheel hash for {package_name}.")
+    expected = hashes["sha256"].lower()
+    if not re.fullmatch(r"[a-f0-9]{64}", expected):
+        raise PythonAdapterError(f"Invalid SHA-256 wheel hash for {package_name}.")
+    destination = workspace / (hashlib.sha256(url.encode()).hexdigest() + ".whl")
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        with opener.open(urllib.request.Request(url, headers={"User-Agent": "NDF-Package-Resolver/1"}), timeout=30) as response:
+            final_url = response.geturl()
+            _safe_url(final_url, ARTIFACT_HOSTS)
+            with destination.open("wb") as output:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > min(MAX_WHEEL_BYTES, remaining_bytes):
+                        raise PythonAdapterError("Wheel artifact exceeded the configured download-size limit.")
+                    digest.update(chunk)
+                    output.write(chunk)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        destination.unlink(missing_ok=True)
+        raise PythonAdapterError(f"Unable to retrieve approved wheel artifact for {package_name}.") from exc
+    if digest.hexdigest() != expected:
+        destination.unlink(missing_ok=True)
+        raise PythonAdapterError(f"Wheel SHA-256 verification failed for {package_name}.")
+    destination.unlink(missing_ok=True)
+    return (
+        {
+            "algorithm": "sha256",
+            "digest": expected,
+            "artifact": url,
+        },
+        total,
+    )
+
+
+def resolve_python_packages(
+    applications: list[dict],
+    target_runtime: dict,
+    *,
+    repository_root: Path,
+    uv_executable: str = "uv",
+    egress_proxy: str | None = None,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    output_limit: int = MAX_OUTPUT_BYTES,
+    runner: Callable = subprocess.run,
+    opener_factory: Callable | None = None,
+) -> tuple[dict, dict[str, str]]:
+    """Resolve all selected descriptor Python requirements.
+
+    Returns (normalized package_resolution section, direct package versions keyed
+    by (app_id, normalized_name) joined with a NUL separator.
+    """
+    supported_tags = _supported_wheel_tags(target_runtime)
+    proxy = _validate_proxy(egress_proxy or os.environ.get("NDF_PACKAGE_EGRESS_PROXY"))
+    requirements: dict[str, list[dict]] = {}
+    for app in applications:
+        descriptor = app.get("_descriptor")
+        app_id = app.get("_app_id")
+        if not isinstance(descriptor, dict) or not isinstance(app_id, str):
+            continue
+        for item in descriptor.get("dependencies", {}).get("python", []):
+            if not item.get("required", True):
+                continue
+            name = item.get("name")
+            if not isinstance(name, str) or not name.strip():
+                raise PythonAdapterError(f"{app_id}: Python dependency name is missing.")
+            normalized = normalize_package_name("python", name)
+            policy = item.get("version_policy")
+            constraint = item.get("version")
+            if policy == "constraint":
+                if not isinstance(constraint, str) or not constraint:
+                    raise PythonAdapterError(f"{app_id}: {name} requires a PEP 440 constraint.")
+                try:
+                    from packaging.specifiers import SpecifierSet
+                    SpecifierSet(constraint)
+                except Exception as exc:
+                    raise PythonAdapterError(f"{app_id}: invalid PEP 440 constraint for {name}.") from exc
+            elif policy == "latest_compatible":
+                if constraint is not None:
+                    raise PythonAdapterError(f"{app_id}: latest_compatible {name} must not include a version constraint.")
+            else:
+                raise PythonAdapterError(f"{app_id}: unsupported Python version policy for {name}.")
+            if item.get("disposition") != "runtime_compatible":
+                raise PythonAdapterError(
+                    f"{app_id}: Python dependency {name} must be runtime_compatible; "
+                    "Python base inventory and environment-level changes are outside B.1."
+                )
+            scope = "build" if item.get("build_required", False) else "runtime"
+            requirements.setdefault(normalized, []).append(
+                {
+                    "app_id": app_id,
+                    "name": normalized,
+                    "version_policy": policy,
+                    "requested_constraint": constraint if policy == "constraint" else None,
+                    "disposition": "runtime_compatible",
+                    "scope": scope,
+                }
+            )
+
+    if not requirements:
+        return (
+            {
+                "schema_version": 1,
+                "source_policy_catalogue_version": "1.1.0",
+                "source_profiles": [],
+                "base_inventory": None,
+                "packages": [],
+                "dependency_edges": [],
+            },
+            {},
+        )
+
+    catalogue_path = repository_root / "images/ndf/policies/package-source-profiles-v1.json"
+    try:
+        import json
+        catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+        profile = catalogue["source_profiles"][SOURCE_PROFILE]
+        policy_version = catalogue["catalogue_version"]
+        approved_uv = catalogue["resolver_policy"]["python"]["version"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise PythonAdapterError("Unable to load the approved Python source/resolver policy.") from exc
+    if (
+        not profile.get("enabled")
+        or profile.get("registry") != PYPI_INDEX
+        or profile.get("artifact_hosts") != sorted(profile.get("artifact_hosts", []))
+        or approved_uv != UV_VERSION
+        or policy_version != "1.1.0"
+    ):
+        raise PythonAdapterError("Python source profile or uv version does not match the approved B.1 policy.")
+
+    with tempfile.TemporaryDirectory(prefix="ndf-python-resolution-") as temporary:
+        workspace = Path(temporary)
+        input_path = workspace / "requirements.in"
+        lock_path = workspace / "pylock.toml"
+        input_lines = []
+        for name in sorted(requirements):
+            constraints = sorted(
+                {
+                    item["requested_constraint"]
+                    for item in requirements[name]
+                    if item["version_policy"] == "constraint"
+                }
+            )
+            if constraints:
+                input_lines.extend(f"{name}{constraint}" for constraint in constraints)
+            else:
+                input_lines.append(name)
+        input_path.write_text("\n".join(sorted(set(input_lines))) + "\n", encoding="utf-8")
+
+        env = {
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": str(workspace / "home"),
+            "TMPDIR": str(workspace),
+            "TEMP": str(workspace),
+            "TMP": str(workspace),
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "UV_NO_CONFIG": "1",
+            "UV_NO_CACHE": "1",
+            "UV_PYTHON_DOWNLOADS": "never",
+            "UV_INDEX_URL": PYPI_INDEX,
+            "UV_DEFAULT_INDEX": PYPI_INDEX,
+            "HTTPS_PROXY": proxy,
+            "HTTP_PROXY": proxy,
+            "https_proxy": proxy,
+            "http_proxy": proxy,
+            "NO_PROXY": "",
+            "no_proxy": "",
+        }
+        Path(env["HOME"]).mkdir()
+        version_command = [uv_executable, "--version"]
+        code, stdout, stderr = _bounded_run(
+            version_command, cwd=workspace, env=env, timeout=timeout,
+            output_limit=output_limit, runner=runner,
+        )
+        if code != 0 or stdout.strip() != f"uv {UV_VERSION}":
+            raise PythonAdapterError(
+                f"Expected authoritative resolver uv {UV_VERSION}; received {stdout.strip() or stderr.strip()}."
+            )
+
+        command = [
+            uv_executable, "pip", "compile", str(input_path),
+            "--output-file", str(lock_path),
+            "--format", "pylock.toml",
+            "--index-url", PYPI_INDEX,
+            "--python-version", target_runtime["python"],
+            "--python-platform", "x86_64-manylinux_2_41",
+            "--no-build",
+            "--no-config",
+            "--no-cache",
+        ]
+        code, stdout, stderr = _bounded_run(
+            command, cwd=workspace, env=env, timeout=timeout,
+            output_limit=output_limit, runner=runner,
+        )
+        if code != 0:
+            safe_error = stderr[-4000:].replace(proxy, "[proxy]")
+            raise PythonAdapterError(f"uv dependency resolution failed: {safe_error}")
+        if not lock_path.is_file() or lock_path.stat().st_size > output_limit:
+            raise PythonAdapterError("uv did not produce a bounded PEP 751 pylock.toml result.")
+        try:
+            lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            raise PythonAdapterError("uv produced invalid pylock.toml output.") from exc
+
+        if lock.get("lock-version") != "1.0" or not isinstance(lock.get("packages"), list):
+            raise PythonAdapterError("uv pylock output has an unsupported or incomplete PEP 751 structure.")
+
+        proxy_handler = urllib.request.ProxyHandler({"https": proxy, "http": proxy})
+        redirect_handler = _AllowlistedRedirectHandler(ARTIFACT_HOSTS)
+        opener = (
+            opener_factory(proxy_handler, redirect_handler)
+            if opener_factory
+            else urllib.request.build_opener(proxy_handler, redirect_handler)
+        )
+        package_rows = {}
+        remaining_bytes = MAX_TOTAL_WHEEL_BYTES
+        for entry in lock["packages"]:
+            if not isinstance(entry, dict):
+                raise PythonAdapterError("Malformed package entry in uv pylock output.")
+            name = normalize_package_name("python", entry.get("name", ""))
+            version = entry.get("version")
+            if not isinstance(version, str) or not version:
+                raise PythonAdapterError("Resolved Python package has no exact version.")
+            index = entry.get("index", PYPI_INDEX)
+            index_url = urllib.parse.urlparse(index)
+            if (
+                index_url.scheme != "https"
+                or index_url.hostname != "pypi.org"
+                or index_url.path.rstrip("/") != "/simple"
+                or index_url.username
+                or index_url.password
+                or index_url.query
+                or index_url.fragment
+            ):
+                raise PythonAdapterError(f"Package {name} resolved from an unapproved index.")
+            wheels = entry.get("wheels", [])
+            if not isinstance(wheels, list) or not wheels:
+                raise PythonAdapterError(
+                    f"No wheel is available for {name}=={version} on the accepted target; "
+                    "source-distribution builds are prohibited."
+                )
+            compatible = []
+            for wheel in wheels:
+                filename = urllib.parse.urlparse(wheel.get("url", "")).path.rsplit("/", 1)[-1]
+                try:
+                    _wheel_name, _wheel_version, _build, tags = parse_wheel_filename(filename)
+                except Exception:
+                    continue
+                if tags & supported_tags:
+                    compatible.append(wheel)
+            if not compatible:
+                raise PythonAdapterError(f"No target-compatible wheel is available for {name}=={version}.")
+            integrity, downloaded = _verify_wheel(
+                sorted(compatible, key=lambda item: item.get("url", ""))[0],
+                name, version, supported_tags, opener, workspace, remaining_bytes,
+            )
+            remaining_bytes -= downloaded
+            package_rows[name] = {
+                "name": name,
+                "version": version,
+                "integrity": [integrity],
+                "dependencies": entry.get("dependencies", []),
+            }
+
+        if set(package_rows) < set(requirements):
+            missing = sorted(set(requirements) - set(package_rows))
+            raise PythonAdapterError("uv resolution omitted direct requirements: " + ", ".join(missing))
+
+        direct_versions = {}
+        packages = []
+        edges = []
+        for name in sorted(package_rows):
+            row = package_rows[name]
+            direct_requests = requirements.get(name, [])
+            direct = bool(direct_requests)
+            requesters = sorted({item["app_id"] for item in direct_requests})
+            scopes = {item["scope"] for item in direct_requests}
+            scope = "runtime" if "runtime" in scopes else "build"
+            package = {
+                "id": package_identity("python", name, row["version"]),
+                "ecosystem": "python",
+                "name": name,
+                "version": row["version"],
+                "architecture": "",
+                "source_profile": SOURCE_PROFILE,
+                "source": PYPI_INDEX,
+                "resolver": "uv",
+                "resolver_version": UV_VERSION,
+                "direct": direct,
+                "requested_by": requesters,
+                "disposition": "runtime_compatible",
+                "install": True,
+                "scope": scope,
+                "integrity": row["integrity"],
+                "repository_metadata": {"source_identity": "official-public-pypi"},
+            }
+            packages.append(package)
+            for item in direct_requests:
+                direct_versions[item["app_id"] + "\0" + name] = row["version"]
+
+        by_name = {name: row for name, row in package_rows.items()}
+        for name, row in package_rows.items():
+            for dependency in row["dependencies"]:
+                if not isinstance(dependency, dict):
+                    raise PythonAdapterError(f"Malformed dependency edge for {name}.")
+                dependency_name = normalize_package_name("python", dependency.get("name", ""))
+                target = by_name.get(dependency_name)
+                if target is None:
+                    raise PythonAdapterError(
+                        f"uv dependency graph references unresolved package {dependency_name} from {name}."
+                    )
+                edges.append(
+                    {
+                        "from": package_identity("python", name, row["version"]),
+                        "to": package_identity("python", dependency_name, target["version"]),
+                        "constraint": "==" + target["version"],
+                    }
+                )
+
+        package_resolution = {
+            "schema_version": 1,
+            "source_policy_catalogue_version": policy_version,
+            "source_profiles": [SOURCE_PROFILE],
+            "base_inventory": None,
+            "packages": sorted(packages, key=lambda item: item["id"]),
+            "dependency_edges": sorted(
+                edges, key=lambda item: (item["from"], item["to"], item["constraint"])
+            ),
+        }
+        return package_resolution, direct_versions
