@@ -203,6 +203,7 @@ def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
     assert direct["integrity"][0]["digest"] == hashlib.sha256(root_bytes).hexdigest()
     assert direct["repository_metadata"]["source_identity"] == "official-public-pypi"
     assert transitive["direct"] is False
+    assert transitive["scope"] == "runtime"
     assert result["dependency_edges"] == [
         {
             "from": direct["id"],
@@ -218,6 +219,11 @@ def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
     assert compile_command[compile_command.index("--python-platform") + 1] == "x86_64-manylinux_2_41"
     assert compile_command[compile_command.index("--index-url") + 1] == PYPI_INDEX
     assert all("extra-index-url" not in arg for arg in compile_command)
+    resolver_env = calls[1][1]["env"]
+    assert resolver_env["HTTPS_PROXY"] == PROXY
+    assert resolver_env["NO_PROXY"] == ""
+    assert "PYTHONPATH" not in resolver_env
+    assert "PIP_INDEX_URL" not in resolver_env
     assert {url for url, _timeout in opener.requested} == {
         root_wheel["url"], child_wheel["url"]
     }
@@ -353,7 +359,62 @@ def test_enforces_uv_execution_timeout():
         )
 
 
-def test_no_python_requirements_returns_empty_lock_without_invoking_uv():
+
+def test_rejects_uv_output_exceeding_the_configured_limit():
+    wheel_bytes = b"wheel"
+    wheel = wheel_entry("demo-root", "1.0.0", wheel_bytes)
+    runner, _calls = make_runner(
+        pylock([{"name": "demo-root", "version": "1.0.0", "wheels": [wheel]}]),
+        oversized=True,
+    )
+
+    with pytest.raises(PythonAdapterError, match="output exceeded"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=runner,
+            output_limit=64,
+            opener_factory=lambda *_args: FakeOpener({wheel["url"]: wheel_bytes}),
+        )
+
+
+def test_rejects_invalid_python_constraint_before_invoking_uv():
+    def unexpected_runner(*_args, **_kwargs):
+        raise AssertionError("uv must not run for an invalid requirement")
+
+    with pytest.raises(PythonAdapterError, match="invalid PEP 440 constraint"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "constraint", "=>1.0", "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=unexpected_runner,
+        )
+
+
+def test_rejects_redirect_outside_the_approved_artifact_host():
+    body = b"wheel bytes"
+    wheel = wheel_entry("demo-root", "1.0.0", body)
+
+    class RedirectedOpener:
+        def open(self, request, timeout):
+            return FakeResponse("https://attacker.example/redirected.whl", body)
+
+    runner, _calls = make_runner(
+        pylock([{"name": "demo-root", "version": "1.0.0", "wheels": [wheel]}])
+    )
+    with pytest.raises(PythonAdapterError, match="approved HTTPS source profile"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=runner,
+            opener_factory=lambda *_args: RedirectedOpener(),
+        )
+\ndef test_no_python_requirements_returns_empty_lock_without_invoking_uv():
     def unexpected_runner(*_args, **_kwargs):
         raise AssertionError("uv must not run when there are no Python requirements")
 
