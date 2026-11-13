@@ -9,7 +9,7 @@ It owns how Frappe product environments are composed, resolved, built, validated
 - Maintain NDF product manifests and image definitions.
 - Resolve application source references and application-to-application dependencies.
 - Validate application and framework compatibility.
-- Resolve Python, Node.js and OS-level dependencies into deterministic build inputs.
+- Preserve approved package-source and runtime policies; rely on upstream Bench/native package managers to resolve and install application dependencies; capture and verify installed inventories and build evidence.
 - Build and validate product and candidate images.
 - Publish immutable OCI images to GHCR.
 - Generate versioned deployment descriptors tied to exact image digests.
@@ -26,7 +26,7 @@ The M4 architecture establishes the following ownership boundaries:
 
 | Component         | Responsibility                                                                                                                                     |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NDF Frappe Docker | Product composition, dependency resolution, image construction, validation, immutable publishing and deployment descriptors                        |
+| NDF Frappe Docker | Product composition, Bench-native dependency build inputs, installed-state verification, image construction, validation, immutable publishing and deployment descriptors |
 | GHCR              | Distribution of immutable images and associated artifacts                                                                                          |
 | DT Master         | Infrastructure Nodes, Bench Environments, Docker/Compose orchestration, site lifecycle, deployment execution, migration, verification and rollback |
 | DT Tenant         | Tenant-facing marketplace/subscription experience and authenticated requests to DT Master                                                          |
@@ -55,8 +55,8 @@ M4.1 defined and approved the NDF contracts consumed by DT Master.
 | ----------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | Marketplace App Descriptor    | Define and validate app source, version, framework/runtime compatibility and dependency declarations | Versioned app descriptor schema        |
 | Deployment Candidate          | Validate the requested complete Bench composition and build parameters                               | Candidate input schema                 |
-| Runtime resolution            | Resolve compatible Python, Node.js, Yarn and framework versions                                      | Exact runtime selection                |
-| Dependency resolution         | Resolve Python, Node.js and OS package dependencies                                                  | Deterministic dependency lock          |
+| Runtime compatibility         | Define and validate the target Python, Node.js and framework compatibility contract                  | Target runtime policy                  |
+| Dependency installation       | Delegate Python, Node.js and OS dependency resolution/installation to upstream Bench/native tools; capture actual installed state and provenance downstream | Installed inventory and verification evidence |
 | Candidate manifest generation | Convert a candidate composition into NDF build inputs                                                | Resolved manifest and lock             |
 | Image build and validation    | Build and test the requested composition                                                             | Validated immutable OCI image          |
 | Deployment descriptor         | Describe the image actually produced, not merely the requested manifest                              | Versioned descriptor with image digest |
@@ -77,10 +77,14 @@ The central implementation priority is to prove exactly what source revisions we
 - [M4.2.1 Resolver Implementation](M4.2.1-RESOLVER-IMPLEMENTATION.md) — baseline findings, source-reference policy, resolution-time SHA/provenance, lock v2 contract and focused test requirements.
 - [M4.2.2 Application Descriptor Contract](M4.2.2-APPLICATION-DESCRIPTOR.md) — descriptor/composition ownership, schema versioning, typed dependencies, compatibility evidence and migration boundaries.
 - [M4.2.3 Composition and Service Resolution](M4.2.3-COMPOSITION-RESOLUTION.md) — resolver integration, dependency closure, explicit capability selection, independent service inventories and lock-integrity requirements.
-- [M4.2.3-A Package Resolution Contract](M4.2.3-A-PACKAGE-RESOLUTION-CONTRACT.md) — native adapter interface, target-platform contract, source policy, package lock representation, isolation/security requirements and rolling-branch source-acquisition boundary.
-- [M4.2.3-A.1 NDF Target-Runtime Matrix](M4.2.3-A.1-TARGET-RUNTIME-MATRIX.md) — authoritative v16 target OS/runtime/architecture baseline, initial Python/Node/OS adapter scope, digest-bound metadata requirements and remaining acceptance evidence.
+- [M4.2.3-A Package Resolution Contract](M4.2.3-A-PACKAGE-RESOLUTION-CONTRACT.md) — accepted target-platform/source-policy/base-inventory foundations and the controlling native Bench dependency ownership decision.
+- [M4.2.3-A.1 NDF Target-Runtime Matrix](M4.2.3-A.1-TARGET-RUNTIME-MATRIX.md) — authoritative v16 target OS/runtime/architecture baseline and digest-bound inventory evidence.
 
-**Current execution:** M4.2.1 and M4.2.2 are Complete and their PRs #8 and #9 are merged. M4.2.3 — Composition and Service Resolution is In Progress (2026-11-10) on `feat/m4.2.3-composition-service-resolution`. The existing resolver now has v1/v2 schema dispatch, explicit capability selection/loading, descriptor-backed Bench-app dependency closure, target runtime compatibility and exact package-selection validation, independent service/external requirement inventories, and extended lock v2 integrity checks. Regression tests have been added, including the transferred M4.2.2 descriptor identity/release/ref/SHA requirement. The user subsequently reported 143 tests passing and pre-commit passing locally. Native package-manager candidate querying remains an explicit resolution boundary. M4.2.3-A now defines the adapter contract and M4.2.3-A.1 documents the target-runtime family matrix. Exact per-digest runtime capture (RT-01) is prepared by `inspect_target_runtime.sh` but awaits local execution; approved source profiles, trusted base inventory and lock representation remain open before adapter implementation. No production manifests or product locks have been changed. Rolling branch references remain the Bench acquisition inputs; resolver-time SHAs are provenance only, and actual acquired SHAs remain an M4.2.4 responsibility.
+**Current execution:** M4.2.1 and M4.2.2 are Complete. M4.2.3 — Composition and Service Resolution remains In Progress on `feat/m4.2.3-composition-service-resolution`; A.1–A.5 are accepted. The B.1 Python candidate adapter and dedicated tests have been removed after consumer/test audit. Descriptor package dependencies remain declarative constraints; NDF no longer selects candidates or builds a competing transitive package graph. The accepted source profiles remain in catalogue version 1.2.0, with native installer identity/version recorded per build rather than an NDF-owned `uv` pin.
+
+The accepted RT-01 builder image contains Bench 5.31.1. Its inspected `install_app()` installs Python dependencies with uv when `use_uv()` is enabled or pip otherwise, and installs app `package.json` dependencies with Yarn. The active Python branch must be captured during the build. M4.2.4 owns actual Bench-acquired Git HEADs, dependency-file hashes and post-install Python/Node/OS inventories; M4.2.5 independently verifies installed state, source/runtime policy and base inventory. B.2 Node and B.3 OS candidate adapters are cancelled.
+
+Regression tests after the Option A cleanup have not yet been run. The previous 235-pass Actions result and B.1 local-wheel smoke test are historical and do not verify the current changes. Existing lock-v1 product files are obsolete, not migration inputs; each build must generate fresh lock-v2 composition data from current manifests and requested rolling refs. No image build, publication or deployment is claimed.
 
 Approved work packages:
 
