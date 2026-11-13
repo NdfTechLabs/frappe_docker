@@ -177,6 +177,58 @@ def validate(section, *, target=None, apps=None, catalogue_path=CATALOGUE):
     )
 
 
+def test_empty_package_graph_accepts_declarative_native_requirements():
+    app = {
+        "name": "demo_app",
+        "app_id": "demo_app",
+        "package_dependencies": [
+            {
+                "ecosystem": "python",
+                "name": "requests",
+                "version_policy": "constraint",
+                "requested_constraint": ">=2.30,<3",
+                "source_profile": "python-pypi-public-v1",
+                "disposition": "runtime_compatible",
+                "install": True,
+                "scope": "runtime",
+            },
+            {
+                "ecosystem": "node",
+                "name": "vite",
+                "version_policy": "latest_compatible",
+                "requested_constraint": None,
+                "source_profile": "node-npm-public-v1",
+                "disposition": "runtime_compatible",
+                "install": True,
+                "scope": "build",
+                "package_manager": "yarn",
+            },
+        ],
+    }
+
+    assert validate(package_resolution(), apps=[app]) is True
+
+
+def test_empty_package_graph_rejects_unapproved_declared_source_profile():
+    app = {
+        "name": "demo_app",
+        "app_id": "demo_app",
+        "package_dependencies": [{
+            "ecosystem": "python",
+            "name": "requests",
+            "version_policy": "latest_compatible",
+            "requested_constraint": None,
+            "source_profile": "publisher-supplied",
+            "disposition": "runtime_compatible",
+            "install": True,
+            "scope": "runtime",
+        }],
+    }
+
+    with pytest.raises(PackageResolutionError, match="unapproved source profile"):
+        validate(package_resolution(), apps=[app])
+
+
 def _build_package_lock(tmp_path):
     manifests_dir = tmp_path / "manifests"
     manifests_dir.mkdir()
