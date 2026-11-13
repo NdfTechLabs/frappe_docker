@@ -2,10 +2,11 @@
 """Build an NDF product image locally or publish it with Docker Buildx.
 
 Local loading is the safe default. Registry publishing requires the explicit
---push flag and supports multiple tags and target platforms.
+--push flag. The currently accepted base-image inventory supports linux/amd64.
 """
 
 import argparse
+import hashlib
 import json
 import shlex
 import subprocess
@@ -80,7 +81,7 @@ def resolve_base_images(
         "builder": stage_refs["builder"],
         "runtime": stage_refs["runtime"],
         "inventory_manifest": str(manifest_path.relative_to(ndf_root)),
-        "inventory_manifest_sha256": __import__("hashlib").sha256(
+        "inventory_manifest_sha256": hashlib.sha256(
             manifest_path.read_bytes()
         ).hexdigest(),
     }
@@ -369,12 +370,6 @@ def build_image(
 
     base_images = resolve_base_images(ndf_dir, base_inventory_dir, platforms)
 
-    if not push and len(platforms) > 1:
-        raise BuildExecutionError(
-            "Local --load supports one platform. "
-            "Use --push for multi-platform builds."
-        )
-
     prepared = prepare_build(
         ndf_dir=ndf_dir,
         image_id=image_id,
@@ -387,7 +382,7 @@ def build_image(
     metadata["base_images"] = base_images
     metadata_path = Path(prepared["metadata_path"])
     metadata_path.write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\\n",
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     labels = build_labels(metadata, lock_data)
@@ -415,7 +410,7 @@ def build_image(
         builder_image=base_images["builder"],
         runtime_image=base_images["runtime"],
         labels=labels,
-        platform=platform,
+        platform=",".join(platforms),
         no_cache=no_cache,
         builder=builder,
         progress=progress,
