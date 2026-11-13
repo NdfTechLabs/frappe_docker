@@ -962,6 +962,38 @@ class TestLockComparison:
 
         assert changes == []
 
+    def test_package_resolution_change_is_reported(
+        self, loader, sample_manifest, sample_applications, generated_lock
+    ):
+        lock_path, _ = generated_lock
+        new_lock_data = loader.build_lock_data(sample_manifest, sample_applications)
+        new_lock_data["package_resolution"]["source_policy_catalogue_version"] = "1.0.1"
+
+        changes = loader.compare_lock_files(
+            lock_path,
+            new_lock_data,
+            sample_manifest,
+        )
+
+        assert "Changed package_resolution" in changes
+
+    def test_pre_extension_v2_comparison_reports_package_migration(
+        self, loader, sample_manifest, sample_applications, tmp_path
+    ):
+        previous = loader.build_lock_data(sample_manifest, sample_applications)
+        previous.pop("package_resolution")
+        lock_path = tmp_path / "pre-extension-v2.lock.json"
+        lock_path.write_text(json.dumps(previous), encoding="utf-8")
+        new_lock_data = loader.build_lock_data(sample_manifest, sample_applications)
+
+        changes = loader.compare_lock_files(
+            lock_path,
+            new_lock_data,
+            sample_manifest,
+        )
+
+        assert any("Package-resolution migration required" in item for item in changes)
+
     def test_changed_manifest_is_detected(
         self,
         loader,
