@@ -62,7 +62,7 @@ def canonical_repository(value: str) -> str:
         authority, path = raw.split(":", 1)
         host = authority.rsplit("@", 1)[-1]
     else:
-        raise InventoryCaptureError(f"Unsupported Git repository URL form: {raw!r}")
+        raise InventoryCaptureError("Unsupported Git repository URL form; credentials and raw remotes are not logged.")
     if not host or not path:
         raise InventoryCaptureError("Git repository URL has no host or path.")
     path = path.strip("/").removesuffix(".git").lower()
@@ -205,6 +205,17 @@ def capture_inventory(bench_path: Path, lock_path: Path, output_path: Path,
         raise InventoryCaptureError(f"Unsupported build stage: {stage}")
     lock = load_lock(lock_path)
     locked_apps = lock["applications"]
+    expected_app_names = {app["name"] for app in locked_apps}
+    actual_app_names = {
+        path.name for path in apps_root.iterdir()
+        if path.is_dir() and not path.name.startswith(".")
+    }
+    if actual_app_names != expected_app_names:
+        raise InventoryCaptureError(
+            "Bench application directory composition differs from lock-v2: "
+            f"missing={sorted(expected_app_names - actual_app_names)}, "
+            f"unexpected={sorted(actual_app_names - expected_app_names)}"
+        )
     if all(isinstance(app.get("installation_order"), int) for app in locked_apps):
         ordered = sorted(locked_apps, key=lambda app: (app["installation_order"], app["name"]))
     else:
