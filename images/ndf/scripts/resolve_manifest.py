@@ -444,15 +444,11 @@ class ManifestLoader:
                     raise ManifestError(
                         f"{descriptor['app_id']}: unsupported version policy for {key}."
                     )
-                expected_resolver = (
-                    dependency.get("package_manager")
-                    if ecosystem == "os"
-                    else (
-                        ("pip", "uv")
-                        if ecosystem == "python"
-                        else ("npm", "yarn", "pnpm")
-                    )
-                )
+                expected_resolver = {
+                    "python": "uv",
+                    "node": "npm",
+                    "os": "apt",
+                }[ecosystem]
                 allowed_resolvers = (
                     {expected_resolver}
                     if isinstance(expected_resolver, str)
@@ -482,6 +478,32 @@ class ManifestLoader:
                     "node": "node-npm-public-v1",
                     "os": "os-debian-trixie-public-amd64-v1",
                 }[ecosystem]
+                catalogue_path = (
+                    self.repository_root / "images" / "ndf" / "policies"
+                    / "package-source-profiles-v1.json"
+                )
+                try:
+                    catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+                    profile = catalogue["source_profiles"][source_profile]
+                except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+                    raise ManifestError(
+                        f"Unable to load approved package source profile {source_profile}: {exc}"
+                    ) from exc
+                if not profile.get("enabled") or profile.get("ecosystem") != ecosystem:
+                    raise ManifestError(f"Package source profile is disabled or incompatible: {source_profile}")
+                approved_sources = (
+                    {profile.get("registry")}
+                    if ecosystem in {"python", "node"}
+                    else {
+                        item.get("uri")
+                        for item in profile.get("repositories", [])
+                        if isinstance(item, dict)
+                    }
+                )
+                if selection["source"] not in approved_sources:
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: {key} source does not match approved NDF profile {source_profile}."
+                    )
                 resolved.append(
                     {
                         "ecosystem": ecosystem,
