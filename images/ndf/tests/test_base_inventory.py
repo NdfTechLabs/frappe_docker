@@ -79,7 +79,6 @@ def test_base_package_lookup_uses_the_declared_stage_scope(tmp_path):
     _, parsed = validate_inventory_directory(tmp_path, SCHEMA)
 
     assert find_base_package(
-        manifest,
         parsed,
         scope="build",
         name="dpkg",
