@@ -131,30 +131,6 @@ def _supported_wheel_tags(target: dict) -> list:
     return tags
 
 
-def _validate_proxy(proxy: str | None) -> str:
-    if not proxy:
-        raise PythonAdapterError(
-            "NDF_PACKAGE_EGRESS_PROXY is required; configure an egress proxy that permits "
-            "only pypi.org and files.pythonhosted.org."
-        )
-    try:
-        parsed = urllib.parse.urlparse(proxy)
-        port = parsed.port
-    except ValueError as exc:
-        raise PythonAdapterError("Malformed package egress proxy URL.") from exc
-    if (
-        parsed.scheme not in {"http", "https"}
-        or not parsed.hostname
-        or parsed.username
-        or parsed.password
-        or parsed.query
-        or parsed.fragment
-        or port is None
-    ):
-        raise PythonAdapterError("Package egress proxy URL must be credential-free HTTP(S) with an explicit port.")
-    return proxy
-
-
 def _bounded_run(
     command: list[str],
     *,
@@ -343,7 +319,6 @@ def resolve_python_packages(
     *,
     repository_root: Path,
     uv_executable: str = "uv",
-    egress_proxy: str | None = None,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     output_limit: int = MAX_OUTPUT_BYTES,
     runner: Callable = subprocess.run,
@@ -440,7 +415,6 @@ def resolve_python_packages(
         )
 
     supported_tags = _supported_wheel_tags(target_runtime)
-    proxy = _validate_proxy(egress_proxy or os.environ.get("NDF_PACKAGE_EGRESS_PROXY"))
     deadline = time.monotonic() + timeout
     with tempfile.TemporaryDirectory(prefix="ndf-python-resolution-") as temporary:
         workspace = Path(temporary)
@@ -477,14 +451,6 @@ def resolve_python_packages(
             "UV_PYTHON_DOWNLOADS": "never",
             "UV_INDEX_URL": PYPI_INDEX,
             "UV_DEFAULT_INDEX": PYPI_INDEX,
-            "HTTPS_PROXY": proxy,
-            "HTTP_PROXY": proxy,
-            "https_proxy": proxy,
-            "http_proxy": proxy,
-            "ALL_PROXY": proxy,
-            "all_proxy": proxy,
-            "NO_PROXY": "",
-            "no_proxy": "",
         }
         Path(env["HOME"]).mkdir()
         version_command = [uv_executable, "--version"]
@@ -514,7 +480,7 @@ def resolve_python_packages(
             output_limit=output_limit, runner=runner,
         )
         if code != 0:
-            safe_error = stderr[-4000:].replace(proxy, "[proxy]")
+            safe_error = stderr[-4000:]
             raise PythonAdapterError(f"uv dependency resolution failed: {safe_error}")
         if not lock_path.is_file() or lock_path.stat().st_size > output_limit:
             raise PythonAdapterError("uv did not produce a bounded PEP 751 pylock.toml result.")
@@ -528,12 +494,14 @@ def resolve_python_packages(
         if len(lock["packages"]) > MAX_RESOLVED_PACKAGES:
             raise PythonAdapterError("Resolved Python package count exceeds the configured limit.")
 
-        proxy_handler = urllib.request.ProxyHandler({"https": proxy, "http": proxy})
+        # An explicit empty proxy map prevents urllib from inheriting ambient proxy settings.
+        # Direct HTTPS is used; runner/network policy must restrict outbound destinations.
+        direct_handler = urllib.request.ProxyHandler({})
         redirect_handler = _AllowlistedRedirectHandler(ARTIFACT_HOSTS)
         opener = (
-            opener_factory(proxy_handler, redirect_handler)
+            opener_factory(direct_handler, redirect_handler)
             if opener_factory
-            else urllib.request.build_opener(proxy_handler, redirect_handler)
+            else urllib.request.build_opener(direct_handler, redirect_handler)
         )
         package_rows = {}
         remaining_bytes = MAX_TOTAL_WHEEL_BYTES
