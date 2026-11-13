@@ -1,9 +1,12 @@
+import base64
 import hashlib
 import subprocess
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import tomllib
 
 from scripts.package_resolution import validate_package_resolution
 from scripts.resolve_manifest import ManifestLoader
@@ -226,6 +229,78 @@ def test_manifest_loader_emits_unresolved_python_requests_for_native_adapter(tmp
             "scope": "runtime",
         }
     ]
+
+
+
+def test_uv_0137_emits_pep751_pylock_for_local_wheel_without_network(tmp_path):
+    version = subprocess.run(
+        ["uv", "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if version.returncode != 0 or version.stdout.strip() != "uv 0.13.7":
+        pytest.skip("Authoritative uv 0.13.7 is installed by the CI workflow.")
+
+    dist_info = "demo_pylock_fixture-1.0.0.dist-info"
+    metadata = (
+        "Metadata-Version: 2.3\\n"
+        "Name: demo-pylock-fixture\\n"
+        "Version: 1.0.0\\n"
+    ).encode()
+    wheel_metadata = (
+        "Wheel-Version: 1.0\\n"
+        "Generator: NDF test fixture\\n"
+        "Root-Is-Purelib: true\\n"
+        "Tag: py3-none-any\\n"
+    ).encode()
+    wheel_path = tmp_path / "demo_pylock_fixture-1.0.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel_path, "w") as archive:
+        archive.writestr(f"{dist_info}/METADATA", metadata)
+        archive.writestr(f"{dist_info}/WHEEL", wheel_metadata)
+        archive.writestr(
+            f"{dist_info}/RECORD",
+            f"{dist_info}/METADATA,,\\n{dist_info}/WHEEL,,\\n{dist_info}/RECORD,,\\n",
+        )
+
+    requirements = tmp_path / "requirements.in"
+    requirements.write_text("demo-pylock-fixture==1.0.0\\n", encoding="utf-8")
+    output = tmp_path / "pylock.toml"
+    completed = subprocess.run(
+        [
+            "uv", "pip", "compile", str(requirements),
+            "--output-file", str(output),
+            "--format", "pylock.toml",
+            "--no-index",
+            "--find-links", str(tmp_path),
+            "--python-version", "3.14.10",
+            "--python-platform", "x86_64-manylinux_2_41",
+            "--no-build",
+            "--no-config",
+            "--no-cache",
+        ],
+        cwd=tmp_path,
+        env={
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": str(tmp_path),
+            "TMPDIR": str(tmp_path),
+            "UV_NO_CONFIG": "1",
+            "UV_NO_CACHE": "1",
+            "UV_PYTHON_DOWNLOADS": "never",
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    lock = tomllib.loads(output.read_text(encoding="utf-8"))
+    assert lock["lock-version"] == "1.0"
+    package = next(item for item in lock["packages"] if item["name"] == "demo-pylock-fixture")
+    assert package["version"] == "1.0.0"
+    assert package["wheels"]
+    assert package["wheels"][0]["name"].endswith(".whl")
+    assert package["wheels"][0]["hashes"]["sha256"]
 
 
 def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
