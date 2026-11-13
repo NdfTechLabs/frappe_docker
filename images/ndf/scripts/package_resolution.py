@@ -411,6 +411,12 @@ def validate_package_resolution(
                     raise PackageResolutionError("Package artifact host is not approved by its source profile.")
             elif artifact.startswith("/") or ".." in Path(artifact).parts:
                 raise PackageResolutionError("Debian package artifact path is invalid.")
+        integrity_keys = [
+            (item["algorithm"], item["digest"], item["artifact"])
+            for item in package["integrity"]
+        ]
+        if integrity_keys != sorted(set(integrity_keys)):
+            raise PackageResolutionError("Package integrity records must be sorted and unique.")
         if _contains_secret_or_credential(package["repository_metadata"]):
             raise PackageResolutionError("Repository metadata contains credentials or secret-bearing values.")
         if ecosystem in {"python", "node"}:
