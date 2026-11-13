@@ -1182,7 +1182,8 @@ class TestLockComparison:
         assert changes
         assert any("No previous lock file found" in change for change in changes)
 
-    def test_version_one_lock_is_rejected(self,
+    def test_version_one_lock_is_rejected(
+        self,
         loader,
         sample_manifest,
         sample_applications,
