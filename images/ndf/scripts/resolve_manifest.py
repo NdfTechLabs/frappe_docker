@@ -1288,6 +1288,18 @@ class ManifestLoader:
                 "transitive closure and provenance is required."
             )
 
+        catalogue_path = (
+            self.repository_root / "images" / "ndf" / "policies"
+            / "package-source-profiles-v1.json"
+        )
+        try:
+            source_catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+            catalogue_version = source_catalogue["catalogue_version"]
+            if not isinstance(catalogue_version, str) or not catalogue_version:
+                raise ValueError("catalogue_version must be a non-empty string")
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise ManifestError(f"Unable to load package source catalogue version: {exc}") from exc
+
         framework = dict(manifest["framework"])
         framework.update(
             {
@@ -1315,7 +1327,7 @@ class ManifestLoader:
             "target_runtime": manifest.get("target_runtime"),
             "package_resolution": {
                 "schema_version": 1,
-                "source_policy_catalogue_version": "1.0.0",
+                "source_policy_catalogue_version": catalogue_version,
                 "source_profiles": [],
                 "base_inventory": None,
                 "packages": [],
