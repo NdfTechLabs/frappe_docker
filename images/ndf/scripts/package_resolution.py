@@ -621,21 +621,10 @@ def validate_package_resolution(
             raise PackageResolutionError(f"Resolved dependency {target_id} does not satisfy {constraint}.")
         adjacency[source_id].append(target_id)
 
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    def visit(node: str) -> None:
-        if node in visiting:
-            raise PackageResolutionError("Package dependency cycle detected.")
-        if node in visited:
-            return
-        visiting.add(node)
-        for child in adjacency[node]:
-            visit(child)
-        visiting.remove(node)
-        visited.add(node)
-    for package_id in sorted(adjacency):
-        visit(package_id)
-
+    # Native package ecosystems may contain valid dependency cycles.
+    # The approved adapter is responsible for producing the complete resolved
+    # graph; offline validation checks its identities, provenance, constraints,
+    # endpoints and reachability without imposing DAG semantics on package edges.
     reachable: set[str] = set()
     def mark_reachable(node: str) -> None:
         if node in reachable:
