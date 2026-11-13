@@ -134,7 +134,12 @@
             "properties": {
               "version": { "type": "string", "minLength": 1 },
               "source": { "type": "string", "format": "uri", "minLength": 1 },
-              "resolver": { "type": "string", "minLength": 1 }
+              "resolver": { "type": "string", "minLength": 1 },
+              "architecture": {
+                "type": "string",
+                "enum": ["amd64", "all"],
+                "description": "Native OS package architecture selected by the resolver; required for OS package records."
+              }
             },
             "additionalProperties": false
           }
