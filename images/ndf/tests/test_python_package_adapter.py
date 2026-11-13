@@ -305,7 +305,7 @@ def test_uv_0137_emits_pep751_pylock_for_local_wheel_without_network(tmp_path):
     package = next(item for item in lock["packages"] if item["name"] == "demo-pylock-fixture")
     assert package["version"] == "1.0.0"
     assert package["wheels"]
-    assert package["wheels"][0]["name"].endswith(".whl")
+    assert package["wheels"][0]["url"].endswith(".whl")
     assert package["wheels"][0]["hashes"]["sha256"]
 
 
