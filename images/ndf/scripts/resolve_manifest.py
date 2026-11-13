@@ -1425,6 +1425,7 @@ class ManifestLoader:
         lock_path: Path,
         expected_manifest: dict,
         verify_manifest_checksums: bool = True,
+        allow_package_resolution_migration: bool = False,
     ):
         """Validate a lock file and optionally verify source manifest checksums."""
 
@@ -1951,7 +1952,7 @@ class ManifestLoader:
                 for app in applications
                 if isinstance(app, dict)
             )
-            if has_direct_package_selections:
+            if has_direct_package_selections and not allow_package_resolution_migration:
                 raise ManifestError(
                     "Package-resolution migration required: lock v2 contains direct "
                     "package selections but no normalized package_resolution graph."
@@ -2015,6 +2016,7 @@ class ManifestLoader:
             previous_lock_path,
             manifest,
             verify_manifest_checksums=False,
+            allow_package_resolution_migration=True,
         )
 
         changes = []
