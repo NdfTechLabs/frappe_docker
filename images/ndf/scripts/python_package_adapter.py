@@ -90,9 +90,10 @@ def _supported_wheel_tags(target: dict) -> list:
     py_version = (3, 14)
     interpreter = "cp314"
     tags = list(cpython_tags(py_version, abis=("cp314", "abi3", "none"), platforms=platforms))
+    known_tags = set(tags)
     tags.extend(
         tag for tag in compatible_tags(py_version, interpreter=interpreter, platforms=platforms)
-        if tag not in set(tags)
+        if tag not in known_tags
     )
     return tags
 
@@ -174,6 +175,7 @@ def _verify_wheel(
     opener,
     workspace: Path,
     remaining_bytes: int,
+    request_timeout: int,
 ) -> tuple[dict, int]:
     url = wheel.get("url")
     _safe_url(url, ARTIFACT_HOSTS)
@@ -198,7 +200,7 @@ def _verify_wheel(
     digest = hashlib.sha256()
     total = 0
     try:
-        with opener.open(urllib.request.Request(url, headers={"User-Agent": "NDF-Package-Resolver/1"}), timeout=30) as response:
+        with opener.open(urllib.request.Request(url, headers={"User-Agent": "NDF-Package-Resolver/1"}), timeout=request_timeout) as response:
             final_url = response.geturl()
             _safe_url(final_url, ARTIFACT_HOSTS)
             with destination.open("wb") as output:
@@ -465,6 +467,7 @@ def resolve_python_packages(
             integrity, downloaded = _verify_wheel(
                 compatible[0][1],
                 name, version, supported_tags, opener, workspace, remaining_bytes,
+                request_timeout=max(1, min(30, int(remaining_time))),
             )
             remaining_bytes -= downloaded
             if name in package_rows:
