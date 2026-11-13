@@ -421,10 +421,15 @@ def validate_package_resolution(
         return True
     if not isinstance(inventory_ref, dict):
         raise PackageResolutionError("OS base packages require a verified base_inventory reference.")
+    if set(inventory_ref) != {"schema_version", "evidence_reference", "manifest_file", "manifest_sha256", "inventories"} or inventory_ref.get("schema_version") != 1:
+        raise PackageResolutionError("base_inventory reference has an unsupported or incomplete schema.")
     evidence_ref = inventory_ref.get("evidence_reference")
     expected_prefix = "images/ndf/inventories/debian-trixie-amd64/"
-    if not isinstance(evidence_ref, str) or not evidence_ref.startswith(expected_prefix) or ".." in Path(evidence_ref).parts:
-        raise PackageResolutionError("Invalid repository base inventory evidence reference.")
+    expected_reference = expected_prefix + images["runtime"]["manifest_digest"].removeprefix("sha256:")
+    if evidence_ref != expected_reference or ".." in Path(str(evidence_ref)).parts:
+        raise PackageResolutionError("Base inventory evidence reference is not keyed by the target runtime digest.")
+    if not isinstance(inventory_ref.get("inventories"), dict) or set(inventory_ref["inventories"]) != {"builder", "runtime"}:
+        raise PackageResolutionError("base_inventory must contain exactly builder and runtime evidence.")
     evidence_dir = (repository_root / evidence_ref).resolve()
     if not evidence_dir.is_relative_to(repository_root.resolve()):
         raise PackageResolutionError("Base inventory evidence path escapes repository root.")
@@ -440,7 +445,14 @@ def validate_package_resolution(
     except (OSError, InventoryError) as exc:
         raise PackageResolutionError(f"Base inventory evidence validation failed: {exc}") from exc
     for stage in ("builder", "runtime"):
-        inventory = inventory_ref.get("inventories", {}).get(stage, {})
+        inventory = inventory_ref["inventories"][stage]
+        required_inventory_fields = {
+            "image_manifest_digest", "platform", "package_database",
+            "package_database_version", "inventory_file", "inventory_sha256",
+            "package_count",
+        }
+        if not isinstance(inventory, dict) or set(inventory) != required_inventory_fields:
+            raise PackageResolutionError(f"Base inventory {stage} reference is incomplete.")
         evidence_stage = evidence["inventories"][stage]
         image = images[stage]
         if inventory.get("image_manifest_digest") != image.get("manifest_digest") or evidence_stage["image"]["manifest_digest"] != image.get("manifest_digest"):
