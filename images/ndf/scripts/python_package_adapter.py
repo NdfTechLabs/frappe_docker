@@ -77,6 +77,9 @@ def _safe_url(value: str, allowed_hosts: frozenset[str]) -> urllib.parse.ParseRe
 def _target_platforms(target: dict) -> list[str]:
     os_data = target.get("os", {})
     libc = os_data.get("libc", {})
+    images = target.get("images", {})
+    builder = images.get("builder", {})
+    runtime = images.get("runtime", {})
     if (
         target.get("python") != "3.14.10"
         or target.get("python_implementation") != "CPython"
@@ -97,6 +100,14 @@ def _target_platforms(target: dict) -> list[str]:
         or os_data.get("package_database_version") != "1.22.22"
         or libc.get("implementation") != "glibc"
         or libc.get("version") != "2.41"
+        or builder.get("reference") != "frappe/build@sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
+        or builder.get("index_digest") != "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe"
+        or builder.get("manifest_digest") != "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
+        or builder.get("platform") != "linux/amd64"
+        or runtime.get("reference") != "frappe/base@sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+        or runtime.get("index_digest") != "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0"
+        or runtime.get("manifest_digest") != "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+        or runtime.get("platform") != "linux/amd64"
     ):
         raise PythonAdapterError("Unsupported Python target; only the accepted RT-01 CPython 3.14.10 AMD64 target is supported.")
     return (
