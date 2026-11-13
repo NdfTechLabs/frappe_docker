@@ -567,7 +567,7 @@ class TestLockGeneration:
         assert len(lock_data["applications"]) == 1
         assert lock_data["package_resolution"] == {
             "schema_version": 1,
-            "source_policy_catalogue_version": "1.0.0",
+            "source_policy_catalogue_version": "1.1.0",
             "source_profiles": [],
             "base_inventory": None,
             "packages": [],
@@ -972,7 +972,7 @@ class TestLockComparison:
     ):
         lock_path, _ = generated_lock
         new_lock_data = loader.build_lock_data(sample_manifest, sample_applications)
-        new_lock_data["package_resolution"]["source_policy_catalogue_version"] = "1.0.1"
+        new_lock_data["package_resolution"]["source_policy_catalogue_version"] = "1.1.1"
 
         changes = loader.compare_lock_files(
             lock_path,
