@@ -118,7 +118,12 @@ def validate_package_resolution(
         "packages",
         "dependency_edges",
     }
-    if set(section) != required or section.get("schema_version") != 1:
+    if (
+        set(section) != required
+        or section.get("schema_version") != 1
+        or isinstance(section.get("schema_version"), bool)
+        or not isinstance(section.get("source_policy_catalogue_version"), str)
+    ):
         raise PackageResolutionError("package_resolution has an unsupported or incomplete schema.")
     profiles = section["source_profiles"]
     packages = section["packages"]
@@ -139,15 +144,12 @@ def validate_package_resolution(
         for item in applications
         if isinstance(item, dict) and isinstance(item.get("app_id"), str)
     }
-    if packages:
-        if not isinstance(target_runtime, dict):
-            raise PackageResolutionError("Package graph requires an exact target_runtime.")
-        if catalogue_path is None:
-            catalogue_path = Path(__file__).resolve().parents[1] / "policies" / "package-source-profiles-v1.json"
-        catalogue = _load_catalogue(catalogue_path)
-        if section["source_policy_catalogue_version"] != catalogue.get("catalogue_version"):
-            raise PackageResolutionError("Package source catalogue version does not match the lock.")
-    else:
+    if catalogue_path is None:
+        catalogue_path = Path(__file__).resolve().parents[1] / "policies" / "package-source-profiles-v1.json"
+    catalogue = _load_catalogue(catalogue_path)
+    if section["source_policy_catalogue_version"] != catalogue.get("catalogue_version"):
+        raise PackageResolutionError("Package source catalogue version does not match the lock.")
+    if not packages:
         if edges or profiles or section["base_inventory"] is not None:
             raise PackageResolutionError("Empty package graph must not carry edges, profiles or base inventory.")
         if any(
@@ -159,6 +161,8 @@ def validate_package_resolution(
                 "Direct package selections are not represented by a normalized package graph."
             )
         return True
+    if not isinstance(target_runtime, dict):
+        raise PackageResolutionError("Package graph requires an exact target_runtime.")
 
     catalogue_profiles = catalogue["source_profiles"]
     if profiles != sorted(set(profiles)):
@@ -213,6 +217,7 @@ def validate_package_resolution(
     by_id: dict[str, dict] = {}
     seen_singletons: set[tuple[str, str, str]] = set()
     used_profiles = set()
+    source_by_package: dict[tuple[str, str], tuple[str, str]] = {}
     for package in packages:
         if not isinstance(package, dict):
             raise PackageResolutionError("Package records must be objects.")
@@ -311,6 +316,11 @@ def validate_package_resolution(
                 or not re.fullmatch(r"[a-f0-9]{64}", metadata["release_sha256"])
             ):
                 raise PackageResolutionError("Debian package requires authenticated Release metadata identity/hash.")
+        source_key = (ecosystem, normalized_name)
+        source_identity = (profile_id, package["source"])
+        previous_source = source_by_package.setdefault(source_key, source_identity)
+        if previous_source != source_identity:
+            raise PackageResolutionError(f"Conflicting package sources selected for {ecosystem}:{normalized_name}.")
         used_profiles.add(profile_id)
 
     if sorted(used_profiles) != profiles:
@@ -350,6 +360,8 @@ def validate_package_resolution(
                 or direct.get("resolver") != package["resolver"]
                 or direct.get("disposition") != package["disposition"]
                 or direct.get("install") != package["install"]
+                or direct.get("source_profile") != package["source_profile"]
+                or direct.get("scope") != package["scope"]
             ):
                 raise PackageResolutionError("Direct package provenance/disposition differs from normalized package record.")
             policy = direct.get("version_policy")
