@@ -25,7 +25,6 @@ except ImportError:
         validate_descriptor,
     )
 from packaging.specifiers import SpecifierSet
-from package_resolution import normalize_package_name
 from packaging.version import Version as PythonVersion
 from semantic_version import NpmSpec
 from semantic_version import Version as SemVerVersion
@@ -33,11 +32,13 @@ from semantic_version import Version as SemVerVersion
 try:
     from .package_resolution import (
         PackageResolutionError,
+        normalize_package_name,
         validate_package_resolution,
     )
 except ImportError:
     from package_resolution import (
         PackageResolutionError,
+        normalize_package_name,
         validate_package_resolution,
     )
 
