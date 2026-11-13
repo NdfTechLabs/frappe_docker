@@ -406,6 +406,15 @@ def validate_package_resolution(
         }[ecosystem]
         if resolver not in allowed or not isinstance(package["resolver_version"], str) or not package["resolver_version"]:
             raise PackageResolutionError(f"Unsupported or unpinned resolver for {ecosystem}.")
+        if ecosystem == "python":
+            expected_uv_version = catalogue.get("resolver_policy", {}).get("python", {}).get("version")
+            if not isinstance(expected_uv_version, str) or not expected_uv_version:
+                raise PackageResolutionError("Approved Python resolver version is missing from the source policy catalogue.")
+            if package["resolver_version"] != expected_uv_version:
+                raise PackageResolutionError(
+                    f"Python resolver version {package['resolver_version']} does not match "
+                    f"the approved uv version {expected_uv_version}."
+                )
         if ecosystem == "node" and package["resolver_version"] != target_runtime.get("npm"):
             raise PackageResolutionError("npm resolver version does not match the accepted target runtime.")
         if not isinstance(package["source"], str) or not package["source"]:
