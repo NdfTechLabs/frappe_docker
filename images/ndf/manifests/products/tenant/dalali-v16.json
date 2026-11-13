@@ -4,26 +4,22 @@
   "id": "dalali-v16",
   "name": "Dalali",
   "description": "Dalali ecommerce and retail deployment built on DhanaERP and Frappe v16.",
-
   "framework": {
     "name": "frappe",
     "version": "16",
     "release_channel": "stable",
     "target_ref": "version-16"
   },
-
   "profile": {
     "type": "product",
     "required": true,
     "install_by_default": true
   },
-
   "deployment": {
     "role": "tenant",
     "product": "dalali",
     "purpose": "ecommerce_and_retail"
   },
-
   "resolution": {
     "strategy": "locked",
     "require_immutable_commit": true,
@@ -39,7 +35,6 @@
       "All production application references must resolve to immutable commit SHAs."
     ]
   },
-
   "includes": [
     {
       "manifest": "core/dhana-base-v16.json",
@@ -54,7 +49,6 @@
       "required": true
     }
   ],
-
   "capabilities": [
     {
       "manifest": "capabilities/ai-automation-v16.json",
@@ -63,7 +57,6 @@
       "description": "Optional AI and automation functionality for Dalali."
     }
   ],
-
   "applications": [
     {
       "name": "dt_dalali_ecommerce",
@@ -79,11 +72,10 @@
         "dt_ecommerce",
         "dt_recomendations"
       ],
-      "compatibility_status": "pending_frappe_v16_validation",
+      "compatibility_status": "verified",
       "notes": "Dalali-specific ecommerce application for Dalali Merchants Ltd."
     }
   ],
-
   "validation": {
     "required_checks": [
       "all_included_manifests_exist",
