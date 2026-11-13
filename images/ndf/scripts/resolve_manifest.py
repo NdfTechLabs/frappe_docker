@@ -2103,11 +2103,10 @@ class ManifestLoader:
                 f"Unable to read previous lock file " f"{previous_lock_path}: {exc}"
             ) from exc
 
-        # Version 1 locks predate enforced policy and reference provenance.
-        # Treat them as migration inputs, not valid version 2 locks.
+        # Lock v2 is the only supported format. Legacy v1 locks must be
+        # removed and regenerated from the current source manifests; they are
+        # not migration inputs.
         previous_version = previous_lock.get("lock_version")
-        if previous_version == 1:
-            return ["Lock format upgrade required: 1 -> 2"]
         if previous_version != 2:
             raise ManifestError(f"Unsupported lock version: {previous_version}")
 
