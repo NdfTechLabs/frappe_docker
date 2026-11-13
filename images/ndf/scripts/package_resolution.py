@@ -497,6 +497,11 @@ def validate_package_resolution(
                 or direct.get("scope") != package["scope"]
             ):
                 raise PackageResolutionError("Direct package provenance/disposition differs from normalized package record.")
+            if ecosystem == "os":
+                if direct.get("architecture") != package["architecture"]:
+                    raise PackageResolutionError("Direct OS package architecture differs from normalized package identity.")
+            elif direct.get("architecture") not in (None, ""):
+                raise PackageResolutionError("Python/Node direct package requests must not specify architecture.")
             policy = direct.get("version_policy")
             constraint = direct.get("requested_constraint")
             if policy == "constraint":
