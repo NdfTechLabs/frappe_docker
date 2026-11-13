@@ -240,7 +240,7 @@ def test_uv_0137_emits_pep751_pylock_for_local_wheel_without_network(tmp_path):
         text=True,
         check=False,
     )
-    if version.returncode != 0 or version.stdout.strip() != "uv 0.13.7":
+    if version.returncode != 0 or version.stdout.strip().split()[:2] != ["uv", "0.13.7"]:
         pytest.skip("Authoritative uv 0.13.7 is installed by the CI workflow.")
 
     dist_info = "demo_pylock_fixture-1.0.0.dist-info"
