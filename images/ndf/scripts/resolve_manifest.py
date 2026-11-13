@@ -1974,6 +1974,15 @@ class ManifestLoader:
 
         changes = []
 
+        # A pre-extension v2 lock is a migration input, not equivalent to
+        # a newly generated package-resolution-complete lock.
+        previous_package_resolution = previous_lock.get("package_resolution")
+        new_package_resolution = new_lock_data.get("package_resolution")
+        if previous_package_resolution is None and new_package_resolution is not None:
+            changes = ["Package-resolution migration required: pre-extension lock v2"]
+        elif previous_package_resolution != new_package_resolution:
+            changes = ["Changed package_resolution"]
+
         # Compare top-level metadata.
         for section in (
             "product",
