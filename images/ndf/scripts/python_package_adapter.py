@@ -492,7 +492,8 @@ def resolve_python_packages(
             version_command, cwd=workspace, env=env, timeout=timeout,
             output_limit=output_limit, runner=runner,
         )
-        if code != 0 or stdout.strip() != f"uv {UV_VERSION}":
+        reported_version = stdout.strip().split()
+        if code != 0 or reported_version[:2] != ["uv", UV_VERSION]:
             raise PythonAdapterError(
                 f"Expected authoritative resolver uv {UV_VERSION}; received {stdout.strip() or stderr.strip()}."
             )
