@@ -6,8 +6,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from urllib.parse import urlsplit
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Any
 
 from packaging.specifiers import SpecifierSet
@@ -57,6 +57,8 @@ def package_identity(ecosystem: str, name: str, version: str, architecture: str 
     normalized = normalize_package_name(ecosystem, name)
     if not isinstance(version, str) or not version or "|" in version:
         raise PackageResolutionError("Package version must be a non-empty exact version.")
+    if not isinstance(architecture, str):
+        raise PackageResolutionError("Package architecture must be a string.")
     if ecosystem == "os" and not architecture:
         raise PackageResolutionError("OS package identity requires architecture.")
     if ecosystem != "os" and architecture:
@@ -134,9 +136,17 @@ def validate_package_resolution(
         raise PackageResolutionError("source_profiles must be sorted and unique.")
     if not isinstance(packages, list) or not isinstance(edges, list):
         raise PackageResolutionError("packages and dependency_edges must be arrays.")
-    if packages != sorted(packages, key=lambda item: item.get("id", "") if isinstance(item, dict) else ""):
+    if any(not isinstance(item, dict) or not isinstance(item.get("id"), str) for item in packages):
+        raise PackageResolutionError("Every package record must be an object with a string id.")
+    if any(
+        not isinstance(item, dict)
+        or not all(isinstance(item.get(key), str) for key in ("from", "to", "constraint"))
+        for item in edges
+    ):
+        raise PackageResolutionError("Every dependency edge must contain string from/to/constraint fields.")
+    if packages != sorted(packages, key=lambda item: item["id"]):
         raise PackageResolutionError("packages must be sorted by id.")
-    if edges != sorted(edges, key=lambda item: (item.get("from", ""), item.get("to", ""), item.get("constraint", "")) if isinstance(item, dict) else ("", "", "")):
+    if edges != sorted(edges, key=lambda item: (item["from"], item["to"], item["constraint"])):
         raise PackageResolutionError("dependency_edges must be canonically sorted.")
 
     app_ids = {
@@ -171,6 +181,10 @@ def validate_package_resolution(
     target_platform = target_runtime.get("platform", {})
     images = target_runtime.get("images", {})
     os_target = target_runtime.get("os", {})
+    if not all(isinstance(item, dict) for item in (target_platform, images, os_target)):
+        raise PackageResolutionError("Target runtime platform, images and OS metadata must be objects.")
+    if not isinstance(os_target.get("libc"), dict):
+        raise PackageResolutionError("Target runtime libc identity is incomplete.")
     if target_platform != {"os": "linux", "architecture": "amd64"}:
         raise PackageResolutionError("Package graph target is outside the accepted A.1 linux/amd64 matrix.")
     if (
@@ -210,7 +224,8 @@ def validate_package_resolution(
             image.get("platform") != "linux/amd64"
             or image.get("manifest_digest") != accepted_digests[stage]
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("manifest_digest", ""))
-            or image.get("reference", "").rsplit("@", 1)[-1] != image.get("manifest_digest")
+            or not isinstance(image.get("reference"), str)
+            or image["reference"].rsplit("@", 1)[-1] != image.get("manifest_digest")
         ):
             raise PackageResolutionError(f"target_runtime.images.{stage} is not one of the accepted A.1 RT-01 digests.")
 
@@ -242,12 +257,16 @@ def validate_package_resolution(
         seen_singletons.add(singleton_key)
         by_id[expected_id] = package
         profile_id = package["source_profile"]
+        if not isinstance(profile_id, str):
+            raise PackageResolutionError("Package source_profile must be a string.")
         profile = catalogue_profiles.get(profile_id)
         if profile_id not in profiles or not isinstance(profile, dict) or not profile.get("enabled"):
             raise PackageResolutionError(f"Package uses an unapproved source profile: {profile_id}")
         if profile.get("ecosystem") != ecosystem:
             raise PackageResolutionError(f"Source profile {profile_id} does not support {ecosystem}.")
         resolver = package["resolver"]
+        if not isinstance(resolver, str):
+            raise PackageResolutionError("Package resolver must be a string.")
         allowed = {
             "python": {"uv"},
             "node": {"npm"},
@@ -283,16 +302,21 @@ def validate_package_resolution(
                 raise PackageResolutionError("OS source profile is not approved for amd64.")
         if not isinstance(package["direct"], bool) or not isinstance(package["install"], bool):
             raise PackageResolutionError("Package direct/install fields must be booleans.")
-        if package["disposition"] not in {"base", "runtime_compatible", "environment_level"}:
+        if not isinstance(package["disposition"], str) or package["disposition"] not in {"base", "runtime_compatible", "environment_level"}:
             raise PackageResolutionError("Unsupported package disposition.")
         if package["disposition"] == "environment_level":
             raise PackageResolutionError("Environment-level package makes this target ineligible.")
         if package["install"] != (package["disposition"] != "base"):
             raise PackageResolutionError("Package install flag conflicts with its disposition.")
-        if package["scope"] not in {"build", "runtime"}:
+        if not isinstance(package["scope"], str) or package["scope"] not in {"build", "runtime"}:
             raise PackageResolutionError("Package scope must be build or runtime.")
         requested_by = package["requested_by"]
-        if not isinstance(requested_by, list) or requested_by != sorted(set(requested_by)) or any(app_id not in app_ids for app_id in requested_by):
+        if (
+            not isinstance(requested_by, list)
+            or any(not isinstance(app_id, str) for app_id in requested_by)
+            or requested_by != sorted(set(requested_by))
+            or any(app_id not in app_ids for app_id in requested_by)
+        ):
             raise PackageResolutionError("requested_by must contain sorted, unique locked app_id values.")
         if package["direct"] != bool(requested_by):
             raise PackageResolutionError("Direct package status must agree with requested_by.")
@@ -331,7 +355,10 @@ def validate_package_resolution(
         if not isinstance(app, dict):
             continue
         app_id = app.get("app_id")
-        for direct in app.get("package_dependencies", []):
+        direct_dependencies = app.get("package_dependencies", [])
+        if not isinstance(direct_dependencies, list):
+            raise PackageResolutionError("Application package_dependencies must be an array.")
+        for direct in direct_dependencies:
             if not isinstance(direct, dict):
                 raise PackageResolutionError("Direct package dependency record is malformed.")
             ecosystem = direct.get("ecosystem")
