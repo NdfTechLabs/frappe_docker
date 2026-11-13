@@ -111,13 +111,16 @@ def _contains_secret_or_credential(value: Any) -> bool:
                 return True
     elif isinstance(value, list):
         return any(_contains_secret_or_credential(item) for item in value)
-    elif isinstance(value, str) and "://" in value:
-        try:
-            parsed = urlsplit(value)
-        except ValueError:
+    elif isinstance(value, str):
+        if re.match(r"^/(?:tmp|var/tmp|home)/", value):
             return True
-        if parsed.username or parsed.password or parsed.query:
-            return True
+        if "://" in value:
+            try:
+                parsed = urlsplit(value)
+            except ValueError:
+                return True
+            if parsed.username or parsed.password or parsed.query:
+                return True
     return False
 
 
@@ -257,6 +260,10 @@ def validate_package_resolution(
         "builder": "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe",
         "runtime": "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0",
     }
+    accepted_references = {
+        "builder": "frappe/build@" + accepted_digests["builder"],
+        "runtime": "frappe/base@" + accepted_digests["runtime"],
+    }
     for stage in ("builder", "runtime"):
         image = images.get(stage, {})
         if (
@@ -265,8 +272,7 @@ def validate_package_resolution(
             or image.get("manifest_digest") != accepted_digests[stage]
             or image.get("index_digest") != accepted_index_digests[stage]
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("manifest_digest", ""))
-            or not isinstance(image.get("reference"), str)
-            or image["reference"].rsplit("@", 1)[-1] != image.get("manifest_digest")
+            or image.get("reference") != accepted_references[stage]
         ):
             raise PackageResolutionError(f"target_runtime.images.{stage} is not one of the accepted A.1 RT-01 digests.")
 
