@@ -8,7 +8,7 @@
 # Usage:
 #   bash images/ndf/scripts/inspect_target_runtime.sh
 #   bash images/ndf/scripts/inspect_target_runtime.sh --platform linux/amd64
-#   bash images/ndf/scripts/inspect_target_runtime.sh --output-dir /tmp/ndf-rt01
+#   bash images/ndf/scripts/inspect_target_runtime.sh --output-dir /tmp/ndf-rt01\n#   bash images/ndf/scripts/inspect_target_runtime.sh --finalize-existing --output-dir /path/to/rt01-evidence
 
 set -Eeuo pipefail
 
