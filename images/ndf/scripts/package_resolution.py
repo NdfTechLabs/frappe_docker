@@ -206,17 +206,25 @@ def validate_package_resolution(
         or target_runtime.get("python_implementation") != "CPython"
         or not target_runtime.get("python_cache_tag")
         or not target_runtime.get("python_soabi")
+        or not target_runtime.get("python_platform")
+        or not target_runtime.get("python_executable")
+        or not target_runtime.get("python_build")
         or target_runtime.get("node") != "24.22.2"
         or target_runtime.get("npm") != "11.19.1"
         or target_runtime.get("node_platform") != "linux"
         or target_runtime.get("node_architecture") != "x64"
         or not target_runtime.get("node_abi")
         or not target_runtime.get("node_api")
+        or not target_runtime.get("node_executable")
     ):
         raise PackageResolutionError("Package graph target Python/Node identity is incomplete or outside accepted RT-01.")
     accepted_digests = {
         "builder": "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b",
         "runtime": "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c",
+    }
+    accepted_index_digests = {
+        "builder": "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe",
+        "runtime": "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0",
     }
     for stage in ("builder", "runtime"):
         image = images.get(stage, {})
