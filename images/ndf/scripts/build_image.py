@@ -15,12 +15,75 @@ from typing import Any
 
 try:
     from .prepare_build import BuildPreparationError, prepare_build
+    from .validate_base_inventory import InventoryError, validate_inventory_directory
 except ImportError:
     from prepare_build import BuildPreparationError, prepare_build
+    from validate_base_inventory import InventoryError, validate_inventory_directory
 
 
 class BuildExecutionError(Exception):
     """Raised when a product image build cannot be completed."""
+
+
+DEFAULT_BASE_INVENTORY = Path(
+    "inventories/debian-trixie-amd64/"
+    "f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+)
+SUPPORTED_PLATFORM = "linux/amd64"
+
+
+def resolve_base_images(
+    ndf_dir: Path,
+    evidence_dir: Path | None,
+    platforms: list[str],
+) -> dict[str, Any]:
+    """Validate the accepted base inventory and return immutable stage refs."""
+    if platforms != [SUPPORTED_PLATFORM]:
+        raise BuildExecutionError(
+            "Only linux/amd64 has accepted RT-01 builder/runtime inventory evidence; "
+            "ARM64 and multi-platform builds remain unsupported."
+        )
+
+    configured_dir = evidence_dir or DEFAULT_BASE_INVENTORY
+    root = configured_dir if configured_dir.is_absolute() else ndf_dir / configured_dir
+    root = root.resolve()
+    ndf_root = ndf_dir.resolve()
+    if not root.is_relative_to(ndf_root):
+        raise BuildExecutionError("Base inventory directory must be inside images/ndf.")
+
+    schema_path = ndf_dir / "schemas" / "base-inventory-manifest-v1.schema.json"
+    try:
+        manifest, _ = validate_inventory_directory(root, schema_path)
+    except InventoryError as exc:
+        raise BuildExecutionError(f"Base inventory validation failed: {exc}") from exc
+
+    stage_refs: dict[str, str] = {}
+    for stage, repository in (("builder", "frappe/build"), ("runtime", "frappe/base")):
+        image = manifest["inventories"][stage]["image"]
+        if image["platform"] != SUPPORTED_PLATFORM:
+            raise BuildExecutionError(
+                f"{stage} base inventory platform {image['platform']!r} "
+                f"does not match {SUPPORTED_PLATFORM!r}."
+            )
+        digest = image["manifest_digest"]
+        expected_ref = f"{repository}@{digest}"
+        if image["reference"] != expected_ref:
+            raise BuildExecutionError(
+                f"{stage} base image must be the approved {repository} "
+                "platform-specific digest reference."
+            )
+        stage_refs[stage] = expected_ref
+
+    manifest_path = root / "inventory-manifest.json"
+    return {
+        "platform": SUPPORTED_PLATFORM,
+        "builder": stage_refs["builder"],
+        "runtime": stage_refs["runtime"],
+        "inventory_manifest": str(manifest_path.relative_to(ndf_root)),
+        "inventory_manifest_sha256": __import__("hashlib").sha256(
+            manifest_path.read_bytes()
+        ).hexdigest(),
+    }
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -140,6 +203,8 @@ def build_command(
     image_repository: str,
     image_tag: str | None,
     frappe_branch: str,
+    builder_image: str,
+    runtime_image: str,
     labels: dict[str, str],
     platform: str | None = None,
     no_cache: bool = False,
@@ -177,6 +242,10 @@ def build_command(
             f"FRAPPE_BRANCH={frappe_branch}",
             "--build-arg",
             "FRAPPE_PATH=https://github.com/frappe/frappe",
+            "--build-arg",
+            f"FRAPPE_BUILD_IMAGE={builder_image}",
+            "--build-arg",
+            f"FRAPPE_BASE_IMAGE={runtime_image}",
             "--secret",
             f"id=apps_json,src={apps_json}",
             "--progress",
@@ -281,6 +350,7 @@ def build_image(
     cache_from: list[str] | None = None,
     cache_to: list[str] | None = None,
     dry_run: bool = False,
+    base_inventory_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Prepare and build one NDF product image locally or to a registry."""
     repository_root = repository_root.resolve()
@@ -290,7 +360,15 @@ def build_image(
     if not dockerfile.is_file():
         raise BuildExecutionError(f"Layered Containerfile not found: {dockerfile}")
 
-    platforms = normalize_platforms(platform)
+    platforms = normalize_platforms(platform) or [SUPPORTED_PLATFORM]
+    if platforms != [SUPPORTED_PLATFORM]:
+        raise BuildExecutionError(
+            "Only linux/amd64 has accepted RT-01 builder/runtime inventory evidence; "
+            "ARM64 and multi-platform builds remain unsupported."
+        )
+
+    base_images = resolve_base_images(ndf_dir, base_inventory_dir, platforms)
+
     if not push and len(platforms) > 1:
         raise BuildExecutionError(
             "Local --load supports one platform. "
@@ -306,6 +384,12 @@ def build_image(
 
     metadata = load_json(prepared["metadata_path"])
     lock_data = load_json(prepared["lock_path"])
+    metadata["base_images"] = base_images
+    metadata_path = Path(prepared["metadata_path"])
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\\n",
+        encoding="utf-8",
+    )
     labels = build_labels(metadata, lock_data)
 
     image = prepared["image"]
@@ -328,6 +412,8 @@ def build_image(
         image_tag=None,
         image_tags=tags,
         frappe_branch=framework["target_ref"],
+        builder_image=base_images["builder"],
+        runtime_image=base_images["runtime"],
         labels=labels,
         platform=platform,
         no_cache=no_cache,
@@ -355,6 +441,7 @@ def build_image(
         "output": "registry" if push else "local",
         "pushed": push and not dry_run,
         "platforms": platforms,
+        "base_images": base_images,
         "digest": digest,
         "buildx_metadata_file": str(buildx_metadata_path),
         "dry_run": dry_run,
@@ -450,6 +537,14 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--base-inventory",
+        type=Path,
+        help=(
+            "Accepted base-image inventory directory relative to images/ndf. "
+            "Defaults to the RT-01 Debian Trixie AMD64 evidence."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Prepare inputs and print the command without running Docker.",
@@ -472,6 +567,7 @@ def main() -> int:
             cache_from=args.cache_from,
             cache_to=args.cache_to,
             dry_run=args.dry_run,
+            base_inventory_dir=args.base_inventory,
         )
     except (BuildPreparationError, BuildExecutionError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
