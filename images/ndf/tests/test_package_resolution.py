@@ -29,10 +29,12 @@ def target_runtime():
         "platform": {"os": "linux", "architecture": "amd64"},
         "images": {
             "builder": {
+                "reference": f"frappe/build@{BUILDER_DIGEST}",
                 "manifest_digest": BUILDER_DIGEST,
                 "platform": "linux/amd64",
             },
             "runtime": {
+                "reference": f"frappe/base@{RUNTIME_DIGEST}",
                 "manifest_digest": RUNTIME_DIGEST,
                 "platform": "linux/amd64",
             },
@@ -40,6 +42,9 @@ def target_runtime():
         "os": {
             "distribution_family": "debian",
             "codename": "trixie",
+            "architecture": "amd64",
+            "package_manager": "apt",
+            "package_manager_version": "3.0.4",
             "package_database": "dpkg",
         },
     }
