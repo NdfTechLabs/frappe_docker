@@ -328,6 +328,7 @@ class TestMarketplaceDescriptorSchemas:
 
     def test_production_metadata_gate_rejects_incomplete_authoring_descriptor(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"]["status"] = "pending"
         issues = collect_production_metadata_issues(descriptor)
         assert any("compatibility status is not verified" in item for item in issues)
         assert any("missing explicit version_policy" in item for item in issues)
