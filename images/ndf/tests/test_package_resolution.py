@@ -280,6 +280,73 @@ def test_runtime_scoped_base_package_is_verified_against_committed_inventory():
     assert validate(section) is True
 
 
+@pytest.mark.parametrize(
+    ("version", "architecture"),
+    [("1.22.23", "amd64"), ("1.22.22", "all")],
+)
+def test_base_package_version_or_architecture_mismatch_fails(
+    version, architecture
+):
+    package = {
+        "id": package_identity("os", "dpkg", version, architecture),
+        "ecosystem": "os",
+        "name": "dpkg",
+        "version": version,
+        "architecture": architecture,
+        "source_profile": "os-debian-trixie-public-amd64-v1",
+        "source": "http://deb.debian.org/debian",
+        "resolver": "apt",
+        "resolver_version": "3.0.4",
+        "direct": True,
+        "requested_by": ["demo_app"],
+        "disposition": "base",
+        "install": False,
+        "scope": "runtime",
+        "integrity": [],
+        "repository_metadata": {
+            "release_identity": "Debian Trixie InRelease fixture",
+            "release_sha256": "a" * 64,
+        },
+    }
+    section = package_resolution([package])
+    section["base_inventory"] = _repository_inventory_reference()
+
+    with pytest.raises(PackageResolutionError, match="runtime inventory"):
+        validate(section)
+
+
+def test_base_inventory_reference_must_match_runtime_digest():
+    package = {
+        "id": "os|dpkg|1.22.22|amd64",
+        "ecosystem": "os",
+        "name": "dpkg",
+        "version": "1.22.22",
+        "architecture": "amd64",
+        "source_profile": "os-debian-trixie-public-amd64-v1",
+        "source": "http://deb.debian.org/debian",
+        "resolver": "apt",
+        "resolver_version": "3.0.4",
+        "direct": True,
+        "requested_by": ["demo_app"],
+        "disposition": "base",
+        "install": False,
+        "scope": "runtime",
+        "integrity": [],
+        "repository_metadata": {
+            "release_identity": "Debian Trixie InRelease fixture",
+            "release_sha256": "a" * 64,
+        },
+    }
+    section = package_resolution([package])
+    section["base_inventory"] = _repository_inventory_reference()
+    section["base_inventory"]["evidence_reference"] = (
+        "images/ndf/inventories/debian-trixie-amd64/" + "0" * 64
+    )
+
+    with pytest.raises(PackageResolutionError, match="not keyed by the target runtime digest"):
+        validate(section)
+
+
 def test_builder_only_package_cannot_satisfy_runtime_scope():
     package = {
         "id": "os|dpkg-dev|1.22.22|all",
