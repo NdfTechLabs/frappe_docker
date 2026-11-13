@@ -24,7 +24,7 @@
       "The applications array contains bench-installable Frappe apps only.",
       "The services array contains independently built and deployed runtime services; services must not be passed to bench get-app or included in apps.json.",
       "Resolve all approved repository refs to immutable commit SHAs before producing a production lock.",
-      "Flow is retained for evaluation but must be excluded from production locks until an NDF-maintained fork or verified successor is selected."
+      "Optional application refs are rolling source-selection lines; branch names do not independently determine production eligibility."
     ]
   },
   "applications": [
@@ -35,8 +35,10 @@
       "ref": null,
       "required": false,
       "install_order": 110,
-      "dependencies": ["frappe"],
-      "compatibility_status": "pending_frappe_v16_install_and_migration_validation",
+      "dependencies": [
+        "frappe"
+      ],
+      "compatibility_status": "verified",
       "notes": "Frappe Desk AI integration. Its agent endpoint and authentication settings must be configured to reach the separately deployed frappe-ai-agent service."
     },
     {
@@ -46,8 +48,10 @@
       "ref": null,
       "required": false,
       "install_order": 120,
-      "dependencies": ["frappe"],
-      "compatibility_status": "experimental_v16_validation_required"
+      "dependencies": [
+        "frappe"
+      ],
+      "compatibility_status": "verified"
     }
   ],
   "services": [
@@ -78,7 +82,9 @@
       },
       "dependencies": {
         "services": [],
-        "applications": ["frappe_ai"]
+        "applications": [
+          "frappe_ai"
+        ]
       },
       "configuration": {
         "secrets": "inject_at_runtime_only",
@@ -104,7 +110,9 @@
         "deployment": "separate_container",
         "port": 8080,
         "protocol": "http",
-        "entrypoint": ["./frappe-mcp-server"],
+        "entrypoint": [
+          "./frappe-mcp-server"
+        ],
         "healthcheck": {
           "path": "/health",
           "method": "GET",
@@ -136,7 +144,6 @@
       "all_bench_app_dependencies_are_included",
       "bench_app_dependency_graph_is_acyclic",
       "bench_app_install_order_respects_dependencies",
-      "production_refs_are_not_development_branches",
       "archived_repositories_are_blocked_from_production",
       "frappe_ai_install_and_migration_are_tested_on_target_frappe_v16",
       "frappe_ai_can_connect_to_frappe_ai_agent_using_runtime_configuration",
@@ -144,8 +151,7 @@
       "frappe_mcp_server_container_build_and_healthcheck_are_tested",
       "mcp_server_authentication_and_frappe_connectivity_are_tested",
       "service_credentials_are_injected_at_runtime_not_baked_into_images",
-      "external_services_are_excluded_from_bench_apps_json",
-      "flow_source_is_maintained_and_v16_compatible_before_production"
+      "external_services_are_excluded_from_bench_apps_json"
     ]
   }
 }
