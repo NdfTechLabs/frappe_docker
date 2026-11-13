@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.package_resolution import validate_package_resolution
+from scripts.resolve_manifest import ManifestLoader
 from scripts.python_package_adapter import (
     PYPI_INDEX,
     UV_VERSION,
@@ -185,6 +186,46 @@ def make_runner(lock_text, *, version=UV_VERSION, compile_error=None, oversized=
         return SimpleNamespace(returncode=0)
 
     return runner, calls
+
+
+
+def test_manifest_loader_emits_unresolved_python_requests_for_native_adapter(tmp_path):
+    manifests = tmp_path / "manifests"
+    manifests.mkdir()
+    loader = ManifestLoader(manifests)
+    loader.repository_root = REPOSITORY_ROOT
+    descriptor = {
+        "app_id": "demo_app",
+        "dependencies": {
+            "python": [
+                {
+                    "name": "Requests",
+                    "version": ">=2.30,<3",
+                    "version_policy": "constraint",
+                    "disposition": "runtime_compatible",
+                    "required": True,
+                }
+            ]
+        },
+    }
+
+    direct = loader._resolve_descriptor_packages(descriptor, target_runtime(), set())
+
+    assert direct == [
+        {
+            "ecosystem": "python",
+            "name": "Requests",
+            "version": None,
+            "source": PYPI_INDEX,
+            "resolver": "uv",
+            "version_policy": "constraint",
+            "requested_constraint": ">=2.30,<3",
+            "source_profile": "python-pypi-public-v1",
+            "disposition": "runtime_compatible",
+            "install": True,
+            "scope": "runtime",
+        }
+    ]
 
 
 def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
