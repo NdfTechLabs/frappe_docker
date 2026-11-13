@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import copy
 import hashlib
 import json
 import re
@@ -1241,6 +1242,7 @@ class ManifestLoader:
         self,
         manifest: dict,
         applications: list,
+        package_resolution: dict | None = None,
     ) -> dict[str, Any]:
         """Build deterministic application lock data in memory."""
 
@@ -1292,11 +1294,11 @@ class ManifestLoader:
             for app in applications
             if isinstance(app, dict)
         )
-        if has_direct_package_selections:
+        if has_direct_package_selections and package_resolution is None:
             raise ManifestError(
                 "Cannot generate a package-resolution-complete lock from transitional "
-                "direct package selections alone. A native resolver result with complete "
-                "transitive closure and provenance is required."
+                "direct package selections alone. Supply a normalized package_resolution "
+                "result with complete transitive closure and provenance."
             )
 
         catalogue_path = (
@@ -1311,6 +1313,18 @@ class ManifestLoader:
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             raise ManifestError(f"Unable to load package source catalogue version: {exc}") from exc
 
+        if package_resolution is None:
+            package_resolution_data = {
+                "schema_version": 1,
+                "source_policy_catalogue_version": catalogue_version,
+                "source_profiles": [],
+                "base_inventory": None,
+                "packages": [],
+                "dependency_edges": [],
+            }
+        else:
+            package_resolution_data = copy.deepcopy(package_resolution)
+
         framework = dict(manifest["framework"])
         framework.update(
             {
@@ -1321,7 +1335,7 @@ class ManifestLoader:
             }
         )
 
-        return {
+        lock_data = {
             "lock_version": 2,
             "resolution_policy": policy,
             "resolver": {
@@ -1336,14 +1350,7 @@ class ManifestLoader:
             },
             "framework": framework,
             "target_runtime": manifest.get("target_runtime"),
-            "package_resolution": {
-                "schema_version": 1,
-                "source_policy_catalogue_version": catalogue_version,
-                "source_profiles": [],
-                "base_inventory": None,
-                "packages": [],
-                "dependency_edges": [],
-            },
+            "package_resolution": package_resolution_data,
             "manifests": loaded_manifests,
             "capabilities": sorted(
                 [
@@ -1385,6 +1392,19 @@ class ManifestLoader:
                 for index, app in enumerate(applications, start=1)
             ],
         }
+
+        try:
+            validate_package_resolution(
+                lock_data["package_resolution"],
+                target_runtime=lock_data.get("target_runtime"),
+                applications=lock_data["applications"],
+                repository_root=self.repository_root,
+                catalogue_path=catalogue_path,
+            )
+        except PackageResolutionError as exc:
+            raise ManifestError(f"Invalid package_resolution result: {exc}") from exc
+
+        return lock_data
 
     def write_lock_file(
         self,
