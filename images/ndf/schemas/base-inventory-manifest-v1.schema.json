@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/base-inventory-manifest-v1.schema.json",
+  "title": "NDF Base OS Package Inventory Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "producer",
+    "package_database",
+    "inventories"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "producer": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "images/ndf/scripts/inspect_target_runtime.sh"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "package_database": {
+      "type": "object",
+      "required": [
+        "name",
+        "format"
+      ],
+      "properties": {
+        "name": {
+          "const": "dpkg"
+        },
+        "format": {
+          "const": "dpkg-query-tsv"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inventories": {
+      "type": "object",
+      "required": [
+        "builder",
+        "runtime"
+      ],
+      "properties": {
+        "builder": {
+          "$ref": "#/$defs/inventory"
+        },
+        "runtime": {
+          "$ref": "#/$defs/inventory"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "inventory": {
+      "type": "object",
+      "required": [
+        "image",
+        "package_database_version",
+        "file",
+        "sha256",
+        "package_count"
+      ],
+      "properties": {
+        "image": {
+          "type": "object",
+          "required": [
+            "reference",
+            "index_digest",
+            "manifest_digest",
+            "platform"
+          ],
+          "properties": {
+            "reference": {
+              "type": "string",
+              "pattern": "^[^\\s@]+@sha256:[0-9a-f]{64}$"
+            },
+            "index_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "manifest_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "platform": {
+              "const": "linux/amd64"
+            }
+          },
+          "additionalProperties": false
+        },
+        "package_database_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "package_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
