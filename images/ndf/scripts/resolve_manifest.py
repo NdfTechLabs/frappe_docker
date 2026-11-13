@@ -32,13 +32,11 @@ from semantic_version import Version as SemVerVersion
 try:
     from .package_resolution import (
         PackageResolutionError,
-        normalize_package_name,
         validate_package_resolution,
     )
 except ImportError:
     from package_resolution import (
         PackageResolutionError,
-        normalize_package_name,
         validate_package_resolution,
     )
 
@@ -385,235 +383,23 @@ class ManifestLoader:
         self._descriptor_cache[cache_key] = descriptor
         return descriptor, relative_path, checksum
 
-    def _resolve_descriptor_packages(
-        self, descriptor: dict, target_runtime: dict, selected_optional: set[str]
-    ) -> list[dict]:
-        """Resolve package dependencies against exact versions supplied by the target matrix."""
-        packages = target_runtime.get("package_versions", {})
-        if not isinstance(packages, dict):
-            raise ManifestError("target_runtime.package_versions must be an object.")
-        os_target = target_runtime.get("os", {})
-        resolved = []
-        for ecosystem in ("python", "node", "os"):
-            for dependency in descriptor.get("dependencies", {}).get(ecosystem, []):
-                name = dependency.get("name", "")
-                if (
-                    not dependency.get("required", True)
-                    and f"{ecosystem}:{name}" not in selected_optional
-                ):
-                    continue
-                key = f"{ecosystem}:{name}"
-                if ecosystem == "python":
-                    policy = dependency.get("version_policy")
-                    constraint = dependency.get("version")
-                    if policy == "constraint":
-                        if not isinstance(constraint, str) or not constraint:
-                            raise ManifestError(
-                                f"{descriptor['app_id']}: {key} constraint policy requires a PEP 440 version."
-                            )
-                        try:
-                            SpecifierSet(constraint)
-                        except Exception as exc:
-                            raise ManifestError(
-                                f"{descriptor['app_id']}: invalid Python constraint for {name}."
-                            ) from exc
-                    elif policy == "latest_compatible":
-                        if constraint is not None:
-                            raise ManifestError(
-                                f"{descriptor['app_id']}: latest_compatible {key} must not include a version."
-                            )
-                    else:
-                        raise ManifestError(
-                            f"{descriptor['app_id']}: unsupported version policy for {key}."
-                        )
-                    source_profile = "python-pypi-public-v1"
-                    catalogue_path = (
-                        self.repository_root / "images" / "ndf" / "policies"
-                        / "package-source-profiles-v1.json"
-                    )
-                    try:
-                        catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
-                        profile = catalogue["source_profiles"][source_profile]
-                    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
-                        raise ManifestError(
-                            f"Unable to load approved package source profile {source_profile}: {exc}"
-                        ) from exc
-                    if (
-                        not profile.get("enabled")
-                        or profile.get("ecosystem") != "python"
-                        or profile.get("registry") != "https://pypi.org/simple"
-                    ):
-                        raise ManifestError("The approved public PyPI source profile is unavailable.")
-                    source_hint = dependency.get("source")
-                    if source_hint is not None and source_hint != profile["registry"]:
-                        raise ManifestError(
-                            f"{descriptor['app_id']}: Python dependency {name} source hint "
-                            "does not match the approved public PyPI profile."
-                        )
-                    scope = "build" if dependency.get("build_required", False) else "runtime"
-                    resolved.append(
-                        {
-                            "ecosystem": "python",
-                            "name": name,
-                            "version": None,
-                            "source": profile["registry"],
-                            "resolver": "uv",
-                            "version_policy": policy,
-                            "requested_constraint": constraint if policy == "constraint" else None,
-                            "source_profile": source_profile,
-                            "disposition": dependency.get("disposition"),
-                            "install": dependency.get("disposition") != "base",
-                            "scope": scope,
-                        }
-                    )
-                    continue
-                selection = packages.get(key)
-                if not isinstance(selection, dict) or not all(
-                    isinstance(selection.get(field), str) and selection[field]
-                    for field in ("version", "source", "resolver")
-                ):
-                    raise ManifestError(
-                        f"{descriptor['app_id']}: target_runtime.package_versions "
-                        f"must provide an exact selection (version, source and resolver) for {key}."
-                    )
-                selected_version = selection["version"]
-                policy = dependency.get("version_policy")
-                constraint = dependency.get("version")
-                if policy == "constraint":
-                    if not constraint:
-                        raise ManifestError(
-                            f"{descriptor['app_id']}: {key} constraint policy requires a version."
-                        )
-                    try:
-                        if ecosystem == "python":
-                            accepted = PythonVersion(selected_version) in SpecifierSet(
-                                constraint
-                            )
-                        elif ecosystem == "node":
-                            accepted = SemVerVersion(selected_version) in NpmSpec(
-                                constraint
-                            )
-                        else:
-                            # OS package versions are distribution-native. Until a
-                            # native package-manager adapter is available, only exact
-                            # equality is safe and deterministic.
-                            accepted = selected_version == constraint
-                    except (TypeError, ValueError) as exc:
-                        raise ManifestError(
-                            f"{descriptor['app_id']}: invalid {ecosystem} constraint "
-                            f"for {name}: {exc}"
-                        ) from exc
-                    if not accepted:
-                        raise ManifestError(
-                            f"{descriptor['app_id']}: selected {key}={selected_version} "
-                            f"does not satisfy {constraint}."
-                        )
-                elif policy != "latest_compatible":
-                    raise ManifestError(
-                        f"{descriptor['app_id']}: unsupported version policy for {key}."
-                    )
-                expected_resolver = {
-                    "python": "uv",
-                    "node": "npm",
-                    "os": "apt",
-                }[ecosystem]
-                allowed_resolvers = (
-                    {expected_resolver}
-                    if isinstance(expected_resolver, str)
-                    else set(expected_resolver)
-                )
-                if selection["resolver"] not in allowed_resolvers:
-                    raise ManifestError(
-                        f"{descriptor['app_id']}: {key} uses resolver "
-                        f"{selection['resolver']!r}, expected one of "
-                        f"{sorted(allowed_resolvers)}."
-                    )
-                if ecosystem == "os" and (
-                    dependency.get("distribution_family")
-                    != os_target.get("distribution_family")
-                    or dependency.get("package_manager")
-                    != os_target.get("package_manager")
-                ):
-                    raise ManifestError(
-                        f"{descriptor['app_id']}: OS dependency {name} does not match "
-                        "target OS/package manager."
-                    )
-                scope = dependency.get("scope")
-                if ecosystem == "python":
-                    scope = "build" if dependency.get("build_required", False) else "runtime"
-                source_profile = {
-                    "python": "python-pypi-public-v1",
-                    "node": "node-npm-public-v1",
-                    "os": "os-debian-trixie-public-amd64-v1",
-                }[ecosystem]
-                catalogue_path = (
-                    self.repository_root / "images" / "ndf" / "policies"
-                    / "package-source-profiles-v1.json"
-                )
-                try:
-                    catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
-                    profile = catalogue["source_profiles"][source_profile]
-                except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
-                    raise ManifestError(
-                        f"Unable to load approved package source profile {source_profile}: {exc}"
-                    ) from exc
-                if not profile.get("enabled") or profile.get("ecosystem") != ecosystem:
-                    raise ManifestError(f"Package source profile is disabled or incompatible: {source_profile}")
-                if ecosystem == "os" and (
-                    os_target.get("distribution_family") != profile.get("distribution")
-                    or os_target.get("version_id") != profile.get("release")
-                    or os_target.get("codename") != profile.get("codename")
-                    or os_target.get("architecture") != profile.get("architecture")
-                    or os_target.get("package_manager") != profile.get("package_manager")
-                    or os_target.get("package_database") != profile.get("package_database")
-                ):
-                    raise ManifestError(
-                        f"{descriptor['app_id']}: OS package source profile does not match the exact target runtime."
-                    )
-                approved_sources = (
-                    {profile.get("registry")}
-                    if ecosystem in {"python", "node"}
-                    else {
-                        item.get("uri")
-                        for item in profile.get("repositories", [])
-                        if isinstance(item, dict)
-                    }
-                )
-                if selection["source"] not in approved_sources:
-                    raise ManifestError(
-                        f"{descriptor['app_id']}: {key} source does not match approved NDF profile {source_profile}."
-                    )
-                package_architecture = None
-                if ecosystem == "os":
-                    package_architecture = selection.get("architecture")
-                    if package_architecture not in {"amd64", "all"}:
-                        raise ManifestError(
-                            f"{descriptor['app_id']}: OS package {name} must include "
-                            "the native resolver-selected architecture."
-                        )
-                resolved.append(
-                    {
-                        "ecosystem": ecosystem,
-                        "name": name,
-                        "version": selected_version,
-                        "source": selection["source"],
-                        "resolver": selection["resolver"],
-                        "version_policy": policy,
-                        "requested_constraint": constraint if policy == "constraint" else None,
-                        "source_profile": source_profile,
-                        "disposition": dependency.get("disposition"),
-                        "install": dependency.get("disposition") != "base",
-                        "scope": scope,
-                        "package_manager": dependency.get("package_manager"),
-                        "distribution_family": dependency.get("distribution_family"),
-                        **(
-                            {"architecture": package_architecture}
-                            if ecosystem == "os"
-                            else {}
-                        ),
-                    }
-                )
-        return sorted(resolved, key=lambda item: (item["ecosystem"], item["name"]))
+    def _validate_no_descriptor_package_dependencies(self, descriptor: dict) -> None:
+        """Keep external package ownership in application source and native Bench tooling."""
+        dependencies = descriptor.get("dependencies", {})
+        declared = [
+            ecosystem
+            for ecosystem in ("python", "node", "os")
+            if dependencies.get(ecosystem)
+        ]
+        if declared:
+            ecosystems = ", ".join(declared)
+            raise ManifestError(
+                f"{descriptor.get('app_id', '<unknown>')}: descriptor-level {ecosystems} "
+                "package dependencies are not supported. Declare application dependencies "
+                "in the application's native project/lock files; upstream Bench and its "
+                "native package managers own resolution and installation. NDF verifies "
+                "the installed inventory and build evidence downstream."
+            )
 
     def _validate_descriptor_target(
         self, descriptor: dict, target_runtime: dict, selected_optional: set[str]
@@ -760,6 +546,7 @@ class ManifestLoader:
                 return
             if app_id in app_ids and app_ids[app_id] != bench_name:
                 raise ManifestError(f"Duplicate Marketplace app_id: {app_id}")
+            self._validate_no_descriptor_package_dependencies(descriptor)
             self._validate_descriptor_target(
                 descriptor, target_runtime, selected_optional
             )
@@ -789,9 +576,7 @@ class ManifestLoader:
                 )
                 if not selected:
                     continue
-            package_dependencies = self._resolve_descriptor_packages(
-                descriptor, target_runtime, selected_optional
-            )
+            package_dependencies = []
             normalized = {
                 "name": bench_name,
                 "repository": descriptor["source"]["repository"],
@@ -2312,69 +2097,9 @@ def main():
 
     print("\nApplication Git references resolved.")
 
-    # 4a. Resolve descriptor-declared Python packages before lock-v2
-    # generation. Avoid importing the optional adapter for legacy/no-Python
-    # compositions; this also preserves the resolver's empty-graph path.
+    # 4a. Native package resolution/installation is owned by upstream Bench.
+    # NDF writes the accepted empty graph here and verifies installed state downstream.
     package_resolution = None
-    has_python_requirements = any(
-        dependency.get("ecosystem") == "python"
-        for app in ordered_applications
-        for dependency in app.get("package_dependencies", [])
-    )
-    try:
-        if has_python_requirements:
-            try:
-                from .python_package_adapter import (
-                    PythonAdapterError,
-                    resolve_python_packages,
-                )
-            except ImportError:
-                try:
-                    from python_package_adapter import (
-                        PythonAdapterError,
-                        resolve_python_packages,
-                    )
-                except ImportError as exc:
-                    raise ManifestError(
-                        f"Python package adapter is unavailable: {exc}"
-                    ) from exc
-            try:
-                package_resolution, direct_python_versions = resolve_python_packages(
-                    ordered_applications,
-                    manifest.get("target_runtime", {}),
-                    repository_root=loader.repository_root,
-                )
-            except PythonAdapterError as exc:
-                raise ManifestError(f"Python package resolution failed: {exc}") from exc
-            for app in ordered_applications:
-                app_id = app.get("_app_id")
-                for dependency in app.get("package_dependencies", []):
-                    if dependency.get("ecosystem") != "python":
-                        continue
-                    normalized_name = normalize_package_name("python", dependency["name"])
-                    version_key = app_id + "\0" + normalized_name
-                    selected_version = direct_python_versions.get(version_key)
-                    if not selected_version:
-                        raise ManifestError(
-                            f"{app_id}: Python adapter did not return a selection for {dependency['name']}."
-                        )
-                    dependency["version"] = selected_version
-                    normalized_package = next(
-                        (
-                            package for package in package_resolution.get("packages", [])
-                            if package.get("ecosystem") == "python"
-                            and package.get("name") == normalized_name
-                        ),
-                        None,
-                    )
-                    if normalized_package is None:
-                        raise ManifestError(
-                            f"{app_id}: Python adapter omitted normalized package {normalized_name}."
-                        )
-                    dependency["scope"] = normalized_package["scope"]
-    except ManifestError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        sys.exit(1)
 
     # 5. Determine lock file location
     lock_filename = f"{Path(args.manifest).stem}.lock.json"
