@@ -202,6 +202,22 @@ def _build_package_lock(tmp_path):
         "_loaded_capabilities": [],
         "_capability_selections": [],
     }
+    package = python_package(
+        "requests", "2.32.3", direct=True, requested_by=["demo_app"]
+    )
+    direct = {
+        "ecosystem": "python",
+        "name": "requests",
+        "version": "2.32.3",
+        "source": "https://pypi.org/simple",
+        "resolver": "uv",
+        "source_profile": "python-pypi-public-v1",
+        "scope": "runtime",
+        "version_policy": "constraint",
+        "requested_constraint": ">=2.30,<3.0",
+        "disposition": "runtime_compatible",
+        "install": True,
+    }
     applications_list = [
         {
             "name": "frappe",
@@ -226,28 +242,14 @@ def _build_package_lock(tmp_path):
             "_release_version": "1.0.0",
             "_descriptor_path": "images/ndf/descriptors/apps/demo_app.json",
             "_descriptor_sha256": "c" * 64,
-            "package_dependencies": [],
+            "package_dependencies": [direct],
         },
     ]
-    lock = loader.build_lock_data(manifest, applications_list)
-    package = python_package(
-        "requests", "2.32.3", direct=True, requested_by=["demo_app"]
+    lock = loader.build_lock_data(
+        manifest,
+        applications_list,
+        package_resolution=package_resolution([package]),
     )
-    direct = {
-        "ecosystem": "python",
-        "name": "requests",
-        "version": "2.32.3",
-        "source": "https://pypi.org/simple",
-        "resolver": "uv",
-        "source_profile": "python-pypi-public-v1",
-        "scope": "runtime",
-        "version_policy": "constraint",
-        "requested_constraint": ">=2.30,<3.0",
-        "disposition": "runtime_compatible",
-        "install": True,
-    }
-    lock["applications"][1]["package_dependencies"] = [direct]
-    lock["package_resolution"] = package_resolution([package])
     lock_path = tmp_path / "demo-product.lock.json"
     loader.write_lock_file(lock, lock_path)
     return loader, manifest, lock_path, lock
