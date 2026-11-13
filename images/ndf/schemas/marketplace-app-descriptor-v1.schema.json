@@ -43,7 +43,9 @@
     },
     "release": {
       "type": "object",
-      "required": ["version"],
+      "required": [
+        "version"
+      ],
       "properties": {
         "version": {
           "type": "string",
@@ -59,7 +61,9 @@
     },
     "source": {
       "type": "object",
-      "required": ["repository"],
+      "required": [
+        "repository"
+      ],
       "properties": {
         "repository": {
           "type": "string",
@@ -77,7 +81,9 @@
     },
     "app_module": {
       "type": "object",
-      "required": ["bench_app_name"],
+      "required": [
+        "bench_app_name"
+      ],
       "properties": {
         "bench_app_name": {
           "type": "string",
@@ -95,10 +101,17 @@
     },
     "compatibility": {
       "type": "object",
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "properties": {
         "status": {
-          "enum": ["verified", "pending", "incompatible", "experimental"]
+          "enum": [
+            "verified",
+            "pending",
+            "incompatible",
+            "experimental"
+          ]
         },
         "frappe": {
           "$ref": "dependency-v1.schema.json#/$defs/versionConstraint"
@@ -116,7 +129,12 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["kind", "authority", "reference", "result"],
+            "required": [
+              "kind",
+              "authority",
+              "reference",
+              "result"
+            ],
             "properties": {
               "kind": {
                 "enum": [
@@ -131,7 +149,11 @@
                 "minLength": 1
               },
               "result": {
-                "enum": ["passed", "failed", "partial"]
+                "enum": [
+                  "passed",
+                  "failed",
+                  "partial"
+                ]
               },
               "tested_at": {
                 "type": "string",
@@ -157,7 +179,19 @@
               },
               "authority": {
                 "type": "string",
-                "enum": ["publisher", "upstream", "ndf"]
+                "enum": [
+                  "publisher",
+                  "upstream",
+                  "ndf"
+                ]
+              },
+              "attested_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "attested_by": {
+                "type": "string",
+                "minLength": 1
               }
             },
             "additionalProperties": false
@@ -172,51 +206,99 @@
                 "const": "verified"
               }
             },
-            "required": ["status"]
+            "required": [
+              "status"
+            ]
           },
           "then": {
-            "required": ["evidence"],
+            "required": [
+              "evidence"
+            ],
             "properties": {
               "evidence": {
                 "minItems": 1,
                 "contains": {
-                  "type": "object",
-                  "required": [
-                    "kind",
-                    "authority",
-                    "result",
-                    "tested_versions",
-                    "tested_at"
-                  ],
-                  "properties": {
-                    "authority": {
-                      "const": "ndf"
-                    },
-                    "result": {
-                      "const": "passed"
-                    },
-                    "tested_versions": {
+                  "anyOf": [
+                    {
                       "type": "object",
-                      "required": ["frappe", "python"],
+                      "required": [
+                        "kind",
+                        "authority",
+                        "result",
+                        "tested_versions",
+                        "tested_at"
+                      ],
                       "properties": {
-                        "frappe": {
+                        "authority": {
+                          "const": "ndf"
+                        },
+                        "result": {
+                          "const": "passed"
+                        },
+                        "tested_versions": {
+                          "type": "object",
+                          "required": [
+                            "frappe",
+                            "python"
+                          ],
+                          "properties": {
+                            "frappe": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "python": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          }
+                        },
+                        "kind": {
+                          "enum": [
+                            "automated_test",
+                            "manual_test"
+                          ]
+                        },
+                        "tested_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "authority",
+                        "result",
+                        "reference",
+                        "attested_at",
+                        "attested_by"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "maintainer_attestation"
+                        },
+                        "authority": {
+                          "const": "ndf"
+                        },
+                        "result": {
+                          "const": "passed"
+                        },
+                        "reference": {
                           "type": "string",
                           "minLength": 1
                         },
-                        "python": {
+                        "attested_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "attested_by": {
                           "type": "string",
                           "minLength": 1
                         }
                       }
-                    },
-                    "kind": {
-                      "enum": ["automated_test", "manual_test"]
-                    },
-                    "tested_at": {
-                      "type": "string",
-                      "format": "date-time"
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -305,10 +387,14 @@
                 "const": "custom_policy"
               }
             },
-            "required": ["build_system"]
+            "required": [
+              "build_system"
+            ]
           },
           "then": {
-            "required": ["policy_id"]
+            "required": [
+              "policy_id"
+            ]
           }
         },
         {
@@ -318,11 +404,15 @@
                 "const": "custom_policy"
               }
             },
-            "required": ["build_system"]
+            "required": [
+              "build_system"
+            ]
           },
           "else": {
             "not": {
-              "required": ["policy_id"]
+              "required": [
+                "policy_id"
+              ]
             }
           }
         }
@@ -330,7 +420,9 @@
     },
     "installation": {
       "type": "object",
-      "required": ["bench_installable"],
+      "required": [
+        "bench_installable"
+      ],
       "properties": {
         "bench_installable": {
           "const": true
@@ -343,7 +435,11 @@
           "minimum": 0
         },
         "post_install_policy": {
-          "enum": ["none", "operator_action", "approved_policy"]
+          "enum": [
+            "none",
+            "operator_action",
+            "approved_policy"
+          ]
         },
         "policy_id": {
           "type": "string",
@@ -360,10 +456,14 @@
                 "const": "approved_policy"
               }
             },
-            "required": ["post_install_policy"]
+            "required": [
+              "post_install_policy"
+            ]
           },
           "then": {
-            "required": ["policy_id"]
+            "required": [
+              "policy_id"
+            ]
           }
         },
         {
@@ -373,11 +473,15 @@
                 "const": "approved_policy"
               }
             },
-            "required": ["post_install_policy"]
+            "required": [
+              "post_install_policy"
+            ]
           },
           "else": {
             "not": {
-              "required": ["policy_id"]
+              "required": [
+                "policy_id"
+              ]
             }
           }
         }
@@ -386,7 +490,11 @@
     "metadata": {
       "type": "object",
       "additionalProperties": {
-        "type": ["string", "number", "boolean"]
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
       }
     }
   },
