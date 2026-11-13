@@ -36,3 +36,12 @@ jobs:
         run: pre-commit run --color=always --all-files
         env:
           GO111MODULE: on
+
+      - name: Upload formatted B.1 Python sources for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: b1-python-formatted
+          path: |
+            images/ndf/scripts/python_package_adapter.py
+            images/ndf/tests/test_python_package_adapter.py
