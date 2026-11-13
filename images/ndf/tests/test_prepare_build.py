@@ -330,6 +330,21 @@ def test_prepare_build_rejects_unverified_compatibility(
         )
 
 
+
+def test_prepare_build_rejects_output_inside_obsolete_lock_directory(
+    build_project,
+):
+    with pytest.raises(
+        BuildPreparationError,
+        match="must not be inside the obsolete checked-in locks directory",
+    ):
+        prepare_build(
+            ndf_dir=build_project,
+            image_id="test-product-v16",
+            output_dir=build_project / "locks" / "generated",
+        )
+
+
 def test_prepare_build_rejects_unknown_image(build_project):
     with pytest.raises(BuildPreparationError, match="Unknown image ID"):
         prepare_build(
