@@ -81,6 +81,8 @@ def _build_command(tmp_path, **overrides):
         "image_repository": "ghcr.io/ndftechlabs/dalali",
         "image_tag": "local",
         "frappe_branch": "version-16",
+        "builder_image": "frappe/build@sha256:" + "1" * 64,
+        "runtime_image": "frappe/base@sha256:" + "2" * 64,
         "labels": {"com.ndf.image.id": "dalali-v16"},
         "platform": "linux/amd64",
         "no_cache": False,
@@ -102,6 +104,8 @@ def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
     assert "--secret" in command
     assert any(item.startswith("id=apps_json,src=") for item in command)
     assert "FRAPPE_BRANCH=version-16" in command
+    assert "FRAPPE_BUILD_IMAGE=frappe/build@sha256:" + "1" * 64 in command
+    assert "FRAPPE_BASE_IMAGE=frappe/base@sha256:" + "2" * 64 in command
     assert "ghcr.io/ndftechlabs/dalali:local" in command
     assert "linux/amd64" in command
     assert "--no-cache" in command
