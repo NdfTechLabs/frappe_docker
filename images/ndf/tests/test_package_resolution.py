@@ -317,6 +317,40 @@ def test_direct_request_constraint_is_preserved_and_enforced():
         validate(section, apps=[app])
 
 
+def test_multiple_descriptor_constraints_for_one_package_are_all_enforced():
+    package = python_package(
+        "shared-library",
+        "1.5.0",
+        direct=True,
+        requested_by=["app_one", "app_two"],
+    )
+    def app_request(app_id, constraint):
+        return {
+            "name": app_id,
+            "app_id": app_id,
+            "package_dependencies": [{
+                "ecosystem": "python",
+                "name": "shared-library",
+                "version": "1.5.0",
+                "source": "https://pypi.org/simple",
+                "resolver": "uv",
+                "source_profile": "python-pypi-public-v1",
+                "scope": "runtime",
+                "version_policy": "constraint",
+                "requested_constraint": constraint,
+                "disposition": "runtime_compatible",
+                "install": True,
+            }],
+        }
+    apps = [
+        app_request("app_one", ">=1,<2"),
+        app_request("app_two", ">=2,<3"),
+    ]
+
+    with pytest.raises(PackageResolutionError, match="direct incoming constraint"):
+        validate(package_resolution([package]), apps=apps)
+
+
 def test_package_source_url_must_match_approved_profile():
     package = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
     package["source"] = "https://packages.example.invalid/simple"
