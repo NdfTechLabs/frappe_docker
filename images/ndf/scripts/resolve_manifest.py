@@ -383,23 +383,122 @@ class ManifestLoader:
         self._descriptor_cache[cache_key] = descriptor
         return descriptor, relative_path, checksum
 
-    def _validate_no_descriptor_package_dependencies(self, descriptor: dict) -> None:
-        """Keep external package ownership in application source and native Bench tooling."""
-        dependencies = descriptor.get("dependencies", {})
-        declared = [
-            ecosystem
-            for ecosystem in ("python", "node", "os")
-            if dependencies.get(ecosystem)
-        ]
-        if declared:
-            ecosystems = ", ".join(declared)
-            raise ManifestError(
-                f"{descriptor.get('app_id', '<unknown>')}: descriptor-level {ecosystems} "
-                "package dependencies are not supported. Declare application dependencies "
-                "in the application's native project/lock files; upstream Bench and its "
-                "native package managers own resolution and installation. NDF verifies "
-                "the installed inventory and build evidence downstream."
-            )
+    def _collect_descriptor_package_requirements(
+        self, descriptor: dict, target_runtime: dict, selected_optional: set[str]
+    ) -> list[dict]:
+        """Collect declared package constraints without selecting or resolving versions."""
+        os_target = target_runtime.get("os", {})
+        catalogue_path = (
+            self.repository_root / "images" / "ndf" / "policies"
+            / "package-source-profiles-v1.json"
+        )
+        try:
+            catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+            profiles = catalogue["source_profiles"]
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise ManifestError(f"Unable to load approved package source profiles: {exc}") from exc
+
+        profile_ids = {
+            "python": "python-pypi-public-v1",
+            "node": "node-npm-public-v1",
+            "os": "os-debian-trixie-public-amd64-v1",
+        }
+        requirements = []
+        for ecosystem in ("python", "node", "os"):
+            for dependency in descriptor.get("dependencies", {}).get(ecosystem, []):
+                name = dependency.get("name", "")
+                if (
+                    not dependency.get("required", True)
+                    and f"{ecosystem}:{name}" not in selected_optional
+                ):
+                    continue
+
+                policy = dependency.get("version_policy")
+                constraint = dependency.get("version")
+                if policy == "constraint":
+                    if not isinstance(constraint, str) or not constraint:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: {ecosystem}:{name} constraint policy requires a version."
+                        )
+                    try:
+                        if ecosystem == "python":
+                            SpecifierSet(constraint)
+                        elif ecosystem == "node":
+                            NpmSpec(constraint)
+                    except (TypeError, ValueError) as exc:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: invalid {ecosystem} constraint for {name}."
+                        ) from exc
+                elif policy == "latest_compatible":
+                    if constraint is not None:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: latest_compatible {ecosystem}:{name} "
+                            "must not include a version."
+                        )
+                else:
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: unsupported version policy for {ecosystem}:{name}."
+                    )
+
+                profile_id = profile_ids[ecosystem]
+                profile = profiles.get(profile_id)
+                if (
+                    not isinstance(profile, dict)
+                    or not profile.get("enabled")
+                    or profile.get("ecosystem") != ecosystem
+                ):
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: approved source profile is unavailable: {profile_id}."
+                    )
+
+                source_hint = dependency.get("source")
+                if ecosystem == "python" and source_hint is not None:
+                    if source_hint != profile.get("registry"):
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: Python dependency {name} source hint "
+                            "does not match the approved public PyPI profile."
+                        )
+                if ecosystem == "os":
+                    if (
+                        os_target.get("distribution_family") != profile.get("distribution")
+                        or os_target.get("version_id") != profile.get("release")
+                        or os_target.get("codename") != profile.get("codename")
+                        or os_target.get("architecture") != profile.get("architecture")
+                        or os_target.get("package_manager") != profile.get("package_manager")
+                        or os_target.get("package_database") != profile.get("package_database")
+                        or dependency.get("distribution_family") != profile.get("distribution")
+                        or dependency.get("package_manager") != profile.get("package_manager")
+                    ):
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: OS package requirement {name} "
+                            "does not match the approved target/source profile."
+                        )
+
+                scope = dependency.get("scope")
+                if ecosystem == "python":
+                    scope = "build" if dependency.get("build_required", False) else "runtime"
+
+                requirement = {
+                    "ecosystem": ecosystem,
+                    "name": name,
+                    "version_policy": policy,
+                    "requested_constraint": constraint if policy == "constraint" else None,
+                    "source_profile": profile_id,
+                    "disposition": dependency.get("disposition"),
+                    "install": dependency.get("disposition") != "base",
+                    "scope": scope,
+                }
+                if ecosystem == "node":
+                    requirement["package_manager"] = dependency.get("package_manager")
+                elif ecosystem == "os":
+                    requirement["package_manager"] = dependency.get("package_manager")
+                    requirement["distribution_family"] = dependency.get("distribution_family")
+                requirements.append(requirement)
+
+        return sorted(
+            requirements,
+            key=lambda item: (item["ecosystem"], item["name"]),
+        )
 
     def _validate_descriptor_target(
         self, descriptor: dict, target_runtime: dict, selected_optional: set[str]
@@ -546,7 +645,6 @@ class ManifestLoader:
                 return
             if app_id in app_ids and app_ids[app_id] != bench_name:
                 raise ManifestError(f"Duplicate Marketplace app_id: {app_id}")
-            self._validate_no_descriptor_package_dependencies(descriptor)
             self._validate_descriptor_target(
                 descriptor, target_runtime, selected_optional
             )
@@ -576,7 +674,9 @@ class ManifestLoader:
                 )
                 if not selected:
                     continue
-            package_dependencies = []
+            package_dependencies = self._collect_descriptor_package_requirements(
+                descriptor, target_runtime, selected_optional
+            )
             normalized = {
                 "name": bench_name,
                 "repository": descriptor["source"]["repository"],
@@ -1152,18 +1252,6 @@ class ManifestLoader:
         if framework_application is None:
             raise ManifestError(
                 "Resolved application composition does not contain Frappe."
-            )
-
-        has_direct_package_selections = any(
-            app.get("package_dependencies")
-            for app in applications
-            if isinstance(app, dict)
-        )
-        if has_direct_package_selections and package_resolution is None:
-            raise ManifestError(
-                "Cannot generate a package-resolution-complete lock from transitional "
-                "direct package selections alone. Supply a normalized package_resolution "
-                "result with complete transitive closure and provenance."
             )
 
         catalogue_path = (
