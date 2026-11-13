@@ -156,6 +156,42 @@ def test_valid_direct_and_transitive_graph_passes_offline_validation():
     assert validate(section) is True
 
 
+def test_direct_request_constraint_is_preserved_and_enforced():
+    package = python_package("demo-root", "1.5.0", direct=True, requested_by=["demo_app"])
+    section = package_resolution([package])
+    app = {
+        "name": "demo_app",
+        "app_id": "demo_app",
+        "package_dependencies": [{
+            "ecosystem": "python",
+            "name": "demo-root",
+            "version": "1.5.0",
+            "source": "https://pypi.org/simple",
+            "resolver": "uv",
+            "source_profile": "python-pypi-public-v1",
+            "scope": "runtime",
+            "version_policy": "constraint",
+            "requested_constraint": ">=1,<2",
+            "disposition": "runtime_compatible",
+            "install": True,
+        }],
+    }
+
+    assert validate(section, apps=[app]) is True
+    app["package_dependencies"][0]["requested_constraint"] = ">=2,<3"
+    with pytest.raises(PackageResolutionError, match="direct incoming constraint"):
+        validate(section, apps=[app])
+
+
+def test_package_source_url_must_match_approved_profile():
+    package = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
+    package["source"] = "https://packages.example.invalid/simple"
+    section = package_resolution([package])
+
+    with pytest.raises(PackageResolutionError, match="does not match its approved profile"):
+        validate(section)
+
+
 def test_package_cycle_fails_closed():
     first = python_package("first", "1.0.0", direct=True, requested_by=["demo_app"])
     second = python_package("second", "1.0.0")
