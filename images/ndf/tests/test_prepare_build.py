@@ -19,11 +19,23 @@ def build_project(tmp_path):
     ndf_dir = tmp_path / "images" / "ndf"
     manifests_dir = ndf_dir / "manifests" / "products"
     schemas_dir = ndf_dir / "schemas"
+    policies_dir = ndf_dir / "policies"
     locks_dir = ndf_dir / "locks"
     definitions_dir = ndf_dir / "image-definitions"
 
-    for directory in (manifests_dir, schemas_dir, locks_dir, definitions_dir):
+    for directory in (
+        manifests_dir,
+        schemas_dir,
+        policies_dir,
+        locks_dir,
+        definitions_dir,
+    ):
         directory.mkdir(parents=True, exist_ok=True)
+
+    shutil.copy2(
+        project_root / "policies" / "package-source-profiles-v1.json",
+        policies_dir / "package-source-profiles-v1.json",
+    )
 
     for schema_name in (
         "application-manifest-v1.schema.json",
