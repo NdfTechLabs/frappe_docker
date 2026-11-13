@@ -154,6 +154,9 @@ def validate(section, *, target=None, apps=None, catalogue_path=CATALOGUE):
                 "resolver": package["resolver"],
                 "source_profile": package["source_profile"],
                 "scope": package["scope"],
+                "architecture": (
+                    package["architecture"] if package["ecosystem"] == "os" else None
+                ),
                 "version_policy": "latest_compatible",
                 "requested_constraint": None,
                 "disposition": package["disposition"],
