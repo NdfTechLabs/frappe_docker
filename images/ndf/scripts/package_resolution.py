@@ -171,13 +171,31 @@ def validate_package_resolution(
         raise PackageResolutionError("Package graph target is outside the accepted A.1 linux/amd64 matrix.")
     if (
         os_target.get("distribution_family") != "debian"
+        or os_target.get("id") != "debian"
+        or os_target.get("version_id") != "13"
         or os_target.get("codename") != "trixie"
-        or os_target.get("package_database") != "dpkg"
         or os_target.get("architecture") != "amd64"
         or os_target.get("package_manager") != "apt"
-        or not os_target.get("package_manager_version")
+        or os_target.get("package_manager_version") != "3.0.4"
+        or os_target.get("package_database") != "dpkg"
+        or os_target.get("package_database_version") != "1.22.22"
+        or os_target.get("libc", {}).get("implementation") != "glibc"
+        or os_target.get("libc", {}).get("version") != "2.41"
     ):
-        raise PackageResolutionError("Package graph target OS is outside the accepted Debian Trixie/dpkg matrix.")
+        raise PackageResolutionError("Package graph target OS is outside the accepted Debian 13/Trixie, apt/dpkg, glibc 2.41 matrix.")
+    if (
+        target_runtime.get("python") != "3.14.10"
+        or target_runtime.get("python_implementation") != "CPython"
+        or not target_runtime.get("python_cache_tag")
+        or not target_runtime.get("python_soabi")
+        or target_runtime.get("node") != "24.22.2"
+        or target_runtime.get("npm") != "11.19.1"
+        or target_runtime.get("node_platform") != "linux"
+        or target_runtime.get("node_architecture") != "x64"
+        or not target_runtime.get("node_abi")
+        or not target_runtime.get("node_api")
+    ):
+        raise PackageResolutionError("Package graph target Python/Node identity is incomplete or outside accepted RT-01.")
     accepted_digests = {
         "builder": "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b",
         "runtime": "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c",
@@ -232,6 +250,8 @@ def validate_package_resolution(
         }[ecosystem]
         if resolver not in allowed or not isinstance(package["resolver_version"], str) or not package["resolver_version"]:
             raise PackageResolutionError(f"Unsupported or unpinned resolver for {ecosystem}.")
+        if ecosystem == "node" and package["resolver_version"] != target_runtime.get("npm"):
+            raise PackageResolutionError("npm resolver version does not match the accepted target runtime.")
         if not isinstance(package["source"], str) or not package["source"]:
             raise PackageResolutionError("Package source must be a credential-free absolute source URI.")
         parsed_source = urlsplit(package["source"])
