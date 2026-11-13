@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 import tomllib
 import urllib.error
 import urllib.parse
@@ -84,12 +85,15 @@ def _target_platforms(target: dict) -> list[str]:
     )
 
 
-def _supported_wheel_tags(target: dict) -> set:
+def _supported_wheel_tags(target: dict) -> list:
     platforms = _target_platforms(target)
     py_version = (3, 14)
     interpreter = "cp314"
-    tags = set(cpython_tags(py_version, abis=("cp314", "abi3", "none"), platforms=platforms))
-    tags.update(compatible_tags(py_version, interpreter=interpreter, platforms=platforms))
+    tags = list(cpython_tags(py_version, abis=("cp314", "abi3", "none"), platforms=platforms))
+    tags.extend(
+        tag for tag in compatible_tags(py_version, interpreter=interpreter, platforms=platforms)
+        if tag not in set(tags)
+    )
     return tags
 
 
@@ -166,7 +170,7 @@ def _verify_wheel(
     wheel: dict,
     package_name: str,
     package_version: str,
-    supported_tags: set,
+    supported_tags: list,
     opener,
     workspace: Path,
     remaining_bytes: int,
@@ -181,7 +185,7 @@ def _verify_wheel(
     if (
         normalize_package_name("python", str(wheel_name)) != package_name
         or str(wheel_version) != package_version
-        or not (wheel_tags & supported_tags)
+        or not (wheel_tags & set(supported_tags))
     ):
         raise PythonAdapterError(f"Wheel identity or target tags do not match {package_name}=={package_version}.")
     hashes = wheel.get("hashes")
@@ -241,7 +245,6 @@ def resolve_python_packages(
     Returns (normalized package_resolution section, direct package versions keyed
     by (app_id, normalized_name) joined with a NUL separator.
     """
-    supported_tags = _supported_wheel_tags(target_runtime)
     requirements: dict[str, list[dict]] = {}
     for app in applications:
         app_id = app.get("_app_id") or app.get("app_id")
@@ -320,7 +323,9 @@ def resolve_python_packages(
             {},
         )
 
+    supported_tags = _supported_wheel_tags(target_runtime)
     proxy = _validate_proxy(egress_proxy or os.environ.get("NDF_PACKAGE_EGRESS_PROXY"))
+    deadline = time.monotonic() + timeout
     with tempfile.TemporaryDirectory(prefix="ndf-python-resolution-") as temporary:
         workspace = Path(temporary)
         input_path = workspace / "requirements.in"
@@ -416,10 +421,13 @@ def resolve_python_packages(
             if not isinstance(version, str) or not version:
                 raise PythonAdapterError("Resolved Python package has no exact version.")
             index = entry.get("index", PYPI_INDEX)
+            if not isinstance(index, str):
+                raise PythonAdapterError(f"Package {name} has no valid approved index identity.")
             index_url = urllib.parse.urlparse(index)
             if (
                 index_url.scheme != "https"
                 or index_url.hostname != "pypi.org"
+                or index_url.port not in (None, 443)
                 or index_url.path.rstrip("/") != "/simple"
                 or index_url.username
                 or index_url.password
@@ -427,6 +435,8 @@ def resolve_python_packages(
                 or index_url.fragment
             ):
                 raise PythonAdapterError(f"Package {name} resolved from an unapproved index.")
+            if any(key in entry for key in ("vcs", "directory", "archive")):
+                raise PythonAdapterError(f"Non-PyPI source selected for {name}; direct sources are prohibited.")
             wheels = entry.get("wheels", [])
             if not isinstance(wheels, list) or not wheels:
                 raise PythonAdapterError(
@@ -434,21 +444,31 @@ def resolve_python_packages(
                     "source-distribution builds are prohibited."
                 )
             compatible = []
+            tag_rank = {tag: index for index, tag in enumerate(supported_tags)}
             for wheel in wheels:
+                if not isinstance(wheel, dict):
+                    raise PythonAdapterError(f"Malformed wheel entry for {name}.")
                 filename = urllib.parse.urlparse(wheel.get("url", "")).path.rsplit("/", 1)[-1]
                 try:
                     _wheel_name, _wheel_version, _build, tags = parse_wheel_filename(filename)
                 except Exception:
                     continue
-                if tags & supported_tags:
-                    compatible.append(wheel)
+                ranks = [tag_rank[tag] for tag in tags if tag in tag_rank]
+                if ranks:
+                    compatible.append((min(ranks), wheel))
             if not compatible:
                 raise PythonAdapterError(f"No target-compatible wheel is available for {name}=={version}.")
+            compatible.sort(key=lambda item: (item[0], item[1].get("url", "")))
+            remaining_time = deadline - time.monotonic()
+            if remaining_time <= 0:
+                raise PythonAdapterError("Python artifact verification exceeded the overall execution timeout.")
             integrity, downloaded = _verify_wheel(
-                sorted(compatible, key=lambda item: item.get("url", ""))[0],
+                compatible[0][1],
                 name, version, supported_tags, opener, workspace, remaining_bytes,
             )
             remaining_bytes -= downloaded
+            if name in package_rows:
+                raise PythonAdapterError(f"uv returned multiple selected versions for normalized package {name}.")
             package_rows[name] = {
                 "name": name,
                 "version": version,
@@ -509,10 +529,12 @@ def resolve_python_packages(
 
         by_name = {name: row for name, row in package_rows.items()}
         for name, row in package_rows.items():
+            if not isinstance(row["dependencies"], list):
+                raise PythonAdapterError(f"Malformed dependency list for {name}.")
             for dependency in row["dependencies"]:
-                if not isinstance(dependency, dict):
+                if not isinstance(dependency, dict) or not isinstance(dependency.get("name"), str):
                     raise PythonAdapterError(f"Malformed dependency edge for {name}.")
-                dependency_name = normalize_package_name("python", dependency.get("name", ""))
+                dependency_name = normalize_package_name("python", dependency["name"])
                 target = by_name.get(dependency_name)
                 if target is None:
                     raise PythonAdapterError(
