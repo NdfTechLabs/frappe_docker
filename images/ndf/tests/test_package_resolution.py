@@ -114,6 +114,8 @@ def validate(section, *, target=None, apps=None):
                 "version": package["version"],
                 "source": package["source"],
                 "resolver": package["resolver"],
+                "source_profile": package["source_profile"],
+                "scope": package["scope"],
                 "version_policy": "latest_compatible",
                 "requested_constraint": None,
                 "disposition": package["disposition"],
