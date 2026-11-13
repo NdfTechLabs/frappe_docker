@@ -4,20 +4,17 @@
   "id": "dhanaerp-master-v16",
   "name": "DhanaERP Master",
   "description": "DhanaERP Master control-plane product for provisioning, configuring and managing DhanaERP tenant deployments on Frappe v16.",
-
   "framework": {
     "name": "frappe",
     "version": "16",
     "release_channel": "stable",
     "target_ref": "version-16"
   },
-
   "profile": {
     "type": "product",
     "required": true,
     "install_by_default": true
   },
-
   "deployment": {
     "role": "master",
     "purpose": "control_plane",
@@ -25,7 +22,6 @@
     "tenant_provisioning": true,
     "tenant_lifecycle_management": true
   },
-
   "resolution": {
     "strategy": "locked",
     "require_immutable_commit": true,
@@ -39,7 +35,6 @@
       "All production application references must resolve to immutable commit SHAs."
     ]
   },
-
   "includes": [
     {
       "manifest": "core/dhana-base-v16.json",
@@ -66,7 +61,6 @@
       "description": "Optional AI and automation functionality for DhanaERP Master."
     }
   ],
-
   "validation": {
     "required_checks": [
       "all_included_manifests_exist",
