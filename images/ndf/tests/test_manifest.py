@@ -114,6 +114,13 @@ def loader(tmp_path):
     # Copy the actual project schema into the temporary environment.
     project_ndf_dir = Path(__file__).resolve().parents[1]
 
+    policies_dir = tmp_path / "images" / "ndf" / "policies"
+    policies_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        project_ndf_dir / "policies" / "package-source-profiles-v1.json",
+        policies_dir / "package-source-profiles-v1.json",
+    )
+
     for schema_name in (
         "application-manifest-v1.schema.json",
         "application-manifest-v2.schema.json",
@@ -1911,6 +1918,7 @@ class TestDescriptorResolutionPrimitives:
                         "name": "vite",
                         "required": True,
                         "version_policy": "latest_compatible",
+                        "scope": "build",
                         "disposition": "runtime_compatible",
                     }
                 ],
@@ -1923,7 +1931,7 @@ class TestDescriptorResolutionPrimitives:
                     "python:requests": {
                         "version": "2.32.3",
                         "source": "https://pypi.org/simple",
-                        "resolver": "pip",
+                        "resolver": "uv",
                     },
                     "node:vite": {
                         "version": "6.0.0",
@@ -1956,6 +1964,7 @@ class TestDescriptorResolutionPrimitives:
                         "disposition": "environment_level",
                         "distribution_family": "debian",
                         "package_manager": "apt",
+                        "scope": "build",
                     }
                 ]
             },
@@ -1967,7 +1976,7 @@ class TestDescriptorResolutionPrimitives:
                 "package_versions": {
                     "os:libpq-dev": {
                         "version": "16.4-1",
-                        "source": "https://deb.debian.org/debian",
+                        "source": "http://deb.debian.org/debian",
                         "resolver": "apt",
                     }
                 },
