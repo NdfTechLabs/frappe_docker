@@ -12,6 +12,8 @@
 
 set -Eeuo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 PLATFORM="linux/amd64"
 OUTPUT_DIR=""
 FINALIZE_EXISTING=false
@@ -248,9 +250,8 @@ CONTAINER_SCRIPT
   fi
 
   echo "==> Capturing installed dpkg inventory"
-  docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -c \
-    "dpkg-query -W -f='\${binary:Package}\t\${Version}\t\${Architecture}\n' 2>/dev/null | LC_ALL=C sort" \
-    > "$dir/dpkg-inventory.tsv"
+  bash "$SCRIPT_DIR/capture_dpkg_inventory.sh" \
+    "$PLATFORM" "$resolved_ref" "$dir/dpkg-inventory.tsv"
 
   echo "==> Recording native package database version"
   docker run --rm --platform "$PLATFORM" --entrypoint /bin/sh "$resolved_ref" -c \
