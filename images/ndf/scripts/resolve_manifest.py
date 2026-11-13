@@ -474,6 +474,14 @@ class ManifestLoader:
                         f"{descriptor['app_id']}: OS dependency {name} does not match "
                         "target OS/package manager."
                     )
+                scope = dependency.get("scope")
+                if ecosystem == "python":
+                    scope = "build" if dependency.get("build_required", False) else "runtime"
+                source_profile = {
+                    "python": "python-pypi-public-v1",
+                    "node": "node-npm-public-v1",
+                    "os": "os-debian-trixie-public-amd64-v1",
+                }[ecosystem]
                 resolved.append(
                     {
                         "ecosystem": ecosystem,
@@ -482,8 +490,11 @@ class ManifestLoader:
                         "source": selection["source"],
                         "resolver": selection["resolver"],
                         "version_policy": policy,
+                        "requested_constraint": constraint if policy == "constraint" else None,
+                        "source_profile": source_profile,
                         "disposition": dependency.get("disposition"),
                         "install": dependency.get("disposition") != "base",
+                        "scope": scope,
                         "package_manager": dependency.get("package_manager"),
                         "distribution_family": dependency.get("distribution_family"),
                     }
