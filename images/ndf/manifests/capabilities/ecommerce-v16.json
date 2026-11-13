@@ -38,11 +38,7 @@
       "ref": null,
       "required": true,
       "install_order": 110,
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "webshop"
-      ],
+      "dependencies": ["frappe", "erpnext", "webshop"],
       "compatibility_status": "verified",
       "notes": "Primary NDF ecommerce application. Provides storefront themes, homepage, catalogue, product detail pages, wholesale pricing, cart enhancements and storefront APIs."
     },
@@ -53,11 +49,7 @@
       "ref": null,
       "required": true,
       "install_order": 120,
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "dt_ecommerce"
-      ],
+      "dependencies": ["frappe", "erpnext", "dt_ecommerce"],
       "compatibility_status": "verified",
       "notes": "NDF product recommendation engine. Provides interaction tracking, recommendation generation and product discovery functionality. Required for this ecommerce capability."
     },
@@ -68,12 +60,7 @@
       "ref": null,
       "required": false,
       "install_order": 130,
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "webshop",
-        "dt_ecommerce"
-      ],
+      "dependencies": ["frappe", "erpnext", "webshop", "dt_ecommerce"],
       "source_status": "local_only",
       "compatibility_status": "verified",
       "production_policy": "exclude_until_repository_published_and_commit_pinned",
