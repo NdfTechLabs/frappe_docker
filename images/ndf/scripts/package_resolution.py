@@ -36,14 +36,21 @@ def normalize_package_name(ecosystem: str, name: str) -> str:
     if not isinstance(name, str) or not name or name.strip() != name:
         raise PackageResolutionError("Package name must be a non-empty canonical string.")
     if ecosystem == "python":
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", name):
+            raise PackageResolutionError(f"Invalid Python distribution name: {name}")
         return re.sub(r"[-_.]+", "-", name).lower()
     if ecosystem == "node":
         if name.startswith("@"):
             parts = name.split("/")
-            if len(parts) != 2 or not all(parts) or parts[0] != parts[0].lower() or parts[1] != parts[1].lower():
+            valid_scoped = (
+                len(parts) == 2
+                and re.fullmatch(r"@[a-z0-9][a-z0-9._~-]*", parts[0]) is not None
+                and re.fullmatch(r"[a-z0-9][a-z0-9._~-]*", parts[1]) is not None
+            )
+            if not valid_scoped:
                 raise PackageResolutionError(f"Invalid or non-canonical npm package name: {name}")
             return name
-        if name != name.lower() or "/" in name:
+        if re.fullmatch(r"[a-z0-9][a-z0-9._~-]*", name) is None:
             raise PackageResolutionError(f"Invalid or non-canonical npm package name: {name}")
         return name
     if ecosystem == "os":
@@ -89,6 +96,29 @@ def _constraint_satisfied(ecosystem: str, version: str, constraint: str) -> bool
         raise PackageResolutionError(
             f"Invalid {ecosystem} dependency constraint {constraint!r}: {exc}"
         ) from exc
+
+
+def _contains_secret_or_credential(value: Any) -> bool:
+    forbidden_keys = {
+        "password", "passwd", "token", "secret", "credential",
+        "authorization", "private_key", "access_key",
+    }
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if any(marker in str(key).lower() for marker in forbidden_keys):
+                return True
+            if _contains_secret_or_credential(item):
+                return True
+    elif isinstance(value, list):
+        return any(_contains_secret_or_credential(item) for item in value)
+    elif isinstance(value, str) and "://" in value:
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            return True
+        if parsed.username or parsed.password or parsed.query:
+            return True
+    return False
 
 
 def _load_catalogue(path: Path) -> dict:
@@ -286,7 +316,10 @@ def validate_package_resolution(
             raise PackageResolutionError("npm resolver version does not match the accepted target runtime.")
         if not isinstance(package["source"], str) or not package["source"]:
             raise PackageResolutionError("Package source must be a credential-free absolute source URI.")
-        parsed_source = urlsplit(package["source"])
+        try:
+            parsed_source = urlsplit(package["source"])
+        except ValueError as exc:
+            raise PackageResolutionError("Package source URI is malformed.") from exc
         if parsed_source.scheme != "https" and ecosystem != "os":
             raise PackageResolutionError("Python and Node package sources must use HTTPS.")
         if not parsed_source.netloc or parsed_source.username or parsed_source.password or parsed_source.query or parsed_source.fragment:
@@ -351,7 +384,10 @@ def validate_package_resolution(
             if not isinstance(artifact, str) or not artifact:
                 raise PackageResolutionError("Package integrity record must identify its artifact.")
             if ecosystem in {"python", "node"}:
-                artifact_host = urlsplit(artifact).hostname
+                try:
+                    artifact_host = urlsplit(artifact).hostname
+                except ValueError as exc:
+                    raise PackageResolutionError("Package artifact URI is malformed.") from exc
                 allowed_hosts = (
                     profile.get("artifact_hosts", [])
                     if ecosystem == "python"
@@ -361,6 +397,8 @@ def validate_package_resolution(
                     raise PackageResolutionError("Package artifact host is not approved by its source profile.")
             elif artifact.startswith("/") or ".." in Path(artifact).parts:
                 raise PackageResolutionError("Debian package artifact path is invalid.")
+        if _contains_secret_or_credential(package["repository_metadata"]):
+            raise PackageResolutionError("Repository metadata contains credentials or secret-bearing values.")
         if ecosystem in {"python", "node"}:
             if package["repository_metadata"].get("source_identity") != profile.get("source_identity"):
                 raise PackageResolutionError("Package repository metadata source identity does not match its approved profile.")
@@ -397,7 +435,7 @@ def validate_package_resolution(
             ecosystem = direct.get("ecosystem")
             name = direct.get("name")
             version = direct.get("version")
-            if ecosystem not in {"python", "node", "os"} or not isinstance(name, str) or not isinstance(version, str):
+            if not isinstance(ecosystem, str) or ecosystem not in {"python", "node", "os"} or not isinstance(name, str) or not isinstance(version, str):
                 raise PackageResolutionError("Direct package dependency identity is incomplete.")
             normalized = normalize_package_name(ecosystem, name)
             candidates = [
@@ -498,7 +536,11 @@ def validate_package_resolution(
         return True
     if not isinstance(inventory_ref, dict):
         raise PackageResolutionError("OS base packages require a verified base_inventory reference.")
-    if set(inventory_ref) != {"schema_version", "evidence_reference", "manifest_file", "manifest_sha256", "inventories"} or inventory_ref.get("schema_version") != 1:
+    if (
+        set(inventory_ref) != {"schema_version", "evidence_reference", "manifest_file", "manifest_sha256", "inventories"}
+        or inventory_ref.get("schema_version") != 1
+        or isinstance(inventory_ref.get("schema_version"), bool)
+    ):
         raise PackageResolutionError("base_inventory reference has an unsupported or incomplete schema.")
     evidence_ref = inventory_ref.get("evidence_reference")
     expected_prefix = "images/ndf/inventories/debian-trixie-amd64/"
