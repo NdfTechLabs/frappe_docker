@@ -113,7 +113,7 @@ def _target_platforms(target: dict) -> list[str]:
     ):
         raise PythonAdapterError("Unsupported Python target; only the accepted RT-01 CPython 3.14.10 AMD64 target is supported.")
     return (
-        [f"manylinux_2_{minor}_x86_64" for minor in range(41, 4, -1)]
+        [f"manylinux_2_{minor}_x86_64" for minor in range(40, 4, -1)]
         + ["manylinux2014_x86_64", "manylinux2010_x86_64", "manylinux1_x86_64", "linux_x86_64"]
     )
 
@@ -504,7 +504,7 @@ def resolve_python_packages(
             "--format", "pylock.toml",
             "--index-url", PYPI_INDEX,
             "--python-version", target_runtime["python"],
-            "--python-platform", "x86_64-manylinux_2_41",
+            "--python-platform", "x86_64-manylinux_2_40",
             "--no-build",
             "--no-config",
             "--no-cache",
