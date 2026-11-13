@@ -2063,6 +2063,68 @@ class TestDescriptorResolutionPrimitives:
             descriptor, {}, set()
         ) == []
 
+    def test_os_package_requirement_is_declarative_and_target_bound(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "dependencies": {
+                "os": [{
+                    "name": "libpq-dev",
+                    "required": True,
+                    "version_policy": "constraint",
+                    "version": "16.4-1",
+                    "distribution_family": "debian",
+                    "package_manager": "apt",
+                    "scope": "build",
+                    "disposition": "environment_level",
+                }]
+            },
+        }
+        target = {
+            "os": {
+                "distribution_family": "debian",
+                "version_id": "13",
+                "codename": "trixie",
+                "architecture": "amd64",
+                "package_manager": "apt",
+                "package_database": "dpkg",
+            }
+        }
+
+        result = loader._collect_descriptor_package_requirements(
+            descriptor, target, set()
+        )
+
+        assert result == [{
+            "ecosystem": "os",
+            "name": "libpq-dev",
+            "version_policy": "constraint",
+            "requested_constraint": "16.4-1",
+            "source_profile": "os-debian-trixie-public-amd64-v1",
+            "disposition": "environment_level",
+            "install": True,
+            "scope": "build",
+            "package_manager": "apt",
+            "distribution_family": "debian",
+        }]
+
+    def test_node_requirement_rejects_non_yarn_package_manager(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "dependencies": {
+                "node": [{
+                    "name": "vite",
+                    "required": True,
+                    "version_policy": "latest_compatible",
+                    "scope": "build",
+                    "package_manager": "npm",
+                    "disposition": "runtime_compatible",
+                }]
+            },
+        }
+
+        with pytest.raises(ManifestError, match="only package_manager=yarn is supported"):
+            loader._collect_descriptor_package_requirements(descriptor, {}, set())
+
 
 class TestIndependentServiceComposition:
     def _write_service(self, loader, service_id, descriptor):
