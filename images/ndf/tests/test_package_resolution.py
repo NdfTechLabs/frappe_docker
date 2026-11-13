@@ -618,6 +618,17 @@ def test_base_inventory_reference_must_match_runtime_digest():
         validate(section)
 
 
+def test_dpkg_evidence_cannot_classify_python_package_as_base():
+    package = python_package(
+        "demo-root", "1.0.0", direct=True, requested_by=["demo_app"]
+    )
+    package["disposition"] = "base"
+    package["install"] = False
+
+    with pytest.raises(PackageResolutionError, match="cannot establish Python or Node"):
+        validate(package_resolution([package]))
+
+
 def test_builder_only_package_cannot_satisfy_runtime_scope():
     package = {
         "id": "os|dpkg-dev|1.22.22|all",
