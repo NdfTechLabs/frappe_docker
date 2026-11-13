@@ -290,19 +290,6 @@ def resolve_python_packages(
                 }
             )
 
-    if not requirements:
-        return (
-            {
-                "schema_version": 1,
-                "source_policy_catalogue_version": "1.1.0",
-                "source_profiles": [],
-                "base_inventory": None,
-                "packages": [],
-                "dependency_edges": [],
-            },
-            {},
-        )
-
     catalogue_path = repository_root / "images/ndf/policies/package-source-profiles-v1.json"
     try:
         import json
@@ -321,6 +308,19 @@ def resolve_python_packages(
         or not policy_version
     ):
         raise PythonAdapterError("Python source profile or uv version does not match the approved B.1 policy.")
+
+    if not requirements:
+        return (
+            {
+                "schema_version": 1,
+                "source_policy_catalogue_version": policy_version,
+                "source_profiles": [],
+                "base_inventory": None,
+                "packages": [],
+                "dependency_edges": [],
+            },
+            {},
+        )
 
     with tempfile.TemporaryDirectory(prefix="ndf-python-resolution-") as temporary:
         workspace = Path(temporary)
