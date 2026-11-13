@@ -328,17 +328,42 @@ def validate_package_resolution(
             raise PackageResolutionError("requested_by must contain sorted, unique locked app_id values.")
         if package["direct"] != bool(requested_by):
             raise PackageResolutionError("Direct package status must agree with requested_by.")
-        if not isinstance(package["integrity"], list) or not isinstance(package["repository_metadata"], dict):
-            raise PackageResolutionError("Package integrity/repository_metadata provenance is malformed.")
+        if (
+            not isinstance(package["integrity"], list)
+            or not package["integrity"]
+            or not isinstance(package["repository_metadata"], dict)
+        ):
+            raise PackageResolutionError("Package integrity/repository_metadata provenance is incomplete.")
         for integrity in package["integrity"]:
-            if (
-                not isinstance(integrity, dict)
-                or not isinstance(integrity.get("algorithm"), str)
-                or not isinstance(integrity.get("digest"), str)
-                or not integrity["algorithm"]
-                or not re.fullmatch(r"[a-fA-F0-9]+", integrity["digest"])
-            ):
+            if not isinstance(integrity, dict):
                 raise PackageResolutionError("Package integrity record is malformed.")
+            algorithm = integrity.get("algorithm")
+            digest = integrity.get("digest")
+            expected_length = {"sha256": 64, "sha512": 128}.get(algorithm)
+            if (
+                expected_length is None
+                or not isinstance(digest, str)
+                or not re.fullmatch(r"[a-fA-F0-9]+", digest)
+                or len(digest) != expected_length
+            ):
+                raise PackageResolutionError("Package integrity record must contain a supported verified digest.")
+            artifact = integrity.get("artifact")
+            if not isinstance(artifact, str) or not artifact:
+                raise PackageResolutionError("Package integrity record must identify its artifact.")
+            if ecosystem in {"python", "node"}:
+                artifact_host = urlsplit(artifact).hostname
+                allowed_hosts = (
+                    profile.get("artifact_hosts", [])
+                    if ecosystem == "python"
+                    else ["registry.npmjs.org"]
+                )
+                if artifact_host not in allowed_hosts:
+                    raise PackageResolutionError("Package artifact host is not approved by its source profile.")
+            elif artifact.startswith("/") or ".." in Path(artifact).parts:
+                raise PackageResolutionError("Debian package artifact path is invalid.")
+        if ecosystem in {"python", "node"}:
+            if package["repository_metadata"].get("source_identity") != profile.get("source_identity"):
+                raise PackageResolutionError("Package repository metadata source identity does not match its approved profile.")
         if ecosystem == "os":
             metadata = package["repository_metadata"]
             if (
