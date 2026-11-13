@@ -28,6 +28,17 @@ from packaging.version import Version as PythonVersion
 from semantic_version import NpmSpec
 from semantic_version import Version as SemVerVersion
 
+try:
+    from .package_resolution import (
+        PackageResolutionError,
+        validate_package_resolution,
+    )
+except ImportError:
+    from package_resolution import (
+        PackageResolutionError,
+        validate_package_resolution,
+    )
+
 
 class ManifestError(Exception):
     """Raised when manifest loading or resolution fails."""
@@ -1232,6 +1243,18 @@ class ManifestLoader:
                 "Resolved application composition does not contain Frappe."
             )
 
+        has_direct_package_selections = any(
+            app.get("package_dependencies")
+            for app in applications
+            if isinstance(app, dict)
+        )
+        if has_direct_package_selections:
+            raise ManifestError(
+                "Cannot generate a package-resolution-complete lock from transitional "
+                "direct package selections alone. A native resolver result with complete "
+                "transitive closure and provenance is required."
+            )
+
         framework = dict(manifest["framework"])
         framework.update(
             {
@@ -1257,6 +1280,14 @@ class ManifestLoader:
             },
             "framework": framework,
             "target_runtime": manifest.get("target_runtime"),
+            "package_resolution": {
+                "schema_version": 1,
+                "source_policy_catalogue_version": "1.0.0",
+                "source_profiles": [],
+                "base_inventory": None,
+                "packages": [],
+                "dependency_edges": [],
+            },
             "manifests": loaded_manifests,
             "capabilities": sorted(
                 [
@@ -1856,6 +1887,29 @@ class ManifestLoader:
                             f"{locked_app.get('name')} "
                             f"(mismatched fields: {mismatches or ['installation_order']})."
                         )
+
+        package_resolution = lock.get("package_resolution")
+        if package_resolution is None:
+            has_direct_package_selections = any(
+                app.get("package_dependencies")
+                for app in applications
+                if isinstance(app, dict)
+            )
+            if has_direct_package_selections:
+                raise ManifestError(
+                    "Package-resolution migration required: lock v2 contains direct "
+                    "package selections but no normalized package_resolution graph."
+                )
+        else:
+            try:
+                validate_package_resolution(
+                    package_resolution,
+                    target_runtime=lock.get("target_runtime"),
+                    applications=applications,
+                    repository_root=self.repository_root,
+                )
+            except PackageResolutionError as exc:
+                raise ManifestError(f"Invalid package_resolution: {exc}") from exc
 
         frappe_app = available_apps.get("frappe")
         framework = lock.get("framework")
