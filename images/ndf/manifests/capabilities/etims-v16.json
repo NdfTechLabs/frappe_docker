@@ -37,11 +37,7 @@
       "ref": null,
       "required": true,
       "install_order": 100,
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "hrms"
-      ],
+      "dependencies": ["frappe", "erpnext", "hrms"],
       "compatibility_status": "verified",
       "notes": "Navari Kenya Country Specific Functionality application. Provides Kenya-specific ERPNext functionality and is a dependency of kenya_compliance_via_slade."
     },
@@ -52,11 +48,7 @@
       "ref": null,
       "required": true,
       "install_order": 110,
-      "dependencies": [
-        "frappe",
-        "erpnext",
-        "csf_ke"
-      ],
+      "dependencies": ["frappe", "erpnext", "csf_ke"],
       "compatibility_status": "verified",
       "notes": "Primary eTIMS integration application. Uses Slade360 Advantage as the intermediary for KRA VSCU integration. Requires external Slade360 onboarding, credentials and configuration."
     }
