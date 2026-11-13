@@ -32,15 +32,15 @@ def target_runtime():
         "python_cache_tag": "cpython-314",
         "python_soabi": "cpython-314-x86_64-linux-gnu",
         "python_platform": "linux-x86_64",
-        "python_executable": "/usr/local/bin/python",
-        "python_build": "CPython 3.14.10 release build",
+        "python_executable": "/usr/local/bin/python3",
+        "python_build": "CPython 3.14.10, compiled with GCC 14.2.0",
         "node": "24.22.2",
         "npm": "11.19.1",
         "node_platform": "linux",
         "node_architecture": "x64",
         "node_abi": "137",
         "node_api": "10",
-        "node_executable": "/usr/local/bin/node",
+        "node_executable": "/home/frappe/.nvm/current/bin/node",
         "platform": {"os": "linux", "architecture": "amd64"},
         "images": {
             "builder": {
