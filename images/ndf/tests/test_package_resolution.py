@@ -646,6 +646,58 @@ def test_dpkg_evidence_cannot_classify_python_package_as_base():
         validate(package_resolution([package]))
 
 
+def test_direct_os_request_must_match_native_architecture():
+    package = {
+        "id": "os|dpkg|1.22.22|amd64",
+        "ecosystem": "os",
+        "name": "dpkg",
+        "version": "1.22.22",
+        "architecture": "amd64",
+        "source_profile": "os-debian-trixie-public-amd64-v1",
+        "source": "http://deb.debian.org/debian",
+        "resolver": "apt",
+        "resolver_version": "3.0.4",
+        "direct": True,
+        "requested_by": ["demo_app"],
+        "disposition": "runtime_compatible",
+        "install": True,
+        "scope": "runtime",
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "b" * 64,
+            "artifact": "pool/main/d/dpkg/dpkg_1.22.22_amd64.deb",
+        }],
+        "repository_metadata": {
+            "release_identity": "Debian Trixie InRelease fixture",
+            "release_sha256": "a" * 64,
+            "signature_verified": True,
+            "repository_uri": "http://deb.debian.org/debian",
+            "suite": "trixie",
+        },
+    }
+    app = {
+        "name": "demo_app",
+        "app_id": "demo_app",
+        "package_dependencies": [{
+            "ecosystem": "os",
+            "name": "dpkg",
+            "version": "1.22.22",
+            "source": "http://deb.debian.org/debian",
+            "resolver": "apt",
+            "source_profile": "os-debian-trixie-public-amd64-v1",
+            "scope": "runtime",
+            "architecture": "all",
+            "version_policy": "latest_compatible",
+            "requested_constraint": None,
+            "disposition": "runtime_compatible",
+            "install": True,
+        }],
+    }
+
+    with pytest.raises(PackageResolutionError, match="architecture differs"):
+        validate(package_resolution([package]), apps=[app])
+
+
 def test_builder_only_package_cannot_satisfy_runtime_scope():
     package = {
         "id": "os|dpkg-dev|1.22.22|all",
