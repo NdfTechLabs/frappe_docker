@@ -142,3 +142,43 @@ def test_unsorted_or_duplicate_records_fail_closed(tmp_path):
 
     with pytest.raises(InventoryError, match="not sorted deterministically"):
         validate_inventory_directory(tmp_path, SCHEMA)
+
+
+
+def test_duplicate_inventory_records_fail_closed(tmp_path):
+    manifest = write_evidence(tmp_path)
+    inventory = tmp_path / "builder" / "dpkg-inventory.tsv"
+    raw = (
+        "base-files\t13.8+deb13u1\tamd64\n"
+        "base-files\t13.8+deb13u1\tamd64\n"
+    ).encode()
+    inventory.write_bytes(raw)
+    manifest["inventories"]["builder"]["sha256"] = hashlib.sha256(raw).hexdigest()
+    manifest["inventories"]["builder"]["package_count"] = 2
+    (tmp_path / "inventory-manifest.json").write_text(json.dumps(manifest))
+
+    with pytest.raises(InventoryError, match="Duplicate dpkg record"):
+        validate_inventory_directory(tmp_path, SCHEMA)
+
+
+def test_builder_and_runtime_platforms_must_match(tmp_path):
+    manifest = write_evidence(tmp_path)
+    manifest["inventories"]["runtime"]["image"]["platform"] = "linux/arm64"
+    (tmp_path / "inventory-manifest.json").write_text(json.dumps(manifest))
+
+    with pytest.raises(InventoryError, match="platforms differ"):
+        validate_inventory_directory(tmp_path, SCHEMA)
+
+
+def test_base_package_lookup_rejects_unknown_scope(tmp_path):
+    write_evidence(tmp_path)
+    _, parsed = validate_inventory_directory(tmp_path, SCHEMA)
+
+    with pytest.raises(InventoryError, match="Unsupported OS package scope"):
+        find_base_package(
+            parsed,
+            scope="runtime-build",
+            name="dpkg",
+            version="1.22.22",
+            architecture="amd64",
+        )
