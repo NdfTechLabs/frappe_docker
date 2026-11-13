@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ndftechlabs.com/schemas/build-inventory-v1.schema.json",
+  "$id": "urn:ndf:schemas:build-inventory-v1",
   "title": "NDF Post-Bench Build Inventory",
   "description": "Versioned evidence captured from the initialized Frappe Bench builder stage.",
   "type": "object",
