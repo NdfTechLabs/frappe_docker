@@ -454,6 +454,12 @@ class ManifestLoader:
                         or profile.get("registry") != "https://pypi.org/simple"
                     ):
                         raise ManifestError("The approved public PyPI source profile is unavailable.")
+                    source_hint = dependency.get("source")
+                    if source_hint is not None and source_hint != profile["registry"]:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: Python dependency {name} source hint "
+                            "does not match the approved public PyPI profile."
+                        )
                     scope = "build" if dependency.get("build_required", False) else "runtime"
                     resolved.append(
                         {
