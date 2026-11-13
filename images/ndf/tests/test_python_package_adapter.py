@@ -1,0 +1,370 @@
+import hashlib
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from scripts.python_package_adapter import (
+    PYPI_INDEX,
+    UV_VERSION,
+    PythonAdapterError,
+    resolve_python_packages,
+)
+
+NDF_DIR = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = NDF_DIR.parents[1]
+PROXY = "http://egress-proxy.example:3128"
+
+
+def target_runtime():
+    return {
+        "python": "3.14.10",
+        "python_implementation": "CPython",
+        "python_cache_tag": "cpython-314",
+        "python_soabi": "cpython-314-x86_64-linux-gnu",
+        "python_platform": "linux-x86_64",
+        "platform": {"os": "linux", "architecture": "amd64"},
+        "os": {
+            "distribution_family": "debian",
+            "version_id": "13",
+            "codename": "trixie",
+            "architecture": "amd64",
+            "libc": {"implementation": "glibc", "version": "2.41"},
+        },
+    }
+
+
+def app_with_python(*dependencies):
+    return {
+        "_app_id": "demo_app",
+        "package_dependencies": [
+            {
+                "ecosystem": "python",
+                "name": name,
+                "version": None,
+                "source": PYPI_INDEX,
+                "resolver": "uv",
+                "version_policy": policy,
+                "requested_constraint": constraint,
+                "source_profile": "python-pypi-public-v1",
+                "disposition": "runtime_compatible",
+                "install": True,
+                "scope": scope,
+            }
+            for name, policy, constraint, scope in dependencies
+        ],
+    }
+
+
+class FakeResponse:
+    def __init__(self, url, body):
+        self.url = url
+        self.body = body
+        self.offset = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def geturl(self):
+        return self.url
+
+    def read(self, size=-1):
+        if size < 0:
+            size = len(self.body) - self.offset
+        chunk = self.body[self.offset:self.offset + size]
+        self.offset += len(chunk)
+        return chunk
+
+
+class FakeOpener:
+    def __init__(self, artifacts):
+        self.artifacts = artifacts
+        self.requested = []
+
+    def open(self, request, timeout):
+        url = request.full_url
+        self.requested.append((url, timeout))
+        return FakeResponse(url, self.artifacts[url])
+
+
+def wheel_entry(name, version, body, *, host="files.pythonhosted.org"):
+    filename = f"{name.replace('-', '_')}-{version}-py3-none-any.whl"
+    url = f"https://{host}/packages/test/{filename}"
+    return {
+        "name": filename,
+        "url": url,
+        "hashes": {"sha256": hashlib.sha256(body).hexdigest()},
+    }
+
+
+def pylock(packages):
+    chunks = ['lock-version = "1.0"', ""]
+    for package in packages:
+        chunks.extend(
+            [
+                "[[packages]]",
+                f'name = "{package["name"]}"',
+                f'version = "{package["version"]}"',
+                f'index = "{PYPI_INDEX}/"',
+                "",
+            ]
+        )
+        for wheel in package.get("wheels", []):
+            chunks.extend(
+                [
+                    "[[packages.wheels]]",
+                    f'name = "{wheel["name"]}"',
+                    f'url = "{wheel["url"]}"',
+                    "[packages.wheels.hashes]",
+                    f'sha256 = "{wheel["hashes"]["sha256"]}"',
+                    "",
+                ]
+            )
+        for dependency in package.get("dependencies", []):
+            chunks.extend(
+                [
+                    "[[packages.dependencies]]",
+                    f'name = "{dependency["name"]}"',
+                    f'version = "{dependency["version"]}"',
+                    "",
+                ]
+            )
+    return "\n".join(chunks)
+
+
+def make_runner(lock_text, *, version=UV_VERSION, compile_error=None, oversized=False):
+    calls = []
+
+    def runner(command, **kwargs):
+        calls.append((command, kwargs))
+        if command[-1] == "--version":
+            kwargs["stdout"].write(f"uv {version}\n".encode())
+            return SimpleNamespace(returncode=0)
+        if compile_error:
+            raise compile_error
+        output_path = Path(command[command.index("--output-file") + 1])
+        output_path.write_text(lock_text, encoding="utf-8")
+        if oversized:
+            kwargs["stdout"].write(b"x" * 128)
+        return SimpleNamespace(returncode=0)
+
+    return runner, calls
+
+
+def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
+    root_bytes = b"fixture wheel bytes: root"
+    child_bytes = b"fixture wheel bytes: child"
+    root_wheel = wheel_entry("demo-root", "1.0.0", root_bytes)
+    child_wheel = wheel_entry("demo-child", "2.4.0", child_bytes)
+    lock_text = pylock(
+        [
+            {
+                "name": "demo-root",
+                "version": "1.0.0",
+                "wheels": [root_wheel],
+                "dependencies": [{"name": "demo-child", "version": "2.4.0"}],
+            },
+            {
+                "name": "demo-child",
+                "version": "2.4.0",
+                "wheels": [child_wheel],
+            },
+        ]
+    )
+    runner, calls = make_runner(lock_text)
+    opener = FakeOpener(
+        {
+            root_wheel["url"]: root_bytes,
+            child_wheel["url"]: child_bytes,
+        }
+    )
+
+    result, direct_versions = resolve_python_packages(
+        [app_with_python(("demo-root", "constraint", ">=1,<2", "runtime"))],
+        target_runtime(),
+        repository_root=REPOSITORY_ROOT,
+        egress_proxy=PROXY,
+        runner=runner,
+        opener_factory=lambda *_args: opener,
+    )
+
+    assert direct_versions == {"demo_app\0demo-root": "1.0.0"}
+    assert [item["name"] for item in result["packages"]] == ["demo-child", "demo-root"]
+    direct = next(item for item in result["packages"] if item["name"] == "demo-root")
+    transitive = next(item for item in result["packages"] if item["name"] == "demo-child")
+    assert direct["direct"] is True
+    assert direct["requested_by"] == ["demo_app"]
+    assert direct["resolver"] == "uv"
+    assert direct["resolver_version"] == "0.13.7"
+    assert direct["integrity"][0]["digest"] == hashlib.sha256(root_bytes).hexdigest()
+    assert direct["repository_metadata"]["source_identity"] == "official-public-pypi"
+    assert transitive["direct"] is False
+    assert result["dependency_edges"] == [
+        {
+            "from": direct["id"],
+            "to": transitive["id"],
+            "constraint": "==2.4.0",
+        }
+    ]
+    compile_command = calls[1][0]
+    assert "--no-build" in compile_command
+    assert "--no-config" in compile_command
+    assert "--no-cache" in compile_command
+    assert compile_command[compile_command.index("--python-version") + 1] == "3.14.10"
+    assert compile_command[compile_command.index("--python-platform") + 1] == "x86_64-manylinux_2_41"
+    assert compile_command[compile_command.index("--index-url") + 1] == PYPI_INDEX
+    assert all("extra-index-url" not in arg for arg in compile_command)
+    assert {url for url, _timeout in opener.requested} == {
+        root_wheel["url"], child_wheel["url"]
+    }
+
+
+def test_latest_compatible_direct_requirement_is_passed_without_a_range():
+    wheel_bytes = b"latest wheel"
+    wheel = wheel_entry("demo-latest", "3.0.0", wheel_bytes)
+    runner, calls = make_runner(
+        pylock([{"name": "demo-latest", "version": "3.0.0", "wheels": [wheel]}])
+    )
+    opener = FakeOpener({wheel["url"]: wheel_bytes})
+
+    _, selected = resolve_python_packages(
+        [app_with_python(("demo-latest", "latest_compatible", None, "build"))],
+        target_runtime(),
+        repository_root=REPOSITORY_ROOT,
+        egress_proxy=PROXY,
+        runner=runner,
+        opener_factory=lambda *_args: opener,
+    )
+
+    requirements_file = Path(calls[1][1]["cwd"]) / "requirements.in"
+    # The temporary workspace is removed after resolution; inspect the command's
+    # input file while the fake runner is executing instead.
+    assert selected == {"demo_app\0demo-latest": "3.0.0"}
+
+
+def test_rejects_source_distribution_only_result_without_building():
+    runner, _calls = make_runner(
+        'lock-version = "1.0"\n\n[[packages]]\nname = "demo-root"\nversion = "1.0.0"\n'
+        '[packages.sdist]\nurl = "https://files.pythonhosted.org/demo.tar.gz"\n'
+        '[packages.sdist.hashes]\nsha256 = "' + "a" * 64 + '"\n'
+    )
+
+    with pytest.raises(PythonAdapterError, match="No wheel is available"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "constraint", ">=1", "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=runner,
+            opener_factory=lambda *_args: FakeOpener({}),
+        )
+
+
+def test_rejects_unapproved_resolver_version():
+    runner, _calls = make_runner("", version="0.13.6")
+
+    with pytest.raises(PythonAdapterError, match="Expected authoritative resolver uv 0.13.7"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=runner,
+        )
+
+
+def test_rejects_unsupported_python_implementation_and_platform():
+    target = target_runtime()
+    target["python_implementation"] = "PyPy"
+
+    with pytest.raises(PythonAdapterError, match="Unsupported Python target"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target,
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+        )
+
+
+def test_requires_configured_allowlist_egress_proxy():
+    with pytest.raises(PythonAdapterError, match="NDF_PACKAGE_EGRESS_PROXY is required"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=None,
+        )
+
+
+def test_rejects_wheel_from_unapproved_artifact_host():
+    body = b"unapproved wheel"
+    wheel = wheel_entry("demo-root", "1.0.0", body, host="attacker.example")
+    runner, _calls = make_runner(
+        pylock([{"name": "demo-root", "version": "1.0.0", "wheels": [wheel]}])
+    )
+
+    with pytest.raises(PythonAdapterError, match="approved HTTPS source profile"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=runner,
+            opener_factory=lambda *_args: FakeOpener({}),
+        )
+
+
+def test_rejects_wheel_digest_mismatch():
+    body = b"actual wheel bytes"
+    wheel = wheel_entry("demo-root", "1.0.0", b"different published bytes")
+    runner, _calls = make_runner(
+        pylock([{"name": "demo-root", "version": "1.0.0", "wheels": [wheel]}])
+    )
+
+    with pytest.raises(PythonAdapterError, match="SHA-256 verification failed"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=runner,
+            opener_factory=lambda *_args: FakeOpener({wheel["url"]: body}),
+        )
+
+
+def test_enforces_uv_execution_timeout():
+    runner, _calls = make_runner(
+        "",
+        compile_error=subprocess.TimeoutExpired(["uv"], timeout=1),
+    )
+
+    with pytest.raises(PythonAdapterError, match="execution timeout"):
+        resolve_python_packages(
+            [app_with_python(("demo-root", "latest_compatible", None, "runtime"))],
+            target_runtime(),
+            repository_root=REPOSITORY_ROOT,
+            egress_proxy=PROXY,
+            runner=runner,
+            timeout=1,
+        )
+
+
+def test_no_python_requirements_returns_empty_lock_without_invoking_uv():
+    def unexpected_runner(*_args, **_kwargs):
+        raise AssertionError("uv must not run when there are no Python requirements")
+
+    result, versions = resolve_python_packages(
+        [{"_app_id": "demo_app", "package_dependencies": []}],
+        target_runtime(),
+        repository_root=REPOSITORY_ROOT,
+        runner=unexpected_runner,
+    )
+
+    assert result["packages"] == []
+    assert result["dependency_edges"] == []
+    assert result["source_profiles"] == []
+    assert versions == {}
