@@ -458,6 +458,11 @@ class ManifestLoader:
                             f"{descriptor['app_id']}: Python dependency {name} source hint "
                             "does not match the approved public PyPI profile."
                         )
+                if ecosystem == "node" and dependency.get("package_manager") != "yarn":
+                    raise ManifestError(
+                        f"{descriptor['app_id']}: Bench 5.31.1 installs app package.json "
+                        "dependencies with Yarn; only package_manager=yarn is supported."
+                    )
                 if ecosystem == "os":
                     if (
                         os_target.get("distribution_family") != profile.get("distribution")
@@ -1676,6 +1681,12 @@ class ManifestLoader:
                     ) is not None:
                         raise ManifestError(
                             f"Application '{name}' has a latest_compatible package requirement with a constraint."
+                        )
+                    if requirement.get("ecosystem") == "node" and requirement.get(
+                        "package_manager"
+                    ) != "yarn":
+                        raise ManifestError(
+                            f"Application '{name}' has a Node package requirement that does not use Bench's Yarn installer."
                         )
                     if requirement.get("ecosystem") == "os" and not all(
                         isinstance(requirement.get(field), str) and requirement[field]
