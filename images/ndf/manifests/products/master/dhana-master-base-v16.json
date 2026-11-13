@@ -36,9 +36,7 @@
       "ref": null,
       "required": true,
       "install_order": 100,
-      "dependencies": [
-        "frappe"
-      ],
+      "dependencies": ["frappe"],
       "compatibility_status": "verified",
       "notes": "DhanaERP Master control-plane application. Generates, configures and manages tenant sites."
     }
