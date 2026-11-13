@@ -25,6 +25,8 @@ def bench_fixture(tmp_path, monkeypatch):
     bench = tmp_path / "frappe-bench"
     apps = bench / "apps"
     apps.mkdir(parents=True)
+    (bench / "env").mkdir()
+    monkeypatch.setattr(capture.sys, "prefix", str(bench / "env"))
     definitions = [
         ("frappe", "https://github.com/frappe/frappe.git", 1),
         ("erpnext", "https://github.com/frappe/erpnext.git", 2),
@@ -55,7 +57,7 @@ def bench_fixture(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(capture, "capture_runtime", lambda: {
-        "python": {"executable": "/usr/bin/python3", "version": "3.14.3", "implementation": "CPython"},
+        "python": {"executable": "/usr/bin/python3", "environment": str(bench / "env"), "version": "3.14.3", "implementation": "CPython"},
         "node": {"version": "v24.21.0"},
         "yarn": {"version": "1.22.22"},
         "bench": {"version": "5.31.1"},
