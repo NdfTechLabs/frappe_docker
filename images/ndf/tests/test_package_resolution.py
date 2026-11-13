@@ -115,7 +115,7 @@ def applications():
     return [{"name": "demo_app", "app_id": "demo_app", "package_dependencies": []}]
 
 
-def validate(section, *, target=None, apps=None):
+def validate(section, *, target=None, apps=None, catalogue_path=CATALOGUE):
     if apps is None:
         direct_dependencies = []
         for package in section["packages"]:
@@ -144,7 +144,7 @@ def validate(section, *, target=None, apps=None):
         target_runtime=target if target is not None else target_runtime(),
         applications=apps,
         repository_root=REPOSITORY_ROOT,
-        catalogue_path=CATALOGUE,
+        catalogue_path=catalogue_path,
     )
 
 
@@ -603,3 +603,93 @@ def test_builder_only_package_cannot_satisfy_runtime_scope():
 
     with pytest.raises(PackageResolutionError, match="runtime inventory"):
         validate(section)
+
+
+
+def test_empty_integrity_is_valid_when_source_publishes_no_artifact_hash():
+    package = python_package("demo", "1.0.0", direct=True, requested_by=["demo_app"])
+    package["integrity"] = []
+    section = package_resolution([package])
+
+    assert validate(section) is True
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    [
+        "http://files.pythonhosted.org/packages/demo/demo.whl",
+        "https://user:secret@files.pythonhosted.org/packages/demo/demo.whl",
+        "https://files.pythonhosted.org/packages/demo/demo.whl?token=secret",
+        "https://files.pythonhosted.org/packages/demo/demo.whl#fragment",
+    ],
+)
+def test_package_artifact_uri_rejects_non_https_credentials_and_query_data(artifact):
+    package = python_package("demo", "1.0.0", direct=True, requested_by=["demo_app"])
+    package["integrity"][0]["artifact"] = artifact
+
+    with pytest.raises(PackageResolutionError, match="artifact URI"):
+        validate(package_resolution([package]))
+
+
+def test_target_runtime_platform_must_match_accepted_a1_matrix():
+    package = python_package("demo", "1.0.0", direct=True, requested_by=["demo_app"])
+    target = target_runtime()
+    target["platform"]["architecture"] = "arm64"
+
+    with pytest.raises(PackageResolutionError, match="accepted A.1 linux/amd64"):
+        validate(package_resolution([package]), target=target)
+
+
+def test_same_package_name_cannot_mix_source_profiles_or_sources(tmp_path):
+    package_root = python_package("demo-root", "1.0.0", direct=True, requested_by=["demo_app"])
+    node_one = {
+        **python_package("node-dependency", "1.0.0"),
+        "id": package_identity("node", "node-dependency", "1.0.0"),
+        "ecosystem": "node",
+        "source_profile": "node-npm-public-v1",
+        "source": "https://registry.npmjs.org",
+        "resolver": "npm",
+        "resolver_version": "11.19.1",
+        "repository_metadata": {"source_identity": "official-public-npm-registry"},
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "c" * 64,
+            "artifact": "https://registry.npmjs.org/node-dependency/-/node-dependency-1.0.0.tgz",
+        }],
+    }
+    node_two = {
+        **node_one,
+        "id": package_identity("node", "node-dependency", "2.0.0"),
+        "version": "2.0.0",
+        "source_profile": "node-test-alternate-v1",
+        "source": "https://registry.example.invalid",
+        "repository_metadata": {"source_identity": "alternate-test-registry"},
+        "integrity": [{
+            "algorithm": "sha256",
+            "digest": "d" * 64,
+            "artifact": "https://registry.npmjs.org/node-dependency/-/node-dependency-2.0.0.tgz",
+        }],
+    }
+    catalogue = json.loads(CATALOGUE.read_text(encoding="utf-8"))
+    alternate = dict(catalogue["source_profiles"]["node-npm-public-v1"])
+    alternate["registry"] = "https://registry.example.invalid"
+    alternate["artifact_hosts"] = ["registry.npmjs.org"]
+    alternate["source_identity"] = "alternate-test-registry"
+    catalogue["source_profiles"]["node-test-alternate-v1"] = alternate
+    catalogue_path = tmp_path / "catalogue.json"
+    catalogue_path.write_text(json.dumps(catalogue), encoding="utf-8")
+
+    section = package_resolution(
+        [package_root, node_one, node_two],
+        [
+            {"from": package_root["id"], "to": node_one["id"], "constraint": ">=1,<2"},
+            {"from": package_root["id"], "to": node_two["id"], "constraint": ">=2,<3"},
+        ],
+    )
+    # The graph's profile inventory is derived from package records.
+    section["source_profiles"] = sorted({
+        item["source_profile"] for item in section["packages"]
+    })
+
+    with pytest.raises(PackageResolutionError, match="Conflicting package sources"):
+        validate(section, catalogue_path=catalogue_path)
