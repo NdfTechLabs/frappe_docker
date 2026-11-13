@@ -476,8 +476,8 @@ def test_merges_multiple_direct_requesters_and_constraints_for_one_package():
     )
 
     assert selected == {
-        "demo_app\\0shared-package": "1.5.0",
-        "second_app\\0shared-package": "1.5.0",
+        "demo_app\0shared-package": "1.5.0",
+        "second_app\0shared-package": "1.5.0",
     }
     package = result["packages"][0]
     assert package["direct"] is True
