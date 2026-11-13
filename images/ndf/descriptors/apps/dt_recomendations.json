@@ -13,13 +13,32 @@
     "bench_app_name": "dt_recomendations"
   },
   "compatibility": {
-    "status": "pending"
+    "status": "verified",
+    "evidence": [
+      {
+        "kind": "maintainer_attestation",
+        "authority": "ndf",
+        "reference": "M4.2.4 platform-owner compatibility attestation: approved for the declared Frappe v16 and target technology line; this is not a claim that the M4.2.4 image integration suite has run.",
+        "result": "passed",
+        "attested_at": "2026-11-13T00:00:00Z",
+        "attested_by": "NDF platform owner"
+      }
+    ]
   },
   "dependencies": {
     "bench_apps": [
-      { "app_id": "frappe", "required": true },
-      { "app_id": "erpnext", "required": true },
-      { "app_id": "dt_ecommerce", "required": true }
+      {
+        "app_id": "frappe",
+        "required": true
+      },
+      {
+        "app_id": "erpnext",
+        "required": true
+      },
+      {
+        "app_id": "dt_ecommerce",
+        "required": true
+      }
     ]
   },
   "build": {},
