@@ -55,11 +55,11 @@ def bench_fixture(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(capture, "capture_runtime", lambda: {
-        "python": {"version": "3.14.3"},
+        "python": {"executable": "/usr/bin/python3", "version": "3.14.3", "implementation": "CPython"},
         "node": {"version": "v24.21.0"},
         "yarn": {"version": "1.22.22"},
         "bench": {"version": "5.31.1"},
-        "platform": {"oci": "linux/amd64"},
+        "platform": {"system": "Linux", "machine": "x86_64", "oci": "linux/amd64"},
     })
     monkeypatch.setattr(capture, "capture_python_packages", lambda: [
         {"name": "example-python", "version": "1.2.3"}
