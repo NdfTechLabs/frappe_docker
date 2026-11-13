@@ -159,7 +159,7 @@ def capture_runtime() -> dict[str, Any]:
     machine = platform.machine().lower()
     arch = "amd64" if machine in {"x86_64", "amd64"} else machine
     return {
-        "python": {"executable": sys.executable, "version": platform.python_version(),
+        "python": {"executable": sys.executable, "environment": sys.prefix, "version": platform.python_version(),
                    "implementation": platform.python_implementation()},
         "node": {"version": command_version(["node", "--version"])},
         "yarn": {"version": command_version(["yarn", "--version"])},
@@ -203,6 +203,14 @@ def capture_inventory(bench_path: Path, lock_path: Path, output_path: Path,
         raise InventoryCaptureError(f"Bench workspace is missing: {bench}")
     if stage != "builder":
         raise InventoryCaptureError(f"Unsupported build stage: {stage}")
+    expected_python_env = (bench / "env").resolve()
+    actual_python_env = Path(sys.prefix).resolve()
+    if actual_python_env != expected_python_env:
+        raise InventoryCaptureError(
+            "Capture must run with the initialized Bench virtual-environment Python: "
+            f"expected={expected_python_env}, actual={actual_python_env}"
+        )
+
     lock = load_lock(lock_path)
     locked_apps = lock["applications"]
     expected_app_names = {app["name"] for app in locked_apps}
