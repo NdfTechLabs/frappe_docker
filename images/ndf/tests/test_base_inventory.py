@@ -86,7 +86,6 @@ def test_base_package_lookup_uses_the_declared_stage_scope(tmp_path):
         architecture="amd64",
     )
     assert not find_base_package(
-        manifest,
         parsed,
         scope="runtime",
         name="dpkg",
