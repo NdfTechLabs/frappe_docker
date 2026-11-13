@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import os
 import subprocess
 import zipfile
 from pathlib import Path
@@ -255,13 +256,18 @@ def test_uv_0137_emits_pep751_pylock_for_local_wheel_without_network(tmp_path):
         "Tag: py3-none-any\\n"
     ).encode()
     wheel_path = tmp_path / "demo_pylock_fixture-1.0.0-py3-none-any.whl"
+    record_rows = []
+    for filename, content in (
+        (f"{dist_info}/METADATA", metadata),
+        (f"{dist_info}/WHEEL", wheel_metadata),
+    ):
+        digest = base64.urlsafe_b64encode(hashlib.sha256(content).digest()).decode().rstrip("=")
+        record_rows.append(f"{filename},sha256={digest},{len(content)}")
+    record_rows.append(f"{dist_info}/RECORD,,")
     with zipfile.ZipFile(wheel_path, "w") as archive:
         archive.writestr(f"{dist_info}/METADATA", metadata)
         archive.writestr(f"{dist_info}/WHEEL", wheel_metadata)
-        archive.writestr(
-            f"{dist_info}/RECORD",
-            f"{dist_info}/METADATA,,\\n{dist_info}/WHEEL,,\\n{dist_info}/RECORD,,\\n",
-        )
+        archive.writestr(f"{dist_info}/RECORD", "\\n".join(record_rows) + "\\n")
 
     requirements = tmp_path / "requirements.in"
     requirements.write_text("demo-pylock-fixture==1.0.0\\n", encoding="utf-8")
