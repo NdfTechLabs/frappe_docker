@@ -553,6 +553,14 @@ class TestLockGeneration:
         assert lock_data["lock_version"] == 2
         assert lock_data["product"]["id"] == "test-product"
         assert len(lock_data["applications"]) == 1
+        assert lock_data["package_resolution"] == {
+            "schema_version": 1,
+            "source_policy_catalogue_version": "1.0.0",
+            "source_profiles": [],
+            "base_inventory": None,
+            "packages": [],
+            "dependency_edges": [],
+        }
 
         # A01: the generated lock must persist the complete requested-source
         # identity, not merely prove that the resolver returned a SHA.
@@ -569,6 +577,30 @@ class TestLockGeneration:
         assert lock_data["framework"]["ref"] == frappe_lock["ref"]
         assert lock_data["framework"]["reference_kind"] == frappe_lock["reference_kind"]
         assert lock_data["framework"]["resolved_ref"] == frappe_lock["resolved_ref"]
+
+    def test_direct_only_package_selections_cannot_generate_complete_lock(
+        self, loader, sample_manifest, sample_applications
+    ):
+        applications = [
+            {
+                **sample_applications[0],
+                "package_dependencies": [{
+                    "ecosystem": "python",
+                    "name": "demo-package",
+                    "version": "1.0.0",
+                    "source": "https://pypi.org/simple",
+                    "resolver": "uv",
+                    "version_policy": "latest_compatible",
+                    "requested_constraint": None,
+                    "source_profile": "python-pypi-public-v1",
+                    "disposition": "runtime_compatible",
+                    "install": True,
+                    "scope": "runtime",
+                }],
+            }
+        ]
+        with pytest.raises(ManifestError, match="complete transitive closure"):
+            loader.build_lock_data(sample_manifest, applications)
 
     def test_lock_generation_is_deterministic(
         self,
@@ -683,6 +715,47 @@ class TestLockValidation:
             )
             is True
         )
+
+    def test_pre_extension_v2_without_package_dependencies_remains_readable(
+        self, loader, sample_manifest, generated_lock, tmp_path
+    ):
+        _, lock_data = generated_lock
+        lock_data.pop("package_resolution")
+        lock_path = tmp_path / "legacy-v2.lock.json"
+        lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+
+        assert loader.validate_lock_file(lock_path, sample_manifest) is True
+
+    def test_pre_extension_v2_with_direct_packages_requires_migration(
+        self, loader, sample_manifest, generated_lock, tmp_path
+    ):
+        _, lock_data = generated_lock
+        lock_data.pop("package_resolution")
+        lock_data["applications"][0]["package_dependencies"] = [{
+            "ecosystem": "python",
+            "name": "demo-package",
+            "version": "1.0.0",
+            "source": "https://pypi.org/simple",
+            "resolver": "uv",
+            "disposition": "runtime_compatible",
+            "install": True,
+        }]
+        lock_path = tmp_path / "legacy-v2-packages.lock.json"
+        lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+
+        with pytest.raises(ManifestError, match="Package-resolution migration required"):
+            loader.validate_lock_file(lock_path, sample_manifest)
+
+    def test_empty_package_resolution_section_rejects_unexplained_profile(
+        self, loader, sample_manifest, generated_lock, tmp_path
+    ):
+        _, lock_data = generated_lock
+        lock_data["package_resolution"]["source_profiles"] = ["python-pypi-public-v1"]
+        lock_path = tmp_path / "tampered-package-resolution.lock.json"
+        lock_path.write_text(json.dumps(lock_data), encoding="utf-8")
+
+        with pytest.raises(ManifestError, match="Empty package graph"):
+            loader.validate_lock_file(lock_path, sample_manifest)
 
     def test_modified_manifest_fails_checksum_validation(
         self,
