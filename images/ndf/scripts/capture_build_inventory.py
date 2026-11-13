@@ -201,7 +201,7 @@ def capture_inventory(bench_path: Path, lock_path: Path, output_path: Path,
     apps_root = (bench / "apps").resolve()
     if not bench.is_dir() or not apps_root.is_dir():
         raise InventoryCaptureError(f"Bench workspace is missing: {bench}")
-    if stage not in {"builder", "runtime"}:
+    if stage != "builder":
         raise InventoryCaptureError(f"Unsupported build stage: {stage}")
     lock = load_lock(lock_path)
     locked_apps = lock["applications"]
@@ -261,7 +261,7 @@ def main() -> int:
     parser.add_argument("--bench", type=Path, required=True)
     parser.add_argument("--lock", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--stage", choices=("builder", "runtime"), default="builder")
+    parser.add_argument("--stage", choices=("builder",), default="builder")
     args = parser.parse_args()
     try:
         report = capture_inventory(args.bench, args.lock, args.output, args.stage)
