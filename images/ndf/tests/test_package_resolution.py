@@ -126,7 +126,7 @@ def package_resolution(packages=None, edges=None):
     profiles = sorted({item["source_profile"] for item in packages or []})
     return {
         "schema_version": 1,
-        "source_policy_catalogue_version": "1.1.0",
+        "source_policy_catalogue_version": "1.2.0",
         "source_profiles": profiles,
         "base_inventory": None,
         "packages": sorted(packages or [], key=lambda item: item["id"]),
@@ -996,9 +996,23 @@ def test_version_comparison_dispatches_by_ecosystem():
     assert version_satisfies("os", "2.4.0-1", ">= 2.0-1") is True
 
 
-def test_python_package_lock_requires_exact_policy_pinned_uv_version():
+@pytest.mark.parametrize(
+    ("resolver", "resolver_version"),
+    [("uv", "0.13.7"), ("pip", "25.3")],
+)
+def test_python_package_lock_records_the_native_installer_without_ndf_version_pinning(
+    resolver, resolver_version
+):
     package = python_package("demo-pkg", "1.2.3", direct=True, requested_by=["demo_app"])
-    package["resolver_version"] = "0.13.6"
+    package["resolver"] = resolver
+    package["resolver_version"] = resolver_version
 
-    with pytest.raises(PackageResolutionError, match="does not match the approved uv version 0.13.7"):
-        validate(package_resolution([package]))
+    assert validate(package_resolution([package])) is True
+
+
+def test_node_package_lock_accepts_bench_yarn_installer():
+    package = node_package("demo-node-pkg", "1.2.3", direct=True, requested_by=["demo_app"])
+    package["resolver"] = "yarn"
+    package["resolver_version"] = "1.22.22"
+
+    assert validate(package_resolution([package])) is True
