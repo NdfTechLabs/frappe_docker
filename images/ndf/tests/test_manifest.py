@@ -2003,163 +2003,22 @@ class TestDescriptorResolutionPrimitives:
                 set(),
             )
 
-    def test_python_constraints_are_deferred_to_native_adapter(self, loader):
-        descriptor = {
-            "app_id": "example_app",
-            "dependencies": {
-                "python": [
-                    {
-                        "name": "requests",
-                        "required": True,
-                        "version_policy": "constraint",
-                        "version": ">=2.30,<3.0",
-                        "disposition": "runtime_compatible",
-                    }
-                ],
-                "node": [
-                    {
-                        "name": "vite",
-                        "required": True,
-                        "version_policy": "latest_compatible",
-                        "scope": "build",
-                        "disposition": "runtime_compatible",
-                    }
-                ],
-            },
-        }
-        result = loader._resolve_descriptor_packages(
-            descriptor,
-            {
-                "package_versions": {
-                    "python:requests": {
-                        "version": "2.32.3",
-                        "source": "https://pypi.org/simple",
-                        "resolver": "uv",
-                    },
-                    "node:vite": {
-                        "version": "6.0.0",
-                        "source": "https://registry.npmjs.org",
-                        "resolver": "npm",
-                    },
-                }
-            },
-            set(),
-        )
-        assert [
-            (item["ecosystem"], item["name"], item["version"]) for item in result
-        ] == [
-            ("node", "vite", "6.0.0"),
-            ("python", "requests", None),
-        ]
-        python_request = result[1]
-        assert python_request["resolver"] == "uv"
-        assert python_request["source_profile"] == "python-pypi-public-v1"
-        assert python_request["requested_constraint"] == ">=2.30,<3.0"
-
-    def test_unselected_optional_package_is_excluded_from_direct_selections(
-        self, loader
+    @pytest.mark.parametrize("ecosystem", ["python", "node", "os"])
+    def test_external_package_dependencies_are_delegated_to_native_app_files(
+        self, loader, ecosystem
     ):
         descriptor = {
             "app_id": "example_app",
             "dependencies": {
-                "python": [{
-                    "name": "optional-helper",
-                    "required": False,
-                    "version_policy": "latest_compatible",
-                    "disposition": "runtime_compatible",
-                }]
-            },
-        }
-        target_runtime = {
-            "package_versions": {
-                "python:optional-helper": {
-                    "version": "1.2.0",
-                    "source": "https://pypi.org/simple",
-                    "resolver": "uv",
-                }
-            }
-        }
-
-        assert loader._resolve_descriptor_packages(descriptor, target_runtime, set()) == []
-        selected = loader._resolve_descriptor_packages(
-            descriptor, target_runtime, {"python:optional-helper"}
-        )
-        assert len(selected) == 1
-        assert selected[0]["name"] == "optional-helper"
-        assert selected[0]["requested_constraint"] is None
-        assert selected[0]["source_profile"] == "python-pypi-public-v1"
-
-
-    def test_os_package_versions_require_exact_native_selection_and_matching_target(
-        self, loader
-    ):
-        descriptor = {
-            "app_id": "example_app",
-            "dependencies": {
-                "os": [
-                    {
-                        "name": "libpq-dev",
-                        "required": True,
-                        "version_policy": "constraint",
-                        "version": "16.4-1",
-                        "disposition": "environment_level",
-                        "distribution_family": "debian",
-                        "package_manager": "apt",
-                        "scope": "build",
-                    }
-                ]
-            },
-        }
-        result = loader._resolve_descriptor_packages(
-            descriptor,
-            {
-                "os": {
-                    "distribution_family": "debian",
-                    "version_id": "13",
-                    "codename": "trixie",
-                    "architecture": "amd64",
-                    "package_manager": "apt",
-                    "package_database": "dpkg",
-                },
-                "package_versions": {
-                    "os:libpq-dev": {
-                        "version": "16.4-1",
-                        "source": "http://deb.debian.org/debian",
-                        "resolver": "apt",
-                        "architecture": "amd64",
-                    }
-                },
-            },
-            set(),
-        )
-        assert result[0]["install"] is True
-        assert result[0]["disposition"] == "environment_level"
-        assert result[0]["architecture"] == "amd64"
-
-    def test_python_latest_compatible_request_is_deferred_to_uv(self, loader):
-        descriptor = {
-            "app_id": "example_app",
-            "dependencies": {
-                "python": [
-                    {
-                        "name": "requests",
-                        "required": True,
-                        "version_policy": "latest_compatible",
-                        "disposition": "runtime_compatible",
-                    }
-                ]
+                ecosystem: [{"name": "example-package"}],
             },
         }
 
-        result = loader._resolve_descriptor_packages(
-            descriptor, {"package_versions": {}}, set()
-        )
-
-        assert len(result) == 1
-        assert result[0]["ecosystem"] == "python"
-        assert result[0]["version"] is None
-        assert result[0]["resolver"] == "uv"
-        assert result[0]["requested_constraint"] is None
+        with pytest.raises(
+            ManifestError,
+            match="Declare application dependencies in the application's native project/lock files",
+        ):
+            loader._validate_no_descriptor_package_dependencies(descriptor)
 
 
 class TestIndependentServiceComposition:
