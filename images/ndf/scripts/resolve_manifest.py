@@ -25,6 +25,7 @@ except ImportError:
         validate_descriptor,
     )
 from packaging.specifiers import SpecifierSet
+from package_resolution import normalize_package_name
 from packaging.version import Version as PythonVersion
 from semantic_version import NpmSpec
 from semantic_version import Version as SemVerVersion
@@ -38,6 +39,17 @@ except ImportError:
     from package_resolution import (
         PackageResolutionError,
         validate_package_resolution,
+    )
+
+try:
+    from .python_package_adapter import (
+        PythonAdapterError,
+        resolve_python_packages,
+    )
+except ImportError:
+    from python_package_adapter import (
+        PythonAdapterError,
+        resolve_python_packages,
     )
 
 
@@ -400,6 +412,64 @@ class ManifestLoader:
                 ):
                     continue
                 key = f"{ecosystem}:{name}"
+                if ecosystem == "python":
+                    policy = dependency.get("version_policy")
+                    constraint = dependency.get("version")
+                    if policy == "constraint":
+                        if not isinstance(constraint, str) or not constraint:
+                            raise ManifestError(
+                                f"{descriptor['app_id']}: {key} constraint policy requires a PEP 440 version."
+                            )
+                        try:
+                            SpecifierSet(constraint)
+                        except Exception as exc:
+                            raise ManifestError(
+                                f"{descriptor['app_id']}: invalid Python constraint for {name}."
+                            ) from exc
+                    elif policy == "latest_compatible":
+                        if constraint is not None:
+                            raise ManifestError(
+                                f"{descriptor['app_id']}: latest_compatible {key} must not include a version."
+                            )
+                    else:
+                        raise ManifestError(
+                            f"{descriptor['app_id']}: unsupported version policy for {key}."
+                        )
+                    source_profile = "python-pypi-public-v1"
+                    catalogue_path = (
+                        self.repository_root / "images" / "ndf" / "policies"
+                        / "package-source-profiles-v1.json"
+                    )
+                    try:
+                        catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+                        profile = catalogue["source_profiles"][source_profile]
+                    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+                        raise ManifestError(
+                            f"Unable to load approved package source profile {source_profile}: {exc}"
+                        ) from exc
+                    if (
+                        not profile.get("enabled")
+                        or profile.get("ecosystem") != "python"
+                        or profile.get("registry") != "https://pypi.org/simple"
+                    ):
+                        raise ManifestError("The approved public PyPI source profile is unavailable.")
+                    scope = "build" if dependency.get("build_required", False) else "runtime"
+                    resolved.append(
+                        {
+                            "ecosystem": "python",
+                            "name": name,
+                            "version": None,
+                            "source": profile["registry"],
+                            "resolver": "uv",
+                            "version_policy": policy,
+                            "requested_constraint": constraint if policy == "constraint" else None,
+                            "source_profile": source_profile,
+                            "disposition": dependency.get("disposition"),
+                            "install": dependency.get("disposition") != "base",
+                            "scope": scope,
+                        }
+                    )
+                    continue
                 selection = packages.get(key)
                 if not isinstance(selection, dict) or not all(
                     isinstance(selection.get(field), str) and selection[field]
@@ -2246,6 +2316,34 @@ def main():
 
     print("\nApplication Git references resolved.")
 
+    # 4a. Resolve descriptor-declared Python packages before lock-v2
+    # generation. Node/OS adapters remain separate internal stages.
+    try:
+        package_resolution, direct_python_versions = resolve_python_packages(
+            ordered_applications,
+            manifest.get("target_runtime", {}),
+            repository_root=loader.repository_root,
+        )
+        for app in ordered_applications:
+            app_id = app.get("_app_id")
+            for dependency in app.get("package_dependencies", []):
+                if dependency.get("ecosystem") != "python":
+                    continue
+                normalized_name = normalize_package_name("python", dependency["name"])
+                version_key = app_id + "\\0" + normalized_name
+                selected_version = direct_python_versions.get(version_key)
+                if not selected_version:
+                    raise ManifestError(
+                        f"{app_id}: Python adapter did not return a selection for {dependency['name']}."
+                    )
+                dependency["version"] = selected_version
+    except PythonAdapterError as exc:
+        print(f"ERROR: Python package resolution failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ManifestError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     # 5. Determine lock file location
     lock_filename = f"{Path(args.manifest).stem}.lock.json"
 
@@ -2256,6 +2354,7 @@ def main():
         lock_data = loader.build_lock_data(
             manifest,
             ordered_applications,
+            package_resolution=package_resolution,
         )
 
         # 7. Check whether a previous lock exists
