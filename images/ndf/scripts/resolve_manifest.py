@@ -42,16 +42,6 @@ except ImportError:
         validate_package_resolution,
     )
 
-try:
-    from .python_package_adapter import (
-        PythonAdapterError,
-        resolve_python_packages,
-    )
-except ImportError:
-    from python_package_adapter import (
-        PythonAdapterError,
-        resolve_python_packages,
-    )
 
 
 class ManifestError(Exception):
@@ -2324,13 +2314,31 @@ def main():
     print("\nApplication Git references resolved.")
 
     # 4a. Resolve descriptor-declared Python packages before lock-v2
-    # generation. Node/OS adapters remain separate internal stages.
+    # generation. Avoid importing the optional adapter for legacy/no-Python
+    # compositions; this also preserves the resolver's empty-graph path.
+    package_resolution = None
+    has_python_requirements = any(
+        dependency.get("ecosystem") == "python"
+        for app in ordered_applications
+        for dependency in app.get("package_dependencies", [])
+    )
     try:
-        package_resolution, direct_python_versions = resolve_python_packages(
-            ordered_applications,
-            manifest.get("target_runtime", {}),
-            repository_root=loader.repository_root,
-        )
+        if has_python_requirements:
+            try:
+                from .python_package_adapter import (
+                    PythonAdapterError,
+                    resolve_python_packages,
+                )
+            except ImportError:
+                from python_package_adapter import (
+                    PythonAdapterError,
+                    resolve_python_packages,
+                )
+            package_resolution, direct_python_versions = resolve_python_packages(
+                ordered_applications,
+                manifest.get("target_runtime", {}),
+                repository_root=loader.repository_root,
+            )
         for app in ordered_applications:
             app_id = app.get("_app_id")
             for dependency in app.get("package_dependencies", []):
@@ -2357,6 +2365,9 @@ def main():
                         f"{app_id}: Python adapter omitted normalized package {normalized_name}."
                     )
                 dependency["scope"] = normalized_package["scope"]
+    except ImportError as exc:
+        print(f"ERROR: Python package adapter is unavailable: {exc}", file=sys.stderr)
+        sys.exit(1)
     except PythonAdapterError as exc:
         print(f"ERROR: Python package resolution failed: {exc}", file=sys.stderr)
         sys.exit(1)
