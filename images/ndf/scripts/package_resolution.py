@@ -277,17 +277,76 @@ def validate_package_resolution(
     catalogue = _load_catalogue(catalogue_path)
     if section["source_policy_catalogue_version"] != catalogue.get("catalogue_version"):
         raise PackageResolutionError("Package source catalogue version does not match the lock.")
+    catalogue_profiles = catalogue["source_profiles"]
     if not packages:
         if edges or profiles or section["base_inventory"] is not None:
             raise PackageResolutionError("Empty package graph must not carry edges, profiles or base inventory.")
         # Descriptor package_dependencies are declarations/constraints only.
-        # Native Bench resolves and installs them; an empty graph is therefore
-        # valid until post-build inventory evidence is captured downstream.
+        # Native Bench resolves and installs them; validate their policy metadata
+        # here without selecting candidates or constructing a transitive graph.
+        for app in applications:
+            if not isinstance(app, dict):
+                continue
+            requirements = app.get("package_dependencies", [])
+            if not isinstance(requirements, list):
+                raise PackageResolutionError("Application package_dependencies must be an array.")
+            for requirement in requirements:
+                if not isinstance(requirement, dict):
+                    raise PackageResolutionError("Declared package requirement must be an object.")
+                ecosystem = requirement.get("ecosystem")
+                name = requirement.get("name")
+                profile_id = requirement.get("source_profile")
+                if ecosystem not in {"python", "node", "os"} or not isinstance(name, str) or not name:
+                    raise PackageResolutionError("Declared package requirement has an invalid identity.")
+                expected_profile = {
+                    "python": "python-pypi-public-v1",
+                    "node": "node-npm-public-v1",
+                    "os": "os-debian-trixie-public-amd64-v1",
+                }[ecosystem]
+                profile = catalogue_profiles.get(profile_id)
+                if (
+                    profile_id != expected_profile
+                    or not isinstance(profile, dict)
+                    or not profile.get("enabled")
+                    or profile.get("ecosystem") != ecosystem
+                ):
+                    raise PackageResolutionError(
+                        f"Declared {ecosystem} requirement {name} uses an unapproved source profile."
+                    )
+                if requirement.get("version_policy") not in {"constraint", "latest_compatible"}:
+                    raise PackageResolutionError("Declared package requirement has an invalid version policy.")
+                constraint = requirement.get("requested_constraint")
+                if requirement.get("version_policy") == "constraint":
+                    if not isinstance(constraint, str) or not constraint:
+                        raise PackageResolutionError("Constrained package requirement has no requested_constraint.")
+                elif constraint is not None:
+                    raise PackageResolutionError("latest_compatible package requirement must not include a constraint.")
+                if requirement.get("disposition") not in {"base", "runtime_compatible", "environment_level"}:
+                    raise PackageResolutionError("Declared package requirement has an invalid disposition.")
+                if requirement.get("scope") not in {"build", "runtime"} or not isinstance(requirement.get("install"), bool):
+                    raise PackageResolutionError("Declared package requirement has an invalid scope/install decision.")
+                if ecosystem == "node":
+                    expected_manager = catalogue.get("resolver_policy", {}).get("node", {}).get("installer")
+                    if requirement.get("package_manager") != expected_manager:
+                        raise PackageResolutionError("Node package requirement does not match the Bench-native installer policy.")
+                if ecosystem == "os":
+                    if not isinstance(target_runtime, dict) or not isinstance(target_runtime.get("os"), dict):
+                        raise PackageResolutionError("OS package requirement requires an exact target OS.")
+                    os_target = target_runtime["os"]
+                    if (
+                        requirement.get("package_manager") != profile.get("package_manager")
+                        or requirement.get("distribution_family") != profile.get("distribution")
+                        or os_target.get("distribution_family") != profile.get("distribution")
+                        or os_target.get("version_id") != profile.get("release")
+                        or os_target.get("codename") != profile.get("codename")
+                        or os_target.get("architecture") != profile.get("architecture")
+                        or os_target.get("package_manager") != profile.get("package_manager")
+                        or os_target.get("package_database") != profile.get("package_database")
+                    ):
+                        raise PackageResolutionError("OS package requirement does not match the accepted target/source profile.")
         return True
     if not isinstance(target_runtime, dict):
         raise PackageResolutionError("Package graph requires an exact target_runtime.")
-
-    catalogue_profiles = catalogue["source_profiles"]
     if profiles != sorted(set(profiles)):
         raise PackageResolutionError("source_profiles must be sorted and unique.")
 
