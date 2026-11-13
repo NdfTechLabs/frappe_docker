@@ -82,7 +82,7 @@ def python_package(name, version, *, direct=False, requested_by=None):
         "source_profile": "python-pypi-public-v1",
         "source": "https://pypi.org/simple",
         "resolver": "uv",
-        "resolver_version": "0.9.5",
+        "resolver_version": "0.13.7",
         "direct": direct,
         "requested_by": requested_by or [],
         "disposition": "runtime_compatible",
@@ -126,7 +126,7 @@ def package_resolution(packages=None, edges=None):
     profiles = sorted({item["source_profile"] for item in packages or []})
     return {
         "schema_version": 1,
-        "source_policy_catalogue_version": "1.0.0",
+        "source_policy_catalogue_version": "1.1.0",
         "source_profiles": profiles,
         "base_inventory": None,
         "packages": sorted(packages or [], key=lambda item: item["id"]),
@@ -994,3 +994,11 @@ def test_version_comparison_dispatches_by_ecosystem():
     assert version_satisfies("python", "2.4.0", ">=2,<3") is True
     assert version_satisfies("node", "2.4.0", ">=2 <3") is True
     assert version_satisfies("os", "2.4.0-1", ">= 2.0-1") is True
+
+
+def test_python_package_lock_requires_exact_policy_pinned_uv_version():
+    package = python_package("demo-pkg", "1.2.3", direct=True, requested_by=["demo_app"])
+    package["resolver_version"] = "0.13.6"
+
+    with pytest.raises(PackageResolutionError, match="does not match the approved uv version 0.13.7"):
+        validate(package_resolution([package]))
