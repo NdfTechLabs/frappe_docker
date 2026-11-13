@@ -65,7 +65,9 @@ jobs:
           done
 
       - name: Run NDF tests
+        if: always()
         run: python -m pytest images/ndf/tests/ -v
 
       - name: Compile NDF scripts
+        if: always()
         run: python -m compileall -q images/ndf/scripts/
