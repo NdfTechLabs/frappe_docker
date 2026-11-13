@@ -96,6 +96,31 @@ def python_package(name, version, *, direct=False, requested_by=None):
     }
 
 
+def node_package(name, version, *, direct=False, requested_by=None):
+    return {
+        "id": package_identity("node", name, version),
+        "ecosystem": "node",
+        "name": name,
+        "version": version,
+        "architecture": "",
+        "source_profile": "node-npm-public-v1",
+        "source": "https://registry.npmjs.org",
+        "resolver": "npm",
+        "resolver_version": "11.19.1",
+        "direct": direct,
+        "requested_by": requested_by or [],
+        "disposition": "runtime_compatible",
+        "install": True,
+        "scope": "build",
+        "integrity": [{
+            "algorithm": "sha512",
+            "digest": "b" * 128,
+            "artifact": "https://registry.npmjs.org/demo/-/demo-1.2.3.tgz",
+        }],
+        "repository_metadata": {"source_identity": "official-public-npm-registry"},
+    }
+
+
 def package_resolution(packages=None, edges=None):
     profiles = sorted({item["source_profile"] for item in packages or []})
     return {
@@ -241,6 +266,18 @@ def test_manifest_loader_rejects_package_resolution_tampering(tmp_path):
 
     with pytest.raises(ManifestError, match="unpinned resolver"):
         loader.validate_lock_file(lock_path, manifest)
+
+
+def test_scoped_npm_package_uses_approved_registry_and_target_npm_version():
+    package = node_package(
+        "@ndf/example",
+        "1.2.3",
+        direct=True,
+        requested_by=["demo_app"],
+    )
+
+    assert package["id"] == "node|@ndf/example|1.2.3|"
+    assert validate(package_resolution([package])) is True
 
 
 def test_python_package_identity_uses_pep503_normalization():
