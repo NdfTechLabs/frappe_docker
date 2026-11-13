@@ -1940,7 +1940,16 @@ class TestV2CompositionAndCapabilityLoading:
 
 
 class TestDescriptorResolutionPrimitives:
-    def test_target_runtime_compatibility_uses_ecosystem_semantics(self, loader):
+    @pytest.mark.parametrize(
+        "frappe_version,erpnext_version",
+        [
+            ("16.2.0", "16.1.0"),
+            ("16.35.0", "16.34.0"),
+        ],
+    )
+    def test_target_runtime_compatibility_uses_ecosystem_semantics(
+        self, loader, frappe_version, erpnext_version
+    ):
         descriptor = {
             "app_id": "example_app",
             "compatibility": {
@@ -1952,13 +1961,45 @@ class TestDescriptorResolutionPrimitives:
         }
         loader._validate_descriptor_target(
             descriptor,
-            {"frappe": "16.2.0", "python": "3.14.3", "erpnext": "16.1.0"},
+            {
+                "frappe": frappe_version,
+                "python": "3.14.3",
+                "erpnext": erpnext_version,
+            },
             set(),
         )
+
+    def test_frappe_17_is_rejected_for_v16_compatibility(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "compatibility": {
+                "frappe": ">=16.0.0 <17.0.0",
+                "python": ">=3.12,<3.15",
+                "erpnext": "^16.0.0",
+            },
+            "dependencies": {"bench_apps": [{"app_id": "erpnext", "required": True}]},
+        }
         with pytest.raises(ManifestError, match="does not satisfy"):
             loader._validate_descriptor_target(
                 descriptor,
                 {"frappe": "17.0.0", "python": "3.14.3", "erpnext": "16.1.0"},
+                set(),
+            )
+
+    def test_erpnext_17_is_rejected_for_v16_compatibility(self, loader):
+        descriptor = {
+            "app_id": "example_app",
+            "compatibility": {
+                "frappe": ">=16.0.0 <17.0.0",
+                "python": ">=3.12,<3.15",
+                "erpnext": "^16.0.0",
+            },
+            "dependencies": {"bench_apps": [{"app_id": "erpnext", "required": True}]},
+        }
+        with pytest.raises(ManifestError, match="does not satisfy"):
+            loader._validate_descriptor_target(
+                descriptor,
+                {"frappe": "16.2.0", "python": "3.14.3", "erpnext": "17.0.0"},
                 set(),
             )
 
