@@ -363,10 +363,11 @@ def validate_package_resolution(
             raise PackageResolutionError("Direct package status must agree with requested_by.")
         if (
             not isinstance(package["integrity"], list)
-            or not package["integrity"]
             or not isinstance(package["repository_metadata"], dict)
         ):
             raise PackageResolutionError("Package integrity/repository_metadata provenance is incomplete.")
+        # An empty integrity list is an explicit statement that the approved
+        # source did not publish an artifact hash; never invent one.
         for integrity in package["integrity"]:
             if not isinstance(integrity, dict):
                 raise PackageResolutionError("Package integrity record is malformed.")
@@ -385,15 +386,26 @@ def validate_package_resolution(
                 raise PackageResolutionError("Package integrity record must identify its artifact.")
             if ecosystem in {"python", "node"}:
                 try:
-                    artifact_host = urlsplit(artifact).hostname
+                    parsed_artifact = urlsplit(artifact)
                 except ValueError as exc:
                     raise PackageResolutionError("Package artifact URI is malformed.") from exc
+                if (
+                    parsed_artifact.scheme != "https"
+                    or not parsed_artifact.netloc
+                    or parsed_artifact.username
+                    or parsed_artifact.password
+                    or parsed_artifact.query
+                    or parsed_artifact.fragment
+                ):
+                    raise PackageResolutionError(
+                        "Package artifact URI must be credential-free HTTPS without query or fragment data."
+                    )
                 allowed_hosts = (
                     profile.get("artifact_hosts", [])
                     if ecosystem == "python"
                     else ["registry.npmjs.org"]
                 )
-                if artifact_host not in allowed_hosts:
+                if parsed_artifact.hostname not in allowed_hosts:
                     raise PackageResolutionError("Package artifact host is not approved by its source profile.")
             elif artifact.startswith("/") or ".." in Path(artifact).parts:
                 raise PackageResolutionError("Debian package artifact path is invalid.")
