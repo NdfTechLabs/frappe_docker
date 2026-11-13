@@ -37,7 +37,17 @@ ARTIFACT_HOSTS = frozenset({"files.pythonhosted.org"})
 MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 MAX_WHEEL_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_WHEEL_BYTES = 2 * 1024 * 1024 * 1024
+MAX_DIRECT_REQUIREMENTS = 1000
+MAX_RESOLVED_PACKAGES = 5000
+MAX_INPUT_BYTES = 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 300
+TARGET_MARKER_VARIABLES = frozenset(
+    {
+        "implementation_name", "implementation_version", "os_name",
+        "platform_machine", "platform_python_implementation", "platform_system",
+        "python_full_version", "python_version", "sys_platform", "extra",
+    }
+)
 
 
 class PythonAdapterError(RuntimeError):
@@ -204,6 +214,7 @@ def _verify_wheel(
     workspace: Path,
     remaining_bytes: int,
     request_timeout: int,
+    deadline: float,
 ) -> tuple[dict, int]:
     url = wheel.get("url")
     _safe_url(url, ARTIFACT_HOSTS)
@@ -233,6 +244,8 @@ def _verify_wheel(
             _safe_url(final_url, ARTIFACT_HOSTS)
             with destination.open("wb") as output:
                 while True:
+                    if time.monotonic() >= deadline:
+                        raise PythonAdapterError("Python artifact verification exceeded the overall execution timeout.")
                     chunk = response.read(1024 * 1024)
                     if not chunk:
                         break
@@ -285,13 +298,13 @@ def _dependency_applies(dependency: dict, environment: dict[str, str]) -> bool:
         raise PythonAdapterError("Malformed environment marker in uv dependency graph.")
     marker_variables = set(
         re.findall(
-            r"\\b(implementation_name|implementation_version|os_name|platform_machine|"
+            r"\b(implementation_name|implementation_version|os_name|platform_machine|"
             r"platform_python_implementation|platform_system|python_full_version|"
-            r"python_version|sys_platform|extra|platform_release|platform_version)\\b",
+            r"python_version|sys_platform|extra|platform_release|platform_version)\b",
             marker,
         )
     )
-    unsupported = marker_variables - set(environment)
+    unsupported = marker_variables - TARGET_MARKER_VARIABLES
     if unsupported:
         raise PythonAdapterError(
             "Python dependency marker uses target attributes not represented by the accepted runtime: "
@@ -365,6 +378,8 @@ def resolve_python_packages(
                     "scope": scope,
                 }
             )
+            if sum(len(items) for items in requirements.values()) > MAX_DIRECT_REQUIREMENTS:
+                raise PythonAdapterError("Python direct dependency count exceeds the configured limit.")
 
     catalogue_path = repository_root / "images/ndf/policies/package-source-profiles-v1.json"
     try:
@@ -418,7 +433,10 @@ def resolve_python_packages(
                 input_lines.extend(f"{name}{constraint}" for constraint in constraints)
             else:
                 input_lines.append(name)
-        input_path.write_text("\n".join(sorted(set(input_lines))) + "\n", encoding="utf-8")
+        input_content = "\n".join(sorted(set(input_lines))) + "\n"
+        if len(input_content.encode("utf-8")) > MAX_INPUT_BYTES:
+            raise PythonAdapterError("Python requirements input exceeds the configured size limit.")
+        input_path.write_text(input_content, encoding="utf-8")
 
         env = {
             "PATH": os.environ.get("PATH", ""),
@@ -478,6 +496,8 @@ def resolve_python_packages(
 
         if lock.get("lock-version") != "1.0" or not isinstance(lock.get("packages"), list):
             raise PythonAdapterError("uv pylock output has an unsupported or incomplete PEP 751 structure.")
+        if len(lock["packages"]) > MAX_RESOLVED_PACKAGES:
+            raise PythonAdapterError("Resolved Python package count exceeds the configured limit.")
 
         proxy_handler = urllib.request.ProxyHandler({"https": proxy, "http": proxy})
         redirect_handler = _AllowlistedRedirectHandler(ARTIFACT_HOSTS)
@@ -550,6 +570,7 @@ def resolve_python_packages(
                 compatible[0][1],
                 name, version, supported_tags, opener, workspace, remaining_bytes,
                 request_timeout=max(1, min(30, int(remaining_time))),
+                deadline=deadline,
             )
             remaining_bytes -= downloaded
             package_rows[name] = {
