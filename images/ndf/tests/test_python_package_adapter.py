@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts.package_resolution import validate_package_resolution
 from scripts.python_package_adapter import (
     PYPI_INDEX,
     UV_VERSION,
@@ -19,13 +20,42 @@ PROXY = "http://egress-proxy.example:3128"
 
 def target_runtime():
     return {
+        "frappe": "16.0.0",
         "python": "3.14.10",
         "python_implementation": "CPython",
         "python_cache_tag": "cpython-314",
         "python_soabi": "cpython-314-x86_64-linux-gnu",
         "python_platform": "linux-x86_64",
+        "python_executable": "/usr/local/bin/python3",
+        "python_build": "CPython 3.14.10, compiled with GCC 14.2.0",
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "node_platform": "linux",
+        "node_architecture": "x64",
+        "node_abi": "137",
+        "node_api": "10",
+        "node_executable": "/home/frappe/.nvm/current/bin/node",
         "platform": {"os": "linux", "architecture": "amd64"},
+        "images": {
+            "builder": {
+                "reference": "frappe/build@sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b",
+                "index_digest": "sha256:d97ec9f1f4c7330ac419658716244f725b3d03396ca4420ce697181dd6d31cbe",
+                "manifest_digest": "sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b",
+                "platform": "linux/amd64",
+            },
+            "runtime": {
+                "reference": "frappe/base@sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c",
+                "index_digest": "sha256:7409981f6238662325583025a8dc23364b348a806146080879f1ef48372a6bc0",
+                "manifest_digest": "sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c",
+                "platform": "linux/amd64",
+            },
+        },
         "os": {
+            "id": "debian",
+            "package_manager": "apt",
+            "package_manager_version": "3.0.4",
+            "package_database": "dpkg",
+            "package_database_version": "1.22.22",
             "distribution_family": "debian",
             "version_id": "13",
             "codename": "trixie",
@@ -38,6 +68,7 @@ def target_runtime():
 def app_with_python(*dependencies):
     return {
         "_app_id": "demo_app",
+        "app_id": "demo_app",
         "package_dependencies": [
             {
                 "ecosystem": "python",
@@ -228,6 +259,15 @@ def test_resolves_direct_and_transitive_packages_with_verified_wheel_hashes():
         root_wheel["url"], child_wheel["url"]
     }
 
+    app = app_with_python(("demo-root", "constraint", ">=1,<2", "runtime"))
+    app["package_dependencies"][0]["version"] = "1.0.0"
+    validate_package_resolution(
+        result,
+        target_runtime=target_runtime(),
+        applications=[app],
+        repository_root=REPOSITORY_ROOT,
+    )
+
 
 def test_latest_compatible_direct_requirement_is_passed_without_a_range():
     wheel_bytes = b"latest wheel"
@@ -246,9 +286,6 @@ def test_latest_compatible_direct_requirement_is_passed_without_a_range():
         opener_factory=lambda *_args: opener,
     )
 
-    requirements_file = Path(calls[1][1]["cwd"]) / "requirements.in"
-    # The temporary workspace is removed after resolution; inspect the command's
-    # input file while the fake runner is executing instead.
     assert selected == {"demo_app\0demo-latest": "3.0.0"}
 
 
