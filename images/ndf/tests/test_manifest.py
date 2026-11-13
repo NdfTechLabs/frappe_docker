@@ -2631,3 +2631,56 @@ class TestDescriptorCompositionClosureAndLock:
             match="application composition does not match",
         ):
             loader.validate_lock_file(lock_path, loaded)
+class TestCompositionCyclePolicy:
+    def test_application_dependency_cycles_remain_rejected(self, loader):
+        applications = [
+            {"name": "app_one", "dependencies": ["app_two"]},
+            {"name": "app_two", "dependencies": ["app_one"]},
+        ]
+
+        with pytest.raises(ManifestError, match="Circular application dependency detected"):
+            loader.resolve_install_order(applications)
+
+    def test_independent_service_cycles_remain_rejected(self, loader, monkeypatch):
+        descriptors = {
+            "service_one": {
+                "service_id": "service_one",
+                "name": "Service One",
+                "service_kind": "container",
+                "depends_on": ["service_two"],
+                "artifact": {"image": "example/service-one:1"},
+            },
+            "service_two": {
+                "service_id": "service_two",
+                "name": "Service Two",
+                "service_kind": "container",
+                "depends_on": ["service_one"],
+                "artifact": {"image": "example/service-two:1"},
+            },
+        }
+
+        def load_service_descriptor(path):
+            service_id = Path(path).stem
+            return descriptors[service_id], service_id * 64
+
+        monkeypatch.setattr(loader, "_load_service_descriptor", load_service_descriptor)
+        manifest_path = loader.manifests_dir / "cycle-product.json"
+        manifest_path.write_text("{}", encoding="utf-8")
+        manifest = {
+            "_source_path": manifest_path,
+            "_loaded_includes": [],
+            "_loaded_capabilities": [],
+            "services": [
+                {
+                    "descriptor": "images/ndf/descriptors/services/service_one.json",
+                    "required": True,
+                }
+            ],
+            "external_requirements": [],
+        }
+
+        with pytest.raises(
+            ManifestError,
+            match="Circular independent-service dependency detected",
+        ):
+            loader.compose_services(manifest)
