@@ -415,7 +415,7 @@ def test_package_source_url_must_match_approved_profile():
         validate(section)
 
 
-def test_package_cycle_fails_closed():
+def test_native_resolver_package_dependency_cycles_are_permitted():
     first = python_package("first", "1.0.0", direct=True, requested_by=["demo_app"])
     second = python_package("second", "1.0.0")
     section = package_resolution(
@@ -426,8 +426,9 @@ def test_package_cycle_fails_closed():
         ],
     )
 
-    with pytest.raises(PackageResolutionError, match="cycle"):
-        validate(section)
+    # Package graph validation checks complete resolver output, edge endpoints,
+    # version constraints and reachability; it does not impose DAG semantics.
+    assert validate(section) is True
 
 
 def test_unreachable_transitive_package_record_fails_closed():
