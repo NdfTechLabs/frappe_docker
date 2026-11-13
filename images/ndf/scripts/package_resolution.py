@@ -296,8 +296,14 @@ def validate_package_resolution(
                 ecosystem = requirement.get("ecosystem")
                 name = requirement.get("name")
                 profile_id = requirement.get("source_profile")
-                if ecosystem not in {"python", "node", "os"} or not isinstance(name, str) or not name:
-                    raise PackageResolutionError("Declared package requirement has an invalid identity.")
+                if (
+                    not isinstance(ecosystem, str)
+                    or ecosystem not in {"python", "node", "os"}
+                    or not isinstance(name, str)
+                    or not name
+                    or not isinstance(profile_id, str)
+                ):
+                    raise PackageResolutionError("Declared package requirement has an invalid identity or source profile.")
                 expected_profile = {
                     "python": "python-pypi-public-v1",
                     "node": "node-npm-public-v1",
@@ -313,17 +319,20 @@ def validate_package_resolution(
                     raise PackageResolutionError(
                         f"Declared {ecosystem} requirement {name} uses an unapproved source profile."
                     )
-                if requirement.get("version_policy") not in {"constraint", "latest_compatible"}:
+                version_policy = requirement.get("version_policy")
+                if not isinstance(version_policy, str) or version_policy not in {"constraint", "latest_compatible"}:
                     raise PackageResolutionError("Declared package requirement has an invalid version policy.")
                 constraint = requirement.get("requested_constraint")
-                if requirement.get("version_policy") == "constraint":
+                if version_policy == "constraint":
                     if not isinstance(constraint, str) or not constraint:
                         raise PackageResolutionError("Constrained package requirement has no requested_constraint.")
                 elif constraint is not None:
                     raise PackageResolutionError("latest_compatible package requirement must not include a constraint.")
-                if requirement.get("disposition") not in {"base", "runtime_compatible", "environment_level"}:
+                disposition = requirement.get("disposition")
+                scope = requirement.get("scope")
+                if not isinstance(disposition, str) or disposition not in {"base", "runtime_compatible", "environment_level"}:
                     raise PackageResolutionError("Declared package requirement has an invalid disposition.")
-                if requirement.get("scope") not in {"build", "runtime"} or not isinstance(requirement.get("install"), bool):
+                if not isinstance(scope, str) or scope not in {"build", "runtime"} or not isinstance(requirement.get("install"), bool):
                     raise PackageResolutionError("Declared package requirement has an invalid scope/install decision.")
                 if ecosystem == "node":
                     expected_manager = catalogue.get("resolver_policy", {}).get("node", {}).get("installer")
