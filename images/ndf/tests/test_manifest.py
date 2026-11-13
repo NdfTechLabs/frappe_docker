@@ -2038,7 +2038,14 @@ class TestDescriptorResolutionPrimitives:
         result = loader._resolve_descriptor_packages(
             descriptor,
             {
-                "os": {"distribution_family": "debian", "package_manager": "apt"},
+                "os": {
+                    "distribution_family": "debian",
+                    "version_id": "13",
+                    "codename": "trixie",
+                    "architecture": "amd64",
+                    "package_manager": "apt",
+                    "package_database": "dpkg",
+                },
                 "package_versions": {
                     "os:libpq-dev": {
                         "version": "16.4-1",
