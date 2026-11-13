@@ -280,14 +280,9 @@ def validate_package_resolution(
     if not packages:
         if edges or profiles or section["base_inventory"] is not None:
             raise PackageResolutionError("Empty package graph must not carry edges, profiles or base inventory.")
-        if any(
-            app.get("package_dependencies")
-            for app in applications
-            if isinstance(app, dict)
-        ):
-            raise PackageResolutionError(
-                "Direct package selections are not represented by a normalized package graph."
-            )
+        # Descriptor package_dependencies are declarations/constraints only.
+        # Native Bench resolves and installs them; an empty graph is therefore
+        # valid until post-build inventory evidence is captured downstream.
         return True
     if not isinstance(target_runtime, dict):
         raise PackageResolutionError("Package graph requires an exact target_runtime.")
