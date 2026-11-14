@@ -218,12 +218,24 @@ def _verify_service_source_declarations(
                     raise CompositionVerificationError(f"Invalid {field} selection flags in {source_path}.")
                 if required or selected:
                     expected[kind].add(_safe_relative_path(declaration.get("descriptor"), f"{field} descriptor path"))
-    actual = {
-        "container": {item["descriptor"] for item in containers},
-        "external": {item["descriptor"] for item in external},
-    }
-    if actual != expected:
-        raise CompositionVerificationError("Lock service inventories do not match selected service descriptor declarations.")
+    all_items = {item["service_id"]: item for item in containers + external}
+    path_to_id = {item["descriptor"]: item["service_id"] for item in containers + external}
+    direct_paths = expected["container"] | expected["external"]
+    direct_ids = set()
+    for path in direct_paths:
+        if path not in path_to_id:
+            raise CompositionVerificationError(f"Selected service descriptor is absent from lock-v2: {path}.")
+        direct_ids.add(path_to_id[path])
+    closure: set[str] = set()
+    pending = list(direct_ids)
+    while pending:
+        identity = pending.pop()
+        if identity in closure:
+            continue
+        closure.add(identity)
+        pending.extend(all_items[identity].get("depends_on", []))
+    if closure != set(all_items):
+        raise CompositionVerificationError("Lock service inventories do not match the selected descriptor dependency closure.")
 
 
 def _verify_application_declarations(
