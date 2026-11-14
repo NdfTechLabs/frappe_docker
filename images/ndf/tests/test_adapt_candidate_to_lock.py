@@ -171,9 +171,9 @@ def test_candidate_adapter_never_resolves_rolling_git_refs(
         ),
         (
             lambda candidate: candidate["applications"][0].update(
-                requested_version="main"
+                app_name="Unregistered Application"
             ),
-            "requested_version differs",
+            "app_name differs",
         ),
         (
             lambda candidate: candidate["applications"][0].update(
