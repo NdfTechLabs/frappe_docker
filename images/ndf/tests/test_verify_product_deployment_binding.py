@@ -130,6 +130,21 @@ def test_rejects_tampered_evidence_bytes(binding_fixture, monkeypatch):
         verify_product_deployment_binding(descriptor_path, output_dir)
 
 
+
+def test_rejects_evidence_byte_size_mismatch(binding_fixture, monkeypatch):
+    output_dir, descriptor_path = binding_fixture
+    path = output_dir / "apps.json"
+    path.write_bytes(path.read_bytes() + b" ")
+    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    record = next(item for item in descriptor["evidence"] if item["name"] == "apps_json")
+    record["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    _refresh_descriptor_integrity(descriptor)
+    _write_descriptor(output_dir, descriptor)
+    _mock_registry(monkeypatch)
+
+    with pytest.raises(ProductDeploymentBindingError, match="byte-size mismatch"):
+        verify_product_deployment_binding(descriptor_path, output_dir)
+
 def test_rejects_missing_evidence_file(binding_fixture, monkeypatch):
     output_dir, descriptor_path = binding_fixture
     (output_dir / "apps.json").unlink()
