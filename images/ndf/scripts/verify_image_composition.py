@@ -250,6 +250,7 @@ def _verify_application_declarations(
 ) -> None:
     """Check manifest declarations and any locked Marketplace App Descriptors."""
     declared: set[str] = set()
+    declared_descriptors: dict[str, str] = {}
     for source_path, manifest in manifests.items():
         entries = manifest.get("applications", [])
         if not isinstance(entries, list):
@@ -278,6 +279,7 @@ def _verify_application_declarations(
                 if not isinstance(bench_name, str) or not bench_name:
                     raise CompositionVerificationError(f"Application descriptor lacks Bench app identity: {relative}.")
                 declared.add(bench_name)
+                declared_descriptors[bench_name] = relative
             else:
                 name = entry.get("name")
                 if not isinstance(name, str) or not name:
@@ -302,6 +304,8 @@ def _verify_application_declarations(
         if not source.is_relative_to(descriptor_root) or not source.is_file():
             raise CompositionVerificationError(f"Locked application descriptor is missing or unsafe: {relative}.")
         descriptor, raw = _read_json(source, f"locked application descriptor {relative}")
+        if name in declared_descriptors and declared_descriptors[name] != relative:
+            raise CompositionVerificationError(f"Manifest and lock select different application descriptors: {name}.")
         if hashlib.sha256(raw).hexdigest() != locked.get("descriptor_sha256"):
             raise CompositionVerificationError(f"Locked application descriptor checksum mismatch: {relative}.")
         if descriptor.get("app_module", {}).get("bench_app_name") != name:
