@@ -132,6 +132,16 @@ Current relevant components include:
 - [DT Master M4 architecture](https://github.com/NdfTechLabs/dt_master/blob/develop/README.md)
 - [DT Tenant M4 architecture](https://github.com/NdfTechLabs/dt_tenant/blob/develop/README.md)
 
+
+### M4.2.7 — Candidate-Driven CI/CD
+
+**Status:** Readiness audit A.1–A.4 complete; implementation plan documented; implementation not started.
+
+- [M4.2.7 Readiness Audit](M4.2.7-READINESS-AUDIT.md) — NDF workflow/artifact audit and read-only reconciliation of the accepted DT Master/DT Tenant contracts.
+- [M4.2.7 Implementation Plan](M4.2.7-IMPLEMENTATION-PLAN.md) — NDF-only work packages, candidate/result contract, acceptance criteria, security boundaries and implementation dependencies.
+
+M4.2.7 changes are restricted to this NDF repository. DT Master and DT Tenant documentation are read-only requirements references; their missing DocTypes and operations remain their own implementation responsibilities. No implementation branch or code changes are authorized by the planning record.
+
 ## Upstream relationship
 
 This repository is based on [upstream frappe_docker](https://github.com/frappe/frappe_docker). Upstream build/runtime improvements should be incorporated while keeping NDF-specific manifests, schemas, scripts and workflows isolated under `images/ndf/` where practical.
