@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
+from jsonschema.exceptions import SchemaError
 
 NDF_DIR = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = NDF_DIR / "schemas" / "product-deployment-descriptor-v1.schema.json"
@@ -106,10 +107,12 @@ def _schema_validate(descriptor: dict[str, Any], schema_path: Path) -> None:
             validator.iter_errors(descriptor),
             key=lambda error: (list(map(str, error.absolute_path)), error.message),
         )
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise DescriptorValidationError(f"Unable to load authoritative PDD schema: {exc}") from exc
-    except ValidationError as exc:
-        raise DescriptorValidationError(f"Authoritative PDD schema is invalid: {exc.message}") from exc
+    except SchemaError as exc:
+        raise DescriptorValidationError(
+            f"Authoritative PDD schema is invalid: {exc.message}"
+        ) from exc
 
     if errors:
         error = errors[0]
@@ -241,6 +244,10 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
         )
 
     framework = descriptor["runtime_inventory"]["framework"]
+    if framework["name"] != "frappe":
+        raise DescriptorValidationError(
+            "Runtime framework identity must be the NDF Frappe framework."
+        )
     framework_app = app_by_name.get(framework["name"])
     if framework_app is None:
         raise DescriptorValidationError(
@@ -327,12 +334,12 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
         visit(node)
 
     declarations = descriptor["requirements"]["services"]["declarations"]
-    actual_service_declarations: set[tuple[str, str, str, str]] = set()
+    actual_declaration_items: list[tuple[str, str, str, str]] = []
     for declaration in declarations:
         if declaration["authority"] != "service_descriptor":
             continue
         for claim in declaration["claims"]:
-            actual_service_declarations.add(
+            actual_declaration_items.append(
                 (
                     declaration["reference"],
                     declaration["sha256"],
@@ -340,6 +347,11 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
                     claim.get("service_kind", ""),
                 )
             )
+    actual_service_declarations = set(actual_declaration_items)
+    if len(actual_declaration_items) != len(actual_service_declarations):
+        raise DescriptorValidationError(
+            "Services requirement declarations contain duplicate service claims."
+        )
     if actual_service_declarations != expected_service_declarations:
         raise DescriptorValidationError(
             "Services requirement declarations do not match composition service and external requirement identities."
