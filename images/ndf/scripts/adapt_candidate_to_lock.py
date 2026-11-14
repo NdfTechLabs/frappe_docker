@@ -17,6 +17,12 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 try:
+    from .validate_image_definitions import (
+        ImageDefinitionError,
+        load_json,
+        validate_definitions,
+        validate_schema,
+    )
     from .prepare_build import (
         BuildPreparationError,
         build_apps_json,
@@ -26,6 +32,12 @@ try:
     )
     from .resolve_manifest import ManifestError, ManifestLoader
 except ImportError:
+    from validate_image_definitions import (
+        ImageDefinitionError,
+        load_json,
+        validate_definitions,
+        validate_schema,
+    )
     from prepare_build import (
         BuildPreparationError,
         build_apps_json,
@@ -158,28 +170,16 @@ def _select_image(
     ndf_dir: Path, definitions_relative_path: str, candidate: dict
 ) -> tuple[dict, dict]:
     product_id = candidate["product"]["id"]
-    definitions, _ = load_image_definition(
-        ndf_dir,
-        definitions_relative_path,
-        "__candidate_product_lookup__",
-    ) if False else (None, None)
-
     definitions_path = (ndf_dir / definitions_relative_path).resolve()
     if not definitions_path.is_relative_to(ndf_dir.resolve()) or not definitions_path.is_file():
         raise CandidateCompositionError("Image definitions path is invalid.")
 
     try:
-        definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise CandidateCompositionError(f"Unable to read image definitions: {exc}") from exc
-
-    schema_path = ndf_dir / "schemas" / "image-definitions-v1.schema.json"
-    from validate_image_definitions import validate_definitions, validate_schema
-
-    try:
+        definitions = load_json(definitions_path)
+        schema_path = ndf_dir / "schemas" / "image-definitions-v1.schema.json"
         validate_schema(definitions, schema_path)
         validate_definitions(definitions, ndf_dir / "manifests")
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError, ImageDefinitionError) as exc:
         raise CandidateCompositionError(f"Invalid NDF image definitions: {exc}") from exc
 
     matches = [item for item in definitions["images"] if item["product"] == product_id]
@@ -238,8 +238,8 @@ def _map_candidate_applications(
         )
 
     mapped = []
-    for app_id in sorted(expected_by_id):
-        expected = expected_by_id[app_id]
+    for expected in applications:
+        app_id = expected.get("_app_id") or expected["name"]
         requested = supplied[app_id]
 
         if requested["app_source"] != expected.get("repository"):
@@ -332,10 +332,11 @@ def adapt_candidate_to_lock(
         )
 
     runtime = candidate.get("runtime_profile", {})
-    if runtime.get("python") not in {"3.14", "3.14.0"} or runtime.get("node") not in {
-        "24",
-        "24.0",
-    }:
+    if not isinstance(runtime.get("python"), str) or not re.fullmatch(
+        r"3\\.14(?:\\.\\d+)?", runtime["python"]
+    ) or not isinstance(runtime.get("node"), str) or not re.fullmatch(
+        r"24(?:\\.\\d+){0,2}", runtime["node"]
+    ):
         raise CandidateCompositionError(
             "Candidate runtime_profile must select the verified Python 3.14 and Node 24 families."
         )
