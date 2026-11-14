@@ -378,7 +378,7 @@ def adapt_candidate_to_lock(
             "Candidate contains build options not implemented by the NDF build pipeline."
         )
 
-    policy = loader.resolve_policy(manifest)
+    loader.resolve_policy(manifest)
     applications = loader.compose_applications(manifest)
     loader.validate_dependencies(applications)
     ordered = loader.resolve_install_order(applications)
