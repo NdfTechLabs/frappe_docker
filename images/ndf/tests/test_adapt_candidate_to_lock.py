@@ -212,14 +212,14 @@ def test_candidate_adapter_never_resolves_rolling_git_refs(
 def test_candidate_adapter_rejects_unsupported_or_mismatched_composition(
     ndf_dir, tmp_path, mutate, message
 ):
-    candidate = make_candidate(ndf_dir, None)
+    candidate = make_candidate(ndf_dir)
     mutate(candidate)
     with pytest.raises(CandidateCompositionError, match=message):
         run_adapter(ndf_dir, tmp_path, candidate)
 
 
 def test_candidate_adapter_rejects_payload_hash_mismatch(ndf_dir, tmp_path):
-    candidate = make_candidate(ndf_dir, None)
+    candidate = make_candidate(ndf_dir)
     candidate_path = write_candidate(tmp_path, candidate)
     with pytest.raises(
         CandidateCompositionError, match="do not match the dispatch payload"
@@ -239,7 +239,7 @@ def test_candidate_adapter_rejects_payload_hash_mismatch(ndf_dir, tmp_path):
 def test_candidate_adapter_rejects_wrong_candidate_artifact_repository(
     ndf_dir, tmp_path
 ):
-    candidate = make_candidate(ndf_dir, None)
+    candidate = make_candidate(ndf_dir)
     candidate_path = write_candidate(tmp_path, candidate)
     payload_sha = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
     with pytest.raises(CandidateCompositionError, match="not allowlisted"):
