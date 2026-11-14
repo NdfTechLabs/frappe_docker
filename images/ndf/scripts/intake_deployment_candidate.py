@@ -10,7 +10,7 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
 
@@ -30,7 +30,7 @@ ANNOTATION_SCHEMA_VERSION = "io.ndf.candidate.schema-version"
 ANNOTATION_PAYLOAD_SHA256 = "io.ndf.candidate.payload-sha256"
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 REFERENCE_RE = re.compile(
-    r"^ghcr\\.io/ndftechlabs/dt-master-deployment-candidates@"
+    r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@"
     r"(sha256:[a-f0-9]{64})$"
 )
 
@@ -180,7 +180,7 @@ def validate_candidate_payload(
     expected_payload_sha256: str,
 ) -> dict[str, Any]:
     """Verify exact payload bytes, parse strictly, validate schema and semantics."""
-    if not re.fullmatch(r"[a-f0-9]{64}", expected_payload_sha256 or ""):
+    if not isinstance(expected_payload_sha256, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_payload_sha256):
         raise CandidateIntakeError("Dispatch payload_sha256 must be 64 lowercase hexadecimal characters.")
     observed_hash = hashlib.sha256(raw).hexdigest()
     if observed_hash != expected_payload_sha256:
