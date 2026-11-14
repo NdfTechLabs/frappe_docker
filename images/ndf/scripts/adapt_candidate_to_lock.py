@@ -333,9 +333,9 @@ def adapt_candidate_to_lock(
 
     runtime = candidate.get("runtime_profile", {})
     if not isinstance(runtime.get("python"), str) or not re.fullmatch(
-        r"3\\.14(?:\\.\\d+)?", runtime["python"]
+        r"3\.14(?:\.\d+)?", runtime["python"]
     ) or not isinstance(runtime.get("node"), str) or not re.fullmatch(
-        r"24(?:\\.\\d+){0,2}", runtime["node"]
+        r"24(?:\.\d+){0,2}", runtime["node"]
     ):
         raise CandidateCompositionError(
             "Candidate runtime_profile must select the verified Python 3.14 and Node 24 families."
