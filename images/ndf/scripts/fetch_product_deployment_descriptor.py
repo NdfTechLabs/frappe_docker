@@ -16,7 +16,11 @@ from typing import Any
 from jsonschema import Draft202012Validator, ValidationError
 
 try:
-    from .publish_product_deployment_descriptor import ARTIFACT_TYPE, PDD_MEDIA_TYPE, SIDECARS
+    from .publish_product_deployment_descriptor import (
+        ARTIFACT_TYPE,
+        PDD_MEDIA_TYPE,
+        SIDECARS,
+    )
     from .validate_product_deployment_descriptor import (
         DescriptorValidationError,
         validate_descriptor,
@@ -26,7 +30,11 @@ try:
         verify_product_deployment_binding,
     )
 except ImportError:
-    from publish_product_deployment_descriptor import ARTIFACT_TYPE, PDD_MEDIA_TYPE, SIDECARS
+    from publish_product_deployment_descriptor import (
+        ARTIFACT_TYPE,
+        PDD_MEDIA_TYPE,
+        SIDECARS,
+    )
     from validate_product_deployment_descriptor import (
         DescriptorValidationError,
         validate_descriptor,
@@ -45,7 +53,9 @@ class PDDRetrievalError(Exception):
     """Raised when a published PDD cannot be safely retrieved or verified."""
 
 
-def _run(command: list[str], *, timeout: int = 300) -> subprocess.CompletedProcess[bytes]:
+def _run(
+    command: list[str], *, timeout: int = 300
+) -> subprocess.CompletedProcess[bytes]:
     try:
         return subprocess.run(
             command, check=False, capture_output=True, timeout=timeout
@@ -56,7 +66,9 @@ def _run(command: list[str], *, timeout: int = 300) -> subprocess.CompletedProce
         raise PDDRetrievalError(f"Unable to execute {command[0]}: {exc}") from exc
 
 
-def _json_output(result: subprocess.CompletedProcess[bytes], label: str) -> dict[str, Any]:
+def _json_output(
+    result: subprocess.CompletedProcess[bytes], label: str
+) -> dict[str, Any]:
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
         raise PDDRetrievalError(f"{label} failed: {detail or result.returncode}")
@@ -106,14 +118,20 @@ def fetch_product_deployment_descriptor(
         or repository != subject["repository"]
         or artifact["locator_tag"] != expected_locator
     ):
-        raise PDDRetrievalError("Publication receipt does not contain a consistent digest-pinned artifact reference and locator.")
+        raise PDDRetrievalError(
+            "Publication receipt does not contain a consistent digest-pinned artifact reference and locator."
+        )
 
     manifest = _json_output(
-        _run([oras_bin, "manifest", "fetch", "--format", "json", reference], timeout=120),
+        _run(
+            [oras_bin, "manifest", "fetch", "--format", "json", reference], timeout=120
+        ),
         "ORAS manifest fetch",
     )
     if manifest.get("digest") != digest:
-        raise PDDRetrievalError("Registry manifest digest differs from the publication receipt.")
+        raise PDDRetrievalError(
+            "Registry manifest digest differs from the publication receipt."
+        )
     manifest_content = manifest.get("content", {})
     if manifest_content.get("artifactType") != ARTIFACT_TYPE:
         raise PDDRetrievalError("Registry artifact type is not the NDF PDD contract.")
@@ -122,7 +140,9 @@ def fetch_product_deployment_descriptor(
         isinstance(layer, dict) and layer.get("mediaType") == PDD_MEDIA_TYPE
         for layer in layers
     ):
-        raise PDDRetrievalError("Registry artifact does not contain the required PDD media type layer.")
+        raise PDDRetrievalError(
+            "Registry artifact does not contain the required PDD media type layer."
+        )
     annotations = manifest_content.get("annotations", {})
     descriptor_record = receipt["descriptor"]
     expected_annotations = {
@@ -131,32 +151,52 @@ def fetch_product_deployment_descriptor(
         "io.ndf.pdd.subject-image-digest": receipt["subject_image"]["digest"],
         "io.ndf.pdd.schema-version": descriptor_record["schema_version"],
     }
-    if any(annotations.get(key) != value for key, value in expected_annotations.items()):
-        raise PDDRetrievalError("Registry artifact annotations disagree with the publication receipt.")
+    if any(
+        annotations.get(key) != value for key, value in expected_annotations.items()
+    ):
+        raise PDDRetrievalError(
+            "Registry artifact annotations disagree with the publication receipt."
+        )
 
     if output_dir.is_symlink():
         raise PDDRetrievalError("Output directory must not be a symlink.")
     output_dir.mkdir(parents=True, exist_ok=True)
     if any(output_dir.iterdir()):
-        raise PDDRetrievalError("Output directory must be empty to prevent mixing artifact contents.")
+        raise PDDRetrievalError(
+            "Output directory must be empty to prevent mixing artifact contents."
+        )
     with tempfile.TemporaryDirectory(prefix="ndf-pdd-fetch-") as temp:
         pulled_dir = Path(temp)
         pull_result = _json_output(
             _run(
-                [oras_bin, "pull", "--format", "json", "--output", str(pulled_dir), reference],
+                [
+                    oras_bin,
+                    "pull",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(pulled_dir),
+                    reference,
+                ],
                 timeout=300,
             ),
             "ORAS artifact pull",
         )
         if pull_result.get("reference") != reference:
-            raise PDDRetrievalError("ORAS pull returned a different artifact reference.")
+            raise PDDRetrievalError(
+                "ORAS pull returned a different artifact reference."
+            )
 
         pdd_path = pulled_dir / "product-deployment.json"
         binding_path = pulled_dir / "binding-verification.json"
         if not pdd_path.is_file() or pdd_path.is_symlink():
-            raise PDDRetrievalError("Published artifact is missing product-deployment.json.")
+            raise PDDRetrievalError(
+                "Published artifact is missing product-deployment.json."
+            )
         if not binding_path.is_file() or binding_path.is_symlink():
-            raise PDDRetrievalError("Published artifact is missing binding-verification.json.")
+            raise PDDRetrievalError(
+                "Published artifact is missing binding-verification.json."
+            )
         pulled_files = []
         for path in pulled_dir.rglob("*"):
             if path.is_symlink():
@@ -164,21 +204,33 @@ def fetch_product_deployment_descriptor(
             if path.is_file():
                 pulled_files.append(path)
         if len(pulled_files) != receipt["evidence"]["published_file_count"]:
-            raise PDDRetrievalError("Published artifact file count differs from the publication receipt.")
+            raise PDDRetrievalError(
+                "Published artifact file count differs from the publication receipt."
+            )
         binding_sha = hashlib.sha256(binding_path.read_bytes()).hexdigest()
         if binding_sha != receipt["evidence"]["binding_report_sha256"]:
-            raise PDDRetrievalError("Binding report bytes differ from the publication receipt.")
+            raise PDDRetrievalError(
+                "Binding report bytes differ from the publication receipt."
+            )
 
         try:
             validated = validate_descriptor(pdd_path)
         except DescriptorValidationError as exc:
-            raise PDDRetrievalError(f"Independent PDD validation failed: {exc}") from exc
+            raise PDDRetrievalError(
+                f"Independent PDD validation failed: {exc}"
+            ) from exc
         if validated["descriptor_id"] != descriptor_record["id"]:
-            raise PDDRetrievalError("Retrieved PDD descriptor identity differs from the publication receipt.")
+            raise PDDRetrievalError(
+                "Retrieved PDD descriptor identity differs from the publication receipt."
+            )
         if validated["content_sha256"] != descriptor_record["content_sha256"]:
-            raise PDDRetrievalError("Retrieved PDD content hash differs from the publication receipt.")
+            raise PDDRetrievalError(
+                "Retrieved PDD content hash differs from the publication receipt."
+            )
         if validated["image_digest"] != receipt["subject_image"]["digest"]:
-            raise PDDRetrievalError("Retrieved PDD image digest differs from the publication receipt.")
+            raise PDDRetrievalError(
+                "Retrieved PDD image digest differs from the publication receipt."
+            )
         try:
             descriptor = json.loads(pdd_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -189,28 +241,42 @@ def fetch_product_deployment_descriptor(
             or descriptor.get("artifact", {}).get("digest") != subject["digest"]
             or descriptor.get("artifact", {}).get("platform") != subject["platform"]
         ):
-            raise PDDRetrievalError("Retrieved PDD image repository/digest/platform differs from the publication receipt.")
+            raise PDDRetrievalError(
+                "Retrieved PDD image repository/digest/platform differs from the publication receipt."
+            )
         if validated["schema_version"] != descriptor_record["schema_version"]:
-            raise PDDRetrievalError("Retrieved PDD schema version differs from the publication receipt.")
+            raise PDDRetrievalError(
+                "Retrieved PDD schema version differs from the publication receipt."
+            )
         try:
             build_result = json.loads(
                 (pulled_dir / "build-result.json").read_text(encoding="utf-8")
             )
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise PDDRetrievalError(f"Unable to read published build result: {exc}") from exc
+            raise PDDRetrievalError(
+                f"Unable to read published build result: {exc}"
+            ) from exc
         image_id = build_result.get("image_id")
         if not isinstance(image_id, str) or not image_id:
             raise PDDRetrievalError("Published build result has no valid image_id.")
-        expected_files = {"product-deployment.json", "binding-verification.json", *SIDECARS}
+        expected_files = {
+            "product-deployment.json",
+            "binding-verification.json",
+            *SIDECARS,
+        }
         for evidence in descriptor["evidence"]:
             expected_files.add(
                 f"{image_id}.lock-v2.json"
                 if evidence["name"] == "lock_v2"
                 else evidence["path"]
             )
-        observed_files = {path.relative_to(pulled_dir).as_posix() for path in pulled_files}
+        observed_files = {
+            path.relative_to(pulled_dir).as_posix() for path in pulled_files
+        }
         if observed_files != expected_files:
-            raise PDDRetrievalError("Published artifact file inventory does not match the PDD evidence and sidecar contract.")
+            raise PDDRetrievalError(
+                "Published artifact file inventory does not match the PDD evidence and sidecar contract."
+            )
 
         if verify_image_binding:
             try:
@@ -218,13 +284,25 @@ def fetch_product_deployment_descriptor(
                     pdd_path, pulled_dir, docker_bin=docker_bin
                 )
             except ProductDeploymentBindingError as exc:
-                raise PDDRetrievalError(f"Retrieved PDD evidence binding failed: {exc}") from exc
+                raise PDDRetrievalError(
+                    f"Retrieved PDD evidence binding failed: {exc}"
+                ) from exc
             recorded = json.loads(binding_path.read_text(encoding="utf-8"))
-            for key in ("status", "descriptor_id", "image_digest", "content_sha256", "evidence_count"):
+            for key in (
+                "status",
+                "descriptor_id",
+                "image_digest",
+                "content_sha256",
+                "evidence_count",
+            ):
                 if recorded.get(key) != binding.get(key):
-                    raise PDDRetrievalError(f"Retrieved binding report disagrees on {key}.")
+                    raise PDDRetrievalError(
+                        f"Retrieved binding report disagrees on {key}."
+                    )
             if binding.get("status") != "passed":
-                raise PDDRetrievalError("Retrieved evidence bundle did not pass binding verification.")
+                raise PDDRetrievalError(
+                    "Retrieved evidence bundle did not pass binding verification."
+                )
 
         for item in pulled_dir.iterdir():
             target = output_dir / item.name

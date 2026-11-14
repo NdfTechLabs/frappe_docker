@@ -24,10 +24,7 @@
     "verifier": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "version"
-      ],
+      "required": ["name", "version"],
       "properties": {
         "name": {
           "const": "verify_source_provenance.py"
@@ -41,10 +38,7 @@
     "lock": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version",
-        "sha256"
-      ],
+      "required": ["version", "sha256"],
       "properties": {
         "version": {
           "const": 2
@@ -111,11 +105,7 @@
     "generatedContent": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "origin",
-        "untracked_paths",
-        "ignored_paths"
-      ],
+      "required": ["origin", "untracked_paths", "ignored_paths"],
       "properties": {
         "origin": {
           "const": "post_clone_bench_init"
@@ -177,12 +167,7 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "path",
-            "materialized",
-            "expected_commit",
-            "status"
-          ],
+          "required": ["path", "materialized", "expected_commit", "status"],
           "properties": {
             "path": {
               "type": "string",

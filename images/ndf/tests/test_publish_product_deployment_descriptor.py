@@ -59,9 +59,7 @@ def _bundle(tmp_path):
             "image_composition_verification": "image-composition-verification.json",
         }
         physical = (
-            f"{image_id}.lock-v2.json"
-            if name == "lock_v2"
-            else physical_names[name]
+            f"{image_id}.lock-v2.json" if name == "lock_v2" else physical_names[name]
         )
         raw = f"fixture:{name}".encode()
         (evidence_dir / physical).write_bytes(raw)
@@ -175,7 +173,9 @@ def test_publication_receipt_schema_requires_digest_pinned_reference():
         "published_at": "2026-11-14T12:00:00Z",
     }
     Draft202012Validator(schema).validate(receipt)
-    receipt["artifact"]["immutable_reference"] = receipt["artifact"]["repository"] + ":latest"
+    receipt["artifact"]["immutable_reference"] = (
+        receipt["artifact"]["repository"] + ":latest"
+    )
     with pytest.raises(Exception):
         Draft202012Validator(schema).validate(receipt)
 
@@ -218,7 +218,9 @@ def test_publisher_fails_when_binding_report_disagrees_before_registry_write(
         )
 
 
-def test_publisher_pushes_and_rechecks_the_digest_pinned_artifact(tmp_path, monkeypatch):
+def test_publisher_pushes_and_rechecks_the_digest_pinned_artifact(
+    tmp_path, monkeypatch
+):
     evidence_dir, descriptor_path, descriptor, binding_report = _bundle(tmp_path)
     descriptor["schema_version"] = "1.0.0"
     descriptor["product"] = {"id": "dalali-v16", "name": "Dalali"}
@@ -251,7 +253,11 @@ def test_publisher_pushes_and_rechecks_the_digest_pinned_artifact(tmp_path, monk
         "content": {
             "artifactType": ARTIFACT_TYPE,
             "annotations": annotations,
-            "layers": [{"mediaType": "application/vnd.ndf.product-deployment-descriptor.v1+json"}],
+            "layers": [
+                {
+                    "mediaType": "application/vnd.ndf.product-deployment-descriptor.v1+json"
+                }
+            ],
         },
     }
     manifest_calls = iter([None, manifest, manifest])
@@ -280,7 +286,6 @@ def test_publisher_pushes_and_rechecks_the_digest_pinned_artifact(tmp_path, monk
     assert receipt["evidence"]["count"] == 11
     assert receipt["evidence"]["published_file_count"] == 16
     assert json.loads(receipt_path.read_text(encoding="utf-8")) == receipt
-
 
 
 def _valid_receipt():
@@ -328,7 +333,9 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
         "evidence_count": 11,
     }
     binding_bytes = json.dumps(binding_payload).encode()
-    receipt["evidence"]["binding_report_sha256"] = hashlib.sha256(binding_bytes).hexdigest()
+    receipt["evidence"]["binding_report_sha256"] = hashlib.sha256(
+        binding_bytes
+    ).hexdigest()
     receipt_path = tmp_path / "receipt.json"
     receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
     pdd_bytes = descriptor_path.read_bytes()
@@ -347,19 +354,30 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
                 "content": {
                     "artifactType": ARTIFACT_TYPE,
                     "annotations": annotations,
-                    "layers": [{"mediaType": "application/vnd.ndf.product-deployment-descriptor.v1+json"}],
+                    "layers": [
+                        {
+                            "mediaType": "application/vnd.ndf.product-deployment-descriptor.v1+json"
+                        }
+                    ],
                 },
             }
-            return SimpleNamespace(returncode=0, stdout=json.dumps(payload).encode(), stderr=b"")
+            return SimpleNamespace(
+                returncode=0, stdout=json.dumps(payload).encode(), stderr=b""
+            )
         output = Path(command[command.index("--output") + 1])
         for source in evidence_dir.iterdir():
-            if source.name not in {"product-deployment.json", "binding-verification.json"}:
+            if source.name not in {
+                "product-deployment.json",
+                "binding-verification.json",
+            }:
                 (output / source.name).write_bytes(source.read_bytes())
         (output / "product-deployment.json").write_bytes(pdd_bytes)
         (output / "binding-verification.json").write_bytes(binding_bytes)
         return SimpleNamespace(
             returncode=0,
-            stdout=json.dumps({"reference": receipt["artifact"]["immutable_reference"]}).encode(),
+            stdout=json.dumps(
+                {"reference": receipt["artifact"]["immutable_reference"]}
+            ).encode(),
             stderr=b"",
         )
 
@@ -385,9 +403,12 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
     assert report["evidence_binding_verified"] is True
     assert (output_dir / "product-deployment.json").read_bytes() == pdd_bytes
 
+
 def test_retriever_rejects_mutable_tag_reference(tmp_path):
     receipt = _valid_receipt()
-    receipt["artifact"]["immutable_reference"] = receipt["artifact"]["repository"] + ":latest"
+    receipt["artifact"]["immutable_reference"] = (
+        receipt["artifact"]["repository"] + ":latest"
+    )
     receipt_path = tmp_path / "receipt.json"
     receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
     with pytest.raises(PDDRetrievalError, match="Invalid publication receipt"):
@@ -396,7 +417,9 @@ def test_retriever_rejects_mutable_tag_reference(tmp_path):
         )
 
 
-def test_publisher_is_idempotent_for_an_identical_existing_artifact(tmp_path, monkeypatch):
+def test_publisher_is_idempotent_for_an_identical_existing_artifact(
+    tmp_path, monkeypatch
+):
     evidence_dir, descriptor_path, descriptor, binding_report = _bundle(tmp_path)
     annotations = {
         "io.ndf.pdd.descriptor-id": binding_report["descriptor_id"],
@@ -411,7 +434,11 @@ def test_publisher_is_idempotent_for_an_identical_existing_artifact(tmp_path, mo
         "content": {
             "artifactType": ARTIFACT_TYPE,
             "annotations": annotations,
-            "layers": [{"mediaType": "application/vnd.ndf.product-deployment-descriptor.v1+json"}],
+            "layers": [
+                {
+                    "mediaType": "application/vnd.ndf.product-deployment-descriptor.v1+json"
+                }
+            ],
         },
     }
     monkeypatch.setattr(
@@ -425,20 +452,25 @@ def test_publisher_is_idempotent_for_an_identical_existing_artifact(tmp_path, mo
         },
     )
     monkeypatch.setattr(
-        publisher, "verify_product_deployment_binding", lambda *args, **kwargs: binding_report
+        publisher,
+        "verify_product_deployment_binding",
+        lambda *args, **kwargs: binding_report,
     )
     monkeypatch.setattr(publisher, "_manifest", lambda *args: existing)
     monkeypatch.setattr(
         publisher,
         "_pull_and_compare",
         lambda oras_bin, reference, files: (
-            reference.endswith(digest) or pytest.fail("Expected digest-pinned existing reference")
+            reference.endswith(digest)
+            or pytest.fail("Expected digest-pinned existing reference")
         ),
     )
     monkeypatch.setattr(
         publisher,
         "_run",
-        lambda *args, **kwargs: pytest.fail("Identical existing artifact must not be pushed again"),
+        lambda *args, **kwargs: pytest.fail(
+            "Identical existing artifact must not be pushed again"
+        ),
     )
 
     receipt = publish_product_deployment_descriptor(

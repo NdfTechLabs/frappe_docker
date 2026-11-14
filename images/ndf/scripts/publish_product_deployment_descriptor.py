@@ -71,7 +71,9 @@ def _run(
         raise PDDPublicationError(f"Unable to execute {command[0]}: {exc}") from exc
 
 
-def _json_output(result: subprocess.CompletedProcess[bytes], label: str) -> dict[str, Any]:
+def _json_output(
+    result: subprocess.CompletedProcess[bytes], label: str
+) -> dict[str, Any]:
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
         raise PDDPublicationError(f"{label} failed: {detail or result.returncode}")
@@ -98,14 +100,20 @@ def _safe_file(root: Path, relative: str) -> Path:
     for part in relative.split("/"):
         candidate = candidate / part
         if candidate.is_symlink():
-            raise PDDPublicationError(f"Publication input traverses symlink: {relative}")
+            raise PDDPublicationError(
+                f"Publication input traverses symlink: {relative}"
+            )
     try:
         resolved = candidate.resolve(strict=True)
         resolved_root = root.resolve(strict=True)
     except OSError as exc:
-        raise PDDPublicationError(f"Missing publication input {relative}: {exc}") from exc
+        raise PDDPublicationError(
+            f"Missing publication input {relative}: {exc}"
+        ) from exc
     if not resolved.is_relative_to(resolved_root) or not resolved.is_file():
-        raise PDDPublicationError(f"Publication input is not a regular in-root file: {relative}")
+        raise PDDPublicationError(
+            f"Publication input is not a regular in-root file: {relative}"
+        )
     if resolved.stat().st_size == 0:
         raise PDDPublicationError(f"Publication input is empty: {relative}")
     return resolved
@@ -115,20 +123,14 @@ def _publication_files(
     descriptor: dict[str, Any], evidence_dir: Path, image_id: str
 ) -> dict[str, Path]:
     files: dict[str, Path] = {
-        "product-deployment.json": _safe_file(
-            evidence_dir, "product-deployment.json"
-        ),
+        "product-deployment.json": _safe_file(evidence_dir, "product-deployment.json"),
         "binding-verification.json": _safe_file(
             evidence_dir, "binding-verification.json"
         ),
     }
     for record in descriptor["evidence"]:
         name = record["name"]
-        path = (
-            f"{image_id}.lock-v2.json"
-            if name == "lock_v2"
-            else record["path"]
-        )
+        path = f"{image_id}.lock-v2.json" if name == "lock_v2" else record["path"]
         if path in files:
             raise PDDPublicationError(f"Duplicate publication file path: {path}")
         files[path] = _safe_file(evidence_dir, path)
@@ -136,7 +138,9 @@ def _publication_files(
         sidecar_path = _safe_file(evidence_dir, sidecar)
         if sidecar in files:
             if files[sidecar] != sidecar_path:
-                raise PDDPublicationError(f"Conflicting publication sidecar path: {sidecar}")
+                raise PDDPublicationError(
+                    f"Conflicting publication sidecar path: {sidecar}"
+                )
             continue
         files[sidecar] = sidecar_path
     return dict(sorted(files.items()))
@@ -148,16 +152,17 @@ def _tag_for(descriptor: dict[str, Any]) -> str:
     return f"pdd-v1-{platform}-{digest}"
 
 
-def _manifest(
-    oras_bin: str, reference: str
-) -> dict[str, Any] | None:
+def _manifest(oras_bin: str, reference: str) -> dict[str, Any] | None:
     result = _run(
         [oras_bin, "manifest", "fetch", "--format", "json", reference],
         timeout=120,
     )
     if result.returncode != 0:
         error = result.stderr.decode("utf-8", errors="replace").lower()
-        if any(token in error for token in ("manifest_unknown", "manifest unknown", "not found", "404")):
+        if any(
+            token in error
+            for token in ("manifest_unknown", "manifest unknown", "not found", "404")
+        ):
             return None
         raise PDDPublicationError(
             f"Unable to inspect existing publication reference: {error.strip()}"
@@ -165,9 +170,7 @@ def _manifest(
     return _json_output(result, "ORAS manifest fetch")
 
 
-def _pull_and_compare(
-    oras_bin: str, reference: str, expected: dict[str, Path]
-) -> None:
+def _pull_and_compare(oras_bin: str, reference: str, expected: dict[str, Path]) -> None:
     with tempfile.TemporaryDirectory(prefix="ndf-pdd-publication-check-") as temp:
         output = Path(temp)
         result = _run(
@@ -190,7 +193,9 @@ def _pull_and_compare(
             if pulled.is_symlink() or not pulled.is_file():
                 raise PDDPublicationError(f"Published artifact is missing {relative}.")
             if pulled.read_bytes() != source.read_bytes():
-                raise PDDPublicationError(f"Published artifact bytes differ for {relative}.")
+                raise PDDPublicationError(
+                    f"Published artifact bytes differ for {relative}."
+                )
 
 
 def publish_product_deployment_descriptor(
@@ -211,29 +216,49 @@ def publish_product_deployment_descriptor(
             descriptor_path, evidence_dir, docker_bin=docker_bin
         )
     except ProductDeploymentBindingError as exc:
-        raise PDDPublicationError(f"M4.2.6.5 binding verification failed: {exc}") from exc
+        raise PDDPublicationError(
+            f"M4.2.6.5 binding verification failed: {exc}"
+        ) from exc
 
     if evidence_dir.is_symlink() or descriptor_path.is_symlink():
-        raise PDDPublicationError("Evidence directory and descriptor must not be symlinks.")
+        raise PDDPublicationError(
+            "Evidence directory and descriptor must not be symlinks."
+        )
     evidence_root = evidence_dir.resolve(strict=True)
     if descriptor_path.resolve(strict=True).parent != evidence_root:
-        raise PDDPublicationError("Descriptor must be product-deployment.json inside evidence-dir.")
+        raise PDDPublicationError(
+            "Descriptor must be product-deployment.json inside evidence-dir."
+        )
     if descriptor_path.name != "product-deployment.json":
-        raise PDDPublicationError("Descriptor filename must be product-deployment.json.")
+        raise PDDPublicationError(
+            "Descriptor filename must be product-deployment.json."
+        )
 
     try:
         descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
         recorded_binding = json.loads(
-            _safe_file(evidence_root, "binding-verification.json").read_text(encoding="utf-8")
+            _safe_file(evidence_root, "binding-verification.json").read_text(
+                encoding="utf-8"
+            )
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise PDDPublicationError(f"Unable to load descriptor or binding report: {exc}") from exc
+        raise PDDPublicationError(
+            f"Unable to load descriptor or binding report: {exc}"
+        ) from exc
 
-    for key in ("status", "descriptor_id", "image_digest", "content_sha256", "evidence_count"):
+    for key in (
+        "status",
+        "descriptor_id",
+        "image_digest",
+        "content_sha256",
+        "evidence_count",
+    ):
         if recorded_binding.get(key) != binding.get(key):
             raise PDDPublicationError(f"Recorded binding report disagrees on {key}.")
     if binding.get("status") != "passed":
-        raise PDDPublicationError("Only a passed image/evidence binding can be published.")
+        raise PDDPublicationError(
+            "Only a passed image/evidence binding can be published."
+        )
 
     build_result = json.loads(
         _safe_file(evidence_root, "build-result.json").read_text(encoding="utf-8")
@@ -259,30 +284,47 @@ def publish_product_deployment_descriptor(
     if existing is not None:
         content = existing.get("content", {})
         if content.get("artifactType") != ARTIFACT_TYPE:
-            raise PDDPublicationError("Deterministic PDD locator is occupied by another artifact type.")
+            raise PDDPublicationError(
+                "Deterministic PDD locator is occupied by another artifact type."
+            )
         existing_annotations = content.get("annotations", {})
-        if any(existing_annotations.get(key) != value for key, value in annotations.items()):
-            raise PDDPublicationError("Existing publication annotations disagree with the descriptor.")
+        if any(
+            existing_annotations.get(key) != value for key, value in annotations.items()
+        ):
+            raise PDDPublicationError(
+                "Existing publication annotations disagree with the descriptor."
+            )
         if not any(
             isinstance(layer, dict) and layer.get("mediaType") == PDD_MEDIA_TYPE
             for layer in content.get("layers", [])
         ):
-            raise PDDPublicationError("Existing publication has no PDD descriptor media-type layer.")
+            raise PDDPublicationError(
+                "Existing publication has no PDD descriptor media-type layer."
+            )
         digest = existing.get("digest")
         if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
-            raise PDDPublicationError("Existing publication has no valid manifest digest.")
+            raise PDDPublicationError(
+                "Existing publication has no valid manifest digest."
+            )
         immutable_reference = f"{repository}@{digest}"
         _pull_and_compare(oras_bin, immutable_reference, files)
     else:
         command = [
-            oras_bin, "push", "--no-tty",
-            "--artifact-type", ARTIFACT_TYPE,
+            oras_bin,
+            "push",
+            "--no-tty",
+            "--artifact-type",
+            ARTIFACT_TYPE,
         ]
         for key, value in annotations.items():
             command.extend(["--annotation", f"{key}={value}"])
         command.append(locator)
         for relative in files:
-            media_type = PDD_MEDIA_TYPE if relative == "product-deployment.json" else JSON_MEDIA_TYPE
+            media_type = (
+                PDD_MEDIA_TYPE
+                if relative == "product-deployment.json"
+                else JSON_MEDIA_TYPE
+            )
             command.append(f"{relative}:{media_type}")
         command.extend(["--format", "json"])
         result = _run(command, timeout=600, cwd=evidence_root)
@@ -290,27 +332,43 @@ def publish_product_deployment_descriptor(
         digest = pushed.get("digest")
         reference = pushed.get("reference")
         if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
-            raise PDDPublicationError("ORAS push did not return a valid artifact digest.")
+            raise PDDPublicationError(
+                "ORAS push did not return a valid artifact digest."
+            )
         immutable_reference = f"{repository}@{digest}"
         if reference and reference != immutable_reference:
-            raise PDDPublicationError("ORAS returned an unexpected immutable artifact reference.")
+            raise PDDPublicationError(
+                "ORAS returned an unexpected immutable artifact reference."
+            )
         manifest = _manifest(oras_bin, immutable_reference)
         if manifest is None or manifest.get("digest") != digest:
-            raise PDDPublicationError("Published artifact cannot be retrieved by its exact digest.")
+            raise PDDPublicationError(
+                "Published artifact cannot be retrieved by its exact digest."
+            )
         locator_manifest = _manifest(oras_bin, locator)
         if locator_manifest is None or locator_manifest.get("digest") != digest:
-            raise PDDPublicationError("Deterministic publication locator does not resolve to the pushed digest.")
+            raise PDDPublicationError(
+                "Deterministic publication locator does not resolve to the pushed digest."
+            )
         content = manifest.get("content", {})
         if content.get("artifactType") != ARTIFACT_TYPE:
-            raise PDDPublicationError("Published artifact has an unexpected artifact type.")
+            raise PDDPublicationError(
+                "Published artifact has an unexpected artifact type."
+            )
         observed_annotations = content.get("annotations", {})
-        if any(observed_annotations.get(key) != value for key, value in annotations.items()):
-            raise PDDPublicationError("Published artifact annotations do not match the descriptor.")
+        if any(
+            observed_annotations.get(key) != value for key, value in annotations.items()
+        ):
+            raise PDDPublicationError(
+                "Published artifact annotations do not match the descriptor."
+            )
         if not any(
             isinstance(layer, dict) and layer.get("mediaType") == PDD_MEDIA_TYPE
             for layer in content.get("layers", [])
         ):
-            raise PDDPublicationError("Published artifact has no PDD descriptor media-type layer.")
+            raise PDDPublicationError(
+                "Published artifact has no PDD descriptor media-type layer."
+            )
         _pull_and_compare(oras_bin, immutable_reference, files)
 
     receipt = {
@@ -348,7 +406,9 @@ def publish_product_deployment_descriptor(
         Draft202012Validator.check_schema(schema)
         Draft202012Validator(schema).validate(receipt)
     except (OSError, json.JSONDecodeError, ValidationError) as exc:
-        raise PDDPublicationError(f"Publication receipt failed schema validation: {exc}") from exc
+        raise PDDPublicationError(
+            f"Publication receipt failed schema validation: {exc}"
+        ) from exc
 
     publication_record_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = publication_record_path.with_name(publication_record_path.name + ".tmp")
@@ -379,7 +439,11 @@ def main() -> int:
     except PDDPublicationError as exc:
         print(json.dumps({"status": "failed", "error": str(exc)}, ensure_ascii=False))
         return 1
-    print(json.dumps({"status": "published", **receipt}, ensure_ascii=False, sort_keys=True))
+    print(
+        json.dumps(
+            {"status": "published", **receipt}, ensure_ascii=False, sort_keys=True
+        )
+    )
     return 0
 
 

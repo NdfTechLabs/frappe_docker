@@ -28,10 +28,7 @@
     "verifier": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "version"
-      ],
+      "required": ["name", "version"],
       "properties": {
         "name": {
           "const": "verify_image_composition.py"
@@ -45,10 +42,7 @@
     "lock": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version",
-        "sha256"
-      ],
+      "required": ["version", "sha256"],
       "properties": {
         "version": {
           "const": 2
@@ -106,11 +100,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "manifest",
-          "required",
-          "selected"
-        ],
+        "required": ["manifest", "required", "selected"],
         "properties": {
           "manifest": {
             "type": "string",
@@ -156,12 +146,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "service_id",
-              "path",
-              "sha256",
-              "service_kind"
-            ],
+            "required": ["service_id", "path", "sha256", "service_kind"],
             "properties": {
               "service_id": {
                 "type": "string",
@@ -175,10 +160,7 @@
                 "$ref": "#/$defs/sha256"
               },
               "service_kind": {
-                "enum": [
-                  "container",
-                  "external"
-                ]
+                "enum": ["container", "external"]
               }
             }
           }
@@ -227,10 +209,7 @@
     "manifest": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "path",
-        "sha256"
-      ],
+      "required": ["path", "sha256"],
       "properties": {
         "path": {
           "type": "string",
@@ -257,10 +236,7 @@
           "pattern": "^[a-z][a-z0-9_-]*$"
         },
         "service_kind": {
-          "enum": [
-            "container",
-            "external"
-          ]
+          "enum": ["container", "external"]
         },
         "resolution_order": {
           "type": "integer",
