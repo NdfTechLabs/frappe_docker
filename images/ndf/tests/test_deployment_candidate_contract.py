@@ -6,7 +6,7 @@ from jsonschema import Draft202012Validator
 NDF=Path(__file__).resolve().parents[1]
 SCHEMAS=NDF/"schemas"
 FIXTURES=NDF/"fixtures"/"candidates"
-REF=re.compile(r"^ghcr\\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}$")
+REF=re.compile(r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}$")
 
 def load(path):
     return json.loads(path.read_text(encoding="utf-8"))
@@ -30,6 +30,14 @@ def test_candidate_rejects_missing_descriptor_digest_and_mutable_commit():
     candidate=load(FIXTURES/"valid"/"candidate-v1.json")
     candidate["applications"][0]["immutable_commit"]="version-16"
     assert list(Draft202012Validator(schema).iter_errors(candidate))
+
+def test_candidate_rejects_duplicate_application_ids():
+    schema=load(SCHEMAS/"deployment-candidate-v1.schema.json")
+    candidate=load(FIXTURES/"valid"/"candidate-v1.json")
+    candidate["applications"].append(dict(candidate["applications"][0]))
+    ids=[app["app_id"] for app in candidate["applications"]]
+    assert len(ids) != len(set(ids))
+
 
 def test_candidate_reference_allowlist_rejects_mutable_and_foreign_references():
     refs=load(FIXTURES/"invalid-references.json")
