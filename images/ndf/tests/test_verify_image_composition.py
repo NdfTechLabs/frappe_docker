@@ -74,6 +74,21 @@ def write_service(case, service_id, descriptor):
     path.parent.mkdir(parents=True, exist_ok=True)
     raw = (json.dumps(descriptor, sort_keys=True, indent=2) + "\n").encode()
     path.write_bytes(raw)
+    manifest_path = case["root"] / "images" / "ndf" / "manifests" / case["manifest_path"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["manifest_version"] = "2.0.0"
+    manifest["capabilities"] = []
+    field = "services" if descriptor["service_kind"] == "container" else "external_requirements"
+    manifest.setdefault(field, []).append({
+        "descriptor": f"images/ndf/descriptors/services/{service_id}.json",
+        "required": True,
+        "selected": True,
+    })
+    manifest_raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
+    manifest_path.write_bytes(manifest_raw)
+    for entry in case["lock"]["manifests"]:
+        if entry["path"] == case["manifest_path"]:
+            entry["sha256"] = hashlib.sha256(manifest_raw).hexdigest()
     return {
         "service_id": service_id,
         "name": descriptor["name"],
