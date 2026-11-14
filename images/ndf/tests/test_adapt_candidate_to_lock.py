@@ -252,3 +252,36 @@ def test_candidate_adapter_rejects_wrong_candidate_artifact_repository(
             ),
             payload_sha256=payload_sha,
         )
+
+
+
+def test_candidate_adapter_rejects_optional_capability_for_v1_product(
+    ndf_dir, tmp_path
+):
+    candidate = make_candidate(ndf_dir)
+    candidate["optional_capabilities"] = ["capabilities/ai-automation-v16.json"]
+    with pytest.raises(
+        CandidateCompositionError, match="require a v2 product manifest"
+    ):
+        run_adapter(ndf_dir, tmp_path, candidate)
+
+
+def test_candidate_adapter_refuses_to_overwrite_attempt_outputs(ndf_dir, tmp_path):
+    candidate = make_candidate(ndf_dir)
+    candidate_path = write_candidate(tmp_path, candidate)
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (output_dir / "apps.json").write_text("{}", encoding="utf-8")
+    payload_sha = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+
+    with pytest.raises(CandidateCompositionError, match="fresh attempt directory"):
+        adapt_candidate_to_lock(
+            ndf_dir=ndf_dir,
+            candidate_path=candidate_path,
+            output_dir=output_dir,
+            candidate_artifact_ref=(
+                "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
+                + "b" * 64
+            ),
+            payload_sha256=payload_sha,
+        )
