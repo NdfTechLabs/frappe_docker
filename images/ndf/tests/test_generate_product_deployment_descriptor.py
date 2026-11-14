@@ -90,6 +90,9 @@ def test_load_inputs_rejects_apps_json_object(tmp_path):
     (tmp_path / "build-metadata.json").write_text(
         json.dumps({"image": {"id": "dalali-v16"}}), encoding="utf-8"
     )
+    (tmp_path / "dalali-v16.lock-v2.json").write_text(
+        json.dumps({"lock_version": 2}), encoding="utf-8"
+    )
     (tmp_path / "apps.json").write_text(json.dumps({"apps": []}), encoding="utf-8")
     with pytest.raises(DescriptorGenerationError, match="apps.json must be a JSON array"):
         _load_inputs(tmp_path)
@@ -98,6 +101,9 @@ def test_load_inputs_rejects_apps_json_object(tmp_path):
 def test_load_inputs_rejects_malformed_apps_json_entry(tmp_path):
     (tmp_path / "build-metadata.json").write_text(
         json.dumps({"image": {"id": "dalali-v16"}}), encoding="utf-8"
+    )
+    (tmp_path / "dalali-v16.lock-v2.json").write_text(
+        json.dumps({"lock_version": 2}), encoding="utf-8"
     )
     (tmp_path / "apps.json").write_text(
         json.dumps([{"url": "https://github.com/frappe/erpnext"}]), encoding="utf-8"
