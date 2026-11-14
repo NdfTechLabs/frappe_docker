@@ -38,7 +38,7 @@ def candidate(tmp_path):
       "source_tree_post_cleanup":"source-tree-verification-post-cleanup.json",
       "source_tree_runtime":"source-tree-verification-runtime.json",
       "image_composition_verification":"image-composition-verification.json"}
-    artifacts={key:(filename,(tmp_path/filename).read_bytes()) for key,filename in logical.items()}
+    artifacts={key:('lock-v2.json' if key=='lock_v2' else filename,(tmp_path/filename).read_bytes()) for key,filename in logical.items()}
     statuses={key:"passed" for key in ("source_provenance_verification","source_tree_post_cleanup","source_tree_runtime","image_composition_verification")}
     evidence=create_verification_evidence(image_reference=CANDIDATE_REF,image_repository=REPOSITORY,
       image_id=IMAGE_ID,image_digest=DIGEST,lock_bytes=lock,artifacts=artifacts,statuses=statuses)
