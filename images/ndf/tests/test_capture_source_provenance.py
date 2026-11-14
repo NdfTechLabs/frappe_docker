@@ -118,6 +118,41 @@ def test_capture_classifies_modified_untracked_and_ignored_content(
     assert record["generated_content"]["ignored_paths"] == ["ignored-output.cache"]
 
 
+def test_capture_rejects_nested_git_metadata(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    nested = apps / "frappe" / "vendor" / "nested"
+    (nested / ".git").mkdir(parents=True)
+
+    with pytest.raises(
+        provenance.SourceProvenanceError, match="Nested Git metadata"
+    ):
+        provenance.capture_source_provenance(
+            bench, lock, tmp_path / "source-provenance.json"
+        )
+
+
+def test_capture_sanitizes_credentials_from_git_remotes(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    git(
+        [
+            "remote",
+            "set-url",
+            "upstream",
+            "https://user:secret-token@github.com/frappe/frappe.git",
+        ],
+        apps / "frappe",
+    )
+
+    report = provenance.capture_source_provenance(
+        bench, lock, tmp_path / "source-provenance.json"
+    )
+
+    serialized = json.dumps(report)
+    assert report["repositories"][0]["repository"] == "github.com/frappe/frappe"
+    assert "secret-token" not in serialized
+    assert "user@" not in serialized
+
+
 def test_capture_rejects_git_submodules(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     frappe = apps / "frappe"
