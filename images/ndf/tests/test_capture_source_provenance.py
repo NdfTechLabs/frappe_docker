@@ -186,7 +186,10 @@ def test_capture_records_initialized_submodule_and_fingerprints_its_files(
     assert submodule["expected_commit"] == pinned_commit
     assert submodule["actual_commit"] == pinned_commit
     assert submodule["source_tree"] == fingerprint_tree(child)
-    assert record["source_tree"]["file_count"] == 2
+    # Parent tree includes tracked.txt, .gitmodules and the submodule file.
+    # The submodule contents are also fingerprinted independently above.
+    assert record["source_tree"]["file_count"] == 3
+    assert record["source_tree"]["directory_count"] == 1
     assert record["source_tree"] == fingerprint_tree(frappe)
     assert submodule["source_tree"]["sha256"] != record["source_tree"]["sha256"]
 
