@@ -158,6 +158,74 @@ def _verify_capabilities(manifests: dict[str, dict[str, Any]], lock: dict[str, A
 
 
 
+
+def _verify_manifest_graph(
+    root_path: str, manifests: dict[str, dict[str, Any]]
+) -> None:
+    """Require the lock manifest inventory to be the complete reachable source graph."""
+    reachable: set[str] = set()
+    pending = [root_path]
+    while pending:
+        current_path = pending.pop()
+        if current_path in reachable:
+            continue
+        manifest = manifests.get(current_path)
+        if manifest is None:
+            raise CompositionVerificationError(f"Manifest graph references an unlocked source manifest: {current_path}.")
+        reachable.add(current_path)
+        includes = manifest.get("includes", [])
+        if not isinstance(includes, list):
+            raise CompositionVerificationError(f"Manifest includes must be an array: {current_path}.")
+        for include in includes:
+            if not isinstance(include, dict):
+                raise CompositionVerificationError(f"Invalid include declaration: {current_path}.")
+            child = _safe_relative_path(include.get("manifest"), "Included manifest path")
+            pending.append(child)
+        if manifest.get("manifest_version") == "2.0.0":
+            capabilities = manifest.get("capabilities", [])
+            if not isinstance(capabilities, list):
+                raise CompositionVerificationError(f"Manifest capabilities must be an array: {current_path}.")
+            for capability in capabilities:
+                if not isinstance(capability, dict):
+                    raise CompositionVerificationError(f"Invalid capability declaration: {current_path}.")
+                if capability.get("required") is True or capability.get("selected") is True:
+                    pending.append(_safe_relative_path(capability.get("manifest"), "Selected capability path"))
+    if reachable != set(manifests):
+        extra = sorted(set(manifests) - reachable)
+        missing = sorted(reachable - set(manifests))
+        raise CompositionVerificationError(f"Lock manifest inventory is not the exact source graph: extra={extra}, missing={missing}.")
+
+
+def _verify_service_source_declarations(
+    manifests: dict[str, dict[str, Any]],
+    containers: list[dict[str, Any]],
+    external: list[dict[str, Any]],
+) -> None:
+    expected = {"container": set(), "external": set()}
+    for source_path, manifest in manifests.items():
+        if manifest.get("manifest_version") != "2.0.0":
+            continue
+        for field, kind in (("services", "container"), ("external_requirements", "external")):
+            declarations = manifest.get(field, [])
+            if not isinstance(declarations, list):
+                raise CompositionVerificationError(f"{field} must be an array in {source_path}.")
+            for declaration in declarations:
+                if not isinstance(declaration, dict):
+                    raise CompositionVerificationError(f"Invalid {field} declaration in {source_path}.")
+                required = declaration.get("required", False)
+                selected = declaration.get("selected", False)
+                if not isinstance(required, bool) or not isinstance(selected, bool):
+                    raise CompositionVerificationError(f"Invalid {field} selection flags in {source_path}.")
+                if required or selected:
+                    expected[kind].add(_safe_relative_path(declaration.get("descriptor"), f"{field} descriptor path"))
+    actual = {
+        "container": {item["descriptor"] for item in containers},
+        "external": {item["descriptor"] for item in external},
+    }
+    if actual != expected:
+        raise CompositionVerificationError("Lock service inventories do not match selected service descriptor declarations.")
+
+
 def _verify_application_declarations(
     repository_root: Path,
     manifests: dict[str, dict[str, Any]],
@@ -333,8 +401,10 @@ def verify_composition(
         raise CompositionVerificationError("Independent composition verification requires lock-v2.")
     lock_sha = hashlib.sha256(lock_bytes).hexdigest()
     manifests, manifest_evidence = _load_manifest_inventory(repository_root, manifest_path, lock_data)
+    _verify_manifest_graph(manifest_path, manifests)
     capabilities = _verify_capabilities(manifests, lock_data)
     containers, external, service_evidence = _verify_services(repository_root, lock_data)
+    _verify_service_source_declarations(manifests, containers, external)
     apps = _unique_records(lock_data.get("applications"), "name", "Lock applications")
     _verify_application_declarations(repository_root, manifests, apps)
     metadata = _unique_records(metadata_applications, "name", "Build metadata applications")
