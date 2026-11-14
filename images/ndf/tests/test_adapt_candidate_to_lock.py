@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -10,6 +11,17 @@ from scripts.adapt_candidate_to_lock import (
 )
 from scripts.resolve_manifest import ManifestLoader
 
+
+
+
+@pytest.fixture(autouse=True)
+def fake_candidate_commit_verification(monkeypatch):
+    def verify_commit(_loader, _repository, target_ref):
+        if not re.fullmatch(r"[a-f0-9]{40}", target_ref):
+            raise AssertionError("adapter attempted to resolve a rolling Git ref")
+        return {"sha": target_ref, "kind": "commit", "name": target_ref}
+
+    monkeypatch.setattr(ManifestLoader, "resolve_git_ref", verify_commit)
 
 @pytest.fixture
 def ndf_dir(tmp_path):
@@ -285,3 +297,18 @@ def test_candidate_adapter_refuses_to_overwrite_attempt_outputs(ndf_dir, tmp_pat
             ),
             payload_sha256=payload_sha,
         )
+
+
+
+def test_candidate_requested_version_is_preserved_separately_from_commit_pin(
+    ndf_dir, tmp_path
+):
+    candidate = make_candidate(ndf_dir)
+    candidate["applications"][0]["requested_version"] = "candidate-release-2026.11"
+    result = run_adapter(ndf_dir, tmp_path, candidate)
+    lock = json.loads(result["lock_path"].read_text(encoding="utf-8"))
+    frappe = next(item for item in lock["applications"] if item["name"] == "frappe")
+
+    assert frappe["requested_version"] == "candidate-release-2026.11"
+    assert frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
+    assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
