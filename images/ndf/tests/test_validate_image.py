@@ -160,8 +160,8 @@ def validation_inputs():
             "repositories": [
                 {
                     "name": app["name"],
-                    "expected_source_tree": source_tree,
-                    "observed_source_tree": source_tree,
+                    "expected_source_tree": json.loads(json.dumps(source_tree)),
+                    "observed_source_tree": json.loads(json.dumps(source_tree)),
                     "matches": True,
                     "submodules": [],
                 }
