@@ -100,7 +100,7 @@ LOCK_FILENAME = f"{IMAGE_ID}.lock-v2.json"
 
 
 def _write_json(path, value):
-    path.write_text(json.dumps(value, sort_keys=True) + "\\n", encoding="utf-8")
+    path.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _refresh_evidence_bindings(output_dir):
@@ -165,7 +165,7 @@ def complete_build_output(tmp_path):
         "services": [],
         "external_requirements": [],
     }
-    lock_bytes = (json.dumps(lock, sort_keys=True) + "\\n").encode()
+    lock_bytes = (json.dumps(lock, sort_keys=True) + "\n").encode()
     lock_sha = hashlib.sha256(lock_bytes).hexdigest()
     (tmp_path / LOCK_FILENAME).write_bytes(lock_bytes)
 
@@ -243,6 +243,12 @@ def complete_build_output(tmp_path):
         (tmp_path / "build-inventory.json").read_bytes()
     ).hexdigest()
     _write_json(build_evidence_path, build_evidence)
+    _write_json(tmp_path / "image-validation.json", {
+        "status": "passed",
+        "image_id": IMAGE_ID,
+        "image_digest": IMAGE_DIGEST,
+        "verification_evidence": {},
+    })
     _refresh_evidence_bindings(tmp_path)
 
     _write_json(tmp_path / "build-result.json", {
@@ -316,13 +322,13 @@ def test_rejects_buildx_and_result_digest_mismatch(complete_build_output):
 
 
 def test_rejects_lock_bytes_not_bound_by_build_metadata(complete_build_output):
-    (complete_build_output / LOCK_FILENAME).write_bytes(b'{"lock_version":2,"tampered":true}\\n')
+    (complete_build_output / LOCK_FILENAME).write_bytes(b'{"lock_version":2,"tampered":true}\n')
     with pytest.raises(DescriptorGenerationError, match="exact lock-v2 bytes"):
         _generate(complete_build_output)
 
 
 def test_rejects_tampered_bound_evidence(complete_build_output):
-    (complete_build_output / "source-provenance.json").write_text('{"tampered":true}\\n')
+    (complete_build_output / "source-provenance.json").write_text('{"tampered":true}\n')
     with pytest.raises(DescriptorGenerationError, match="Digest-bound evidence verification failed"):
         _generate(complete_build_output)
 
@@ -346,7 +352,7 @@ def test_rejects_lock_service_not_confirmed_by_composition(complete_build_output
         "depends_on": [],
         "artifact": {"image": "redis@sha256:" + "1" * 64},
     }]
-    lock_bytes = (json.dumps(lock, sort_keys=True) + "\\n").encode()
+    lock_bytes = (json.dumps(lock, sort_keys=True) + "\n").encode()
     lock_path.write_bytes(lock_bytes)
     lock_sha = hashlib.sha256(lock_bytes).hexdigest()
     metadata = json.loads((complete_build_output / "build-metadata.json").read_text())
@@ -392,7 +398,7 @@ def test_cli_preserves_existing_output_and_cleans_temp_file_on_replace_failure(
     from pathlib import Path
 
     output = tmp_path / "product-deployment.json"
-    output.write_text("previous-valid-output\\n", encoding="utf-8")
+    output.write_text("previous-valid-output\n", encoding="utf-8")
     temporary = output.with_suffix(output.suffix + ".tmp")
     original_replace = Path.replace
 
@@ -412,5 +418,5 @@ def test_cli_preserves_existing_output_and_cleans_temp_file_on_replace_failure(
     ])
 
     assert main() == 1
-    assert output.read_text(encoding="utf-8") == "previous-valid-output\\n"
+    assert output.read_text(encoding="utf-8") == "previous-valid-output\n"
     assert not temporary.exists()
