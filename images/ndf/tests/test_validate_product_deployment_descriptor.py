@@ -18,7 +18,7 @@ TESTS_DIR = str(Path(__file__).resolve().parent)
 if TESTS_DIR not in sys.path:
     sys.path.insert(0, TESTS_DIR)
 
-from test_generate_product_deployment_descriptor import (
+from test_generate_product_deployment_descriptor import (  # noqa: E402
     _generate,
     complete_build_output,
 )
