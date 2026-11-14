@@ -394,7 +394,7 @@ def load_prepared_candidate_inputs(
     if not isinstance(candidate, dict) or not candidate.get("candidate_id"):
         raise BuildPreparationError("Prepared lock does not contain candidate identity.")
     if not re.fullmatch(
-        r"ghcr\\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}",
+        r"ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}",
         candidate.get("artifact_reference", ""),
     ):
         raise BuildPreparationError("Prepared lock has an invalid candidate artifact reference.")
