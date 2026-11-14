@@ -234,9 +234,37 @@ def test_rejects_failed_verification_report(binding_fixture, monkeypatch):
     output_dir, descriptor_path = binding_fixture
     path = output_dir / "source-tree-verification-runtime.json"
     _write_json(path, {"status": "failed"})
+
+    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    evidence_record = next(
+        item
+        for item in descriptor["evidence"]
+        if item["name"] == "source_tree_runtime"
+    )
+    raw = path.read_bytes()
+    evidence_record["sha256"] = hashlib.sha256(raw).hexdigest()
+    evidence_record["size_bytes"] = len(raw)
+    _refresh_descriptor_integrity(descriptor)
+    _write_descriptor(output_dir, descriptor)
+
+    manifest_path = output_dir / "image-verification-evidence.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_record = next(
+        item
+        for item in manifest["evidence"]
+        if item["name"] == "source_tree_runtime"
+    )
+    manifest_record["sha256"] = evidence_record["sha256"]
+    manifest_record["size_bytes"] = evidence_record["size_bytes"]
+    _write_json(manifest_path, manifest)
+
+    validation_path = output_dir / "image-validation.json"
+    validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    validation["verification_evidence"] = manifest
+    _write_json(validation_path, validation)
     _mock_registry(monkeypatch)
 
-    with pytest.raises(ProductDeploymentBindingError, match="Evidence SHA-256 mismatch"):
+    with pytest.raises(ProductDeploymentBindingError, match="did not pass"):
         verify_product_deployment_binding(descriptor_path, output_dir)
 
 
