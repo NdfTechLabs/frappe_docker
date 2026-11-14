@@ -157,6 +157,75 @@ def _verify_capabilities(manifests: dict[str, dict[str, Any]], lock: dict[str, A
     return [expected[path] for path in sorted(expected)]
 
 
+
+def _verify_application_declarations(
+    repository_root: Path,
+    manifests: dict[str, dict[str, Any]],
+    lock_apps: dict[str, dict[str, Any]],
+) -> None:
+    """Check manifest declarations and any locked Marketplace App Descriptors."""
+    declared: set[str] = set()
+    for source_path, manifest in manifests.items():
+        entries = manifest.get("applications", [])
+        if not isinstance(entries, list):
+            raise CompositionVerificationError(f"Applications must be an array in {source_path}.")
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise CompositionVerificationError(f"Invalid application declaration in {source_path}.")
+            required = entry.get("required", False)
+            selected = entry.get("selected", False)
+            if not isinstance(required, bool) or not isinstance(selected, bool):
+                raise CompositionVerificationError(f"Invalid application selection flags in {source_path}.")
+            if not (required or selected):
+                continue
+            descriptor_path = entry.get("descriptor")
+            if descriptor_path:
+                relative = _safe_relative_path(descriptor_path, "Application descriptor path")
+                prefix = "images/ndf/descriptors/apps/"
+                if not relative.startswith(prefix) or len(PurePosixPath(relative).parts) != 5 or not relative.endswith(".json"):
+                    raise CompositionVerificationError(f"Non-canonical application descriptor path: {relative}.")
+                source = (repository_root / relative).resolve()
+                descriptor_root = (repository_root / prefix).resolve()
+                if not source.is_relative_to(descriptor_root) or not source.is_file():
+                    raise CompositionVerificationError(f"Application descriptor is missing or unsafe: {relative}.")
+                descriptor, _ = _read_json(source, f"application descriptor {relative}")
+                bench_name = descriptor.get("app_module", {}).get("bench_app_name")
+                if not isinstance(bench_name, str) or not bench_name:
+                    raise CompositionVerificationError(f"Application descriptor lacks Bench app identity: {relative}.")
+                declared.add(bench_name)
+            else:
+                name = entry.get("name")
+                if not isinstance(name, str) or not name:
+                    raise CompositionVerificationError(f"Invalid legacy application name in {source_path}.")
+                declared.add(name)
+
+    # Every legacy lock application must have a source-manifest declaration.
+    # Descriptor-backed transitive dependencies may be introduced by another
+    # selected descriptor, so validate their canonical descriptor identity too.
+    for name, locked in lock_apps.items():
+        descriptor_path = locked.get("descriptor")
+        if not descriptor_path:
+            if name not in declared:
+                raise CompositionVerificationError(f"Locked Bench application has no source-manifest declaration: {name}.")
+            continue
+        relative = _safe_relative_path(descriptor_path, "Locked application descriptor path")
+        prefix = "images/ndf/descriptors/apps/"
+        if not relative.startswith(prefix) or len(PurePosixPath(relative).parts) != 5 or not relative.endswith(".json"):
+            raise CompositionVerificationError(f"Non-canonical locked application descriptor path: {relative}.")
+        source = (repository_root / relative).resolve()
+        descriptor_root = (repository_root / prefix).resolve()
+        if not source.is_relative_to(descriptor_root) or not source.is_file():
+            raise CompositionVerificationError(f"Locked application descriptor is missing or unsafe: {relative}.")
+        descriptor, raw = _read_json(source, f"locked application descriptor {relative}")
+        if hashlib.sha256(raw).hexdigest() != locked.get("descriptor_sha256"):
+            raise CompositionVerificationError(f"Locked application descriptor checksum mismatch: {relative}.")
+        if descriptor.get("app_module", {}).get("bench_app_name") != name:
+            raise CompositionVerificationError(f"Locked application descriptor Bench identity mismatch: {name}.")
+    unexpected = declared - set(lock_apps)
+    if unexpected:
+        raise CompositionVerificationError("Source manifests declare applications absent from lock-v2: " + ", ".join(sorted(unexpected)))
+
+
 def _verify_services(repository_root: Path, lock: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     try:
         schema = json.loads(SERVICE_SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -267,6 +336,7 @@ def verify_composition(
     capabilities = _verify_capabilities(manifests, lock_data)
     containers, external, service_evidence = _verify_services(repository_root, lock_data)
     apps = _unique_records(lock_data.get("applications"), "name", "Lock applications")
+    _verify_application_declarations(repository_root, manifests, apps)
     metadata = _unique_records(metadata_applications, "name", "Build metadata applications")
     inventory = _unique_records(inventory_applications, "name", "Build inventory applications")
     if set(apps) != set(metadata) or set(apps) != set(inventory):
