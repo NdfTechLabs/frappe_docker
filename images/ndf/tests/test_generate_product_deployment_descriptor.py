@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from scripts.generate_product_deployment_descriptor import (
