@@ -7,6 +7,7 @@ import argparse
 import configparser
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -36,7 +37,11 @@ def git_bytes(root: Path, args: list[str]) -> bytes:
             ["git", "-C", str(root), *args],
             check=False,
             capture_output=True,
-            env={"PATH": __import__("os").environ.get("PATH", ""), "GIT_OPTIONAL_LOCKS": "0"},
+            env={
+                **os.environ,
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_TERMINAL_PROMPT": "0",
+            },
         )
     except OSError as exc:
         raise SourceProvenanceVerificationError(
@@ -90,6 +95,8 @@ def canonical_repository(value: str) -> str:
             host, path = parsed.hostname, parsed.path
         except ValueError as exc:
             raise SourceProvenanceVerificationError("Unsupported Git remote URL.") from exc
+    elif re.fullmatch(r"[^/@:]+/.+", raw):
+        host, path = raw.split("/", 1)
     elif re.fullmatch(r"(?:[^@/]+@)?[^:/]+:.+", raw):
         authority, path = raw.split(":", 1)
         host = authority.rsplit("@", 1)[-1]
@@ -210,6 +217,9 @@ def inspect_remote_identity(root: Path, expected: str, label: str) -> str:
 def inspect_git_root(root: Path, label: str) -> tuple[str, str]:
     if root.is_symlink() or not root.is_dir():
         raise SourceProvenanceVerificationError(f"Repository root is missing or unsafe: {label}.")
+    metadata = root / ".git"
+    if metadata.is_symlink() or not (metadata.is_file() or metadata.is_dir()):
+        raise SourceProvenanceVerificationError(f"Git metadata is missing or unsafe for {label}.")
     actual_root = Path(git_text(root, ["rev-parse", "--show-toplevel"])).resolve()
     if actual_root != root.resolve():
         raise SourceProvenanceVerificationError(f"Git root mismatch for {label}.")
@@ -382,6 +392,8 @@ def verify_submodules(
             materialized = False
         elif not child.is_dir():
             raise SourceProvenanceVerificationError(f"Submodule path is not a directory: {label}:{path}.")
+        elif (child / ".git").is_symlink():
+            raise SourceProvenanceVerificationError(f"Submodule Git metadata is unsafe: {label}:{path}.")
         elif (child / ".git").exists():
             materialized = True
         elif any(child.iterdir()):
