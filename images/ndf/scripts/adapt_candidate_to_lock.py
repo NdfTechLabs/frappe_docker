@@ -437,6 +437,10 @@ def adapt_candidate_to_lock(
         )
     lock_name = f"candidate-{hashlib.sha256(candidate['candidate_id'].encode()).hexdigest()[:16]}.lock-v2.json"
     lock_path = output_dir / lock_name
+    if lock_path.exists() or lock_path.with_suffix(lock_path.suffix + ".tmp").exists():
+        raise CandidateCompositionError(
+            "Candidate lock output already exists; use a fresh attempt directory."
+        )
 
     try:
         loader.write_lock_file(lock_data, lock_path)
