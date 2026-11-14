@@ -22,6 +22,7 @@ try:
     from .bind_verification_evidence import (
         VerificationEvidenceError,
         create_verification_evidence,
+        verify_verification_evidence,
         write_report as write_verification_evidence,
     )
 except ImportError:
@@ -748,6 +749,15 @@ def validate_from_files(
         )
     except VerificationEvidenceError as exc:
         raise ImageValidationError(f"Digest-bound verification evidence failed: {exc}") from exc
+    try:
+        verify_verification_evidence(
+            verification_evidence,
+            expected_image_digest=image_digest,
+            expected_lock_sha256=lock_sha256,
+            artifacts=artifacts,
+        )
+    except VerificationEvidenceError as exc:
+        raise ImageValidationError(f"Verification evidence self-check failed: {exc}") from exc
     report["verification_evidence"] = verification_evidence
     write_verification_evidence(verification_evidence, verification_evidence_output_path)
     for path, key in (
