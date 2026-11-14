@@ -17,7 +17,9 @@ def git(args: list[str], cwd: Path) -> str:
     ).stdout.strip()
 
 
-def make_repo(path: Path, filename: str = "tracked.txt", content: str = "initial") -> Path:
+def make_repo(
+    path: Path, filename: str = "tracked.txt", content: str = "initial"
+) -> Path:
     path.mkdir(parents=True)
     git(["init", "-b", "main"], path)
     git(["config", "user.email", "verification@example.invalid"], path)
@@ -60,7 +62,15 @@ def run_verifier(bench: Path, lock: Path, provenance: Path, output: Path):
 
 def add_submodule(parent: Path, source: Path, path: str, url: str) -> tuple[Path, str]:
     subprocess.run(
-        ["git", "-c", "protocol.file.allow=always", "submodule", "add", str(source), path],
+        [
+            "git",
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            str(source),
+            path,
+        ],
         cwd=parent,
         check=True,
         capture_output=True,
@@ -86,9 +96,16 @@ def test_verifies_source_provenance_and_emits_schema_valid_report(tmp_path):
 
     assert report["status"] == "passed"
     assert report["repositories"][0]["status"] == "verified"
-    assert report["repositories"][0]["actual_commit"] != report["repositories"][0]["resolver_commit"]
+    assert (
+        report["repositories"][0]["actual_commit"]
+        != report["repositories"][0]["resolver_commit"]
+    )
     assert json.loads(output.read_text(encoding="utf-8")) == report
-    schema_path = Path(__file__).resolve().parents[1] / "schemas" / "source-provenance-verification-v1.schema.json"
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "source-provenance-verification-v1.schema.json"
+    )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     Draft202012Validator(schema).validate(report)
@@ -97,7 +114,9 @@ def test_verifies_source_provenance_and_emits_schema_valid_report(tmp_path):
 def test_rejects_lock_digest_mismatch(tmp_path):
     bench, lock, provenance, _ = make_fixture(tmp_path)
     lock.write_text(lock.read_text(encoding="utf-8") + " ", encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="lock SHA-256"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError, match="lock SHA-256"
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
@@ -114,14 +133,18 @@ def test_rejects_repository_composition_mismatch(tmp_path, mutation):
         extra["name"] = "extra"
         data["repositories"].append(extra)
     provenance.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="repository"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError, match="repository"
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
 def test_rejects_wrong_remote_identity(tmp_path):
     bench, lock, provenance, app = make_fixture(tmp_path)
     git(["remote", "set-url", "origin", "https://github.com/other/frappe.git"], app)
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="identity mismatch"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError, match="identity mismatch"
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
@@ -130,7 +153,9 @@ def test_rejects_actual_head_mismatch(tmp_path):
     data = json.loads(provenance.read_text(encoding="utf-8"))
     data["repositories"][0]["actual_commit"] = "b" * 40
     provenance.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="HEAD mismatch"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError, match="HEAD mismatch"
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
@@ -139,14 +164,19 @@ def test_rejects_head_tree_mismatch(tmp_path):
     data = json.loads(provenance.read_text(encoding="utf-8"))
     data["repositories"][0]["head_tree"] = "b" * 40
     provenance.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="HEAD tree mismatch"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError, match="HEAD tree mismatch"
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
 def test_recomputes_tracked_modification_paths_and_binary_diff(tmp_path):
     bench, lock, provenance, app = make_fixture(tmp_path)
     (app / "tracked.txt").write_text("changed after capture", encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="Tracked-content evidence mismatch"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError,
+        match="Tracked-content evidence mismatch",
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
@@ -158,7 +188,10 @@ def test_rejects_tampered_binary_diff_digest(tmp_path):
     tracked["installation_modified_paths"] = ["tracked.txt"]
     tracked["installation_diff_sha256"] = hashlib.sha256(b"forged").hexdigest()
     provenance.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="Tracked-content evidence mismatch"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError,
+        match="Tracked-content evidence mismatch",
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
@@ -167,7 +200,10 @@ def test_recomputes_untracked_and_ignored_path_classification(tmp_path):
     (app / "generated.txt").write_text("generated", encoding="utf-8")
     (app / ".git" / "info" / "exclude").write_text("ignored.cache\n", encoding="utf-8")
     (app / "ignored.cache").write_text("ignored", encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="Generated/untracked/ignored"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError,
+        match="Generated/untracked/ignored",
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
@@ -176,7 +212,9 @@ def test_rejects_malformed_provenance_contract(tmp_path):
     data = json.loads(provenance.read_text(encoding="utf-8"))
     data["lock"]["sha256"] = "not-a-digest"
     provenance.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="invalid lock identity"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError, match="invalid lock identity"
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")
 
 
@@ -233,8 +271,13 @@ def test_rejects_materialized_submodule_commit_mismatch(tmp_path):
     git(["add", "child.txt"], child)
     git(["commit", "-m", "advance submodule"], child)
     assert git(["rev-parse", "HEAD"], child) != pinned
-    records = json.loads(provenance.read_text(encoding="utf-8"))["repositories"][0]["submodules"]
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="Submodule commit mismatch"):
+    records = json.loads(provenance.read_text(encoding="utf-8"))["repositories"][0][
+        "submodules"
+    ]
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError,
+        match="Submodule commit mismatch",
+    ):
         verification.verify_submodules(app, records, "frappe")
 
 
@@ -255,5 +298,7 @@ def test_rejects_uninitialized_submodule_claiming_materialized_evidence(tmp_path
     data = json.loads(provenance.read_text(encoding="utf-8"))
     data["repositories"][0]["submodules"][0]["materialized"] = True
     provenance.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(verification.SourceProvenanceVerificationError, match="materialization mismatch"):
+    with pytest.raises(
+        verification.SourceProvenanceVerificationError, match="materialization mismatch"
+    ):
         run_verifier(bench, lock, provenance, tmp_path / "out.json")

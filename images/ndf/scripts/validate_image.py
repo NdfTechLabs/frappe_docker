@@ -15,23 +15,26 @@ from urllib.parse import urlsplit
 from jsonschema import Draft202012Validator, ValidationError
 
 try:
-    from .verify_image_composition import (
-        CompositionVerificationError,
-        verify_composition,
-    )
     from .bind_verification_evidence import (
         VerificationEvidenceError,
         create_verification_evidence,
         verify_verification_evidence,
-        write_report as write_verification_evidence,
+    )
+    from .bind_verification_evidence import write_report as write_verification_evidence
+    from .verify_image_composition import (
+        CompositionVerificationError,
+        verify_composition,
     )
 except ImportError:
-    from verify_image_composition import CompositionVerificationError, verify_composition
     from bind_verification_evidence import (
         VerificationEvidenceError,
         create_verification_evidence,
         verify_verification_evidence,
-        write_report as write_verification_evidence,
+    )
+    from bind_verification_evidence import write_report as write_verification_evidence
+    from verify_image_composition import (
+        CompositionVerificationError,
+        verify_composition,
     )
 
 
@@ -46,7 +49,9 @@ SOURCE_PROVENANCE_SCHEMA_PATH = (
     Path(__file__).resolve().parents[1] / "schemas" / "source-provenance-v1.schema.json"
 )
 SOURCE_PROVENANCE_VERIFICATION_SCHEMA_PATH = (
-    Path(__file__).resolve().parents[1] / "schemas" / "source-provenance-verification-v1.schema.json"
+    Path(__file__).resolve().parents[1]
+    / "schemas"
+    / "source-provenance-verification-v1.schema.json"
 )
 SOURCE_TREE_VERIFICATION_SCHEMA_PATH = (
     Path(__file__).resolve().parents[1]
@@ -161,8 +166,12 @@ def inspect_image_contents(image_ref: str) -> dict[str, Any]:
             "build_inventory_bytes": encoded["build_inventory_base64"],
             "source_provenance": decoded["source_provenance_base64"],
             "source_provenance_bytes": encoded["source_provenance_base64"],
-            "source_provenance_verification": decoded["source_provenance_verification_base64"],
-            "source_provenance_verification_bytes": encoded["source_provenance_verification_base64"],
+            "source_provenance_verification": decoded[
+                "source_provenance_verification_base64"
+            ],
+            "source_provenance_verification_bytes": encoded[
+                "source_provenance_verification_base64"
+            ],
             "post_cleanup_verification": decoded["post_cleanup_verification_base64"],
             "post_cleanup_verification_bytes": encoded[
                 "post_cleanup_verification_base64"
@@ -352,6 +361,7 @@ def check_independent_submodules(
             result["submodules"], expected_item["submodules"], f"{label}:{path}"
         )
 
+
 def validate_source_tree_evidence(
     contents: dict[str, Any], lock_sha256: str, lock_data: dict[str, Any]
 ) -> dict[str, Any]:
@@ -460,29 +470,31 @@ def validate_source_tree_evidence(
             "Independent source provenance verification is not bound to source provenance."
         )
     independent_records = {item["name"]: item for item in independent["repositories"]}
-    if len(independent_records) != len(independent["repositories"]) or set(independent_records) != set(expected):
+    if len(independent_records) != len(independent["repositories"]) or set(
+        independent_records
+    ) != set(expected):
         raise ImageValidationError(
             "Independent source provenance verification repository composition mismatch."
         )
     for name, record in expected.items():
         result = independent_records[name]
-        if any((
-            result["status"] != "verified",
-            result["repository"] != record["repository"],
-            result["requested_ref"] != record["requested_ref"],
-            result["resolver_commit"] != record["resolver_commit"],
-            result["actual_commit"] != record["actual_commit"],
-            result["head_tree"] != record["head_tree"],
-            result["tracked_content"] != record["tracked_content"],
-            result["generated_content"] != record["generated_content"],
-            result["source_tree"] != record["source_tree"],
-        )):
+        if any(
+            (
+                result["status"] != "verified",
+                result["repository"] != record["repository"],
+                result["requested_ref"] != record["requested_ref"],
+                result["resolver_commit"] != record["resolver_commit"],
+                result["actual_commit"] != record["actual_commit"],
+                result["head_tree"] != record["head_tree"],
+                result["tracked_content"] != record["tracked_content"],
+                result["generated_content"] != record["generated_content"],
+                result["source_tree"] != record["source_tree"],
+            )
+        ):
             raise ImageValidationError(
                 f"Independent source provenance verification mismatch for {name}."
             )
-        check_independent_submodules(
-            result["submodules"], record["submodules"], name
-        )
+        check_independent_submodules(result["submodules"], record["submodules"], name)
 
     for key, stage in (
         ("post_cleanup_verification", "post_cleanup"),
@@ -625,7 +637,11 @@ def validate_image(
                 repository_root=repository_root,
                 manifest_path=image["manifest"],
                 lock_data=lock_data,
-                lock_bytes=lock_bytes if lock_bytes is not None else json.dumps(lock_data, sort_keys=True).encode(),
+                lock_bytes=(
+                    lock_bytes
+                    if lock_bytes is not None
+                    else json.dumps(lock_data, sort_keys=True).encode()
+                ),
                 metadata_applications=metadata["applications"],
                 inventory_applications=inventory["applications"],
                 runtime_directories=actual_dirs,
@@ -633,7 +649,9 @@ def validate_image(
                 apps_json=apps_json if apps_json is not None else [],
             )
         except CompositionVerificationError as exc:
-            raise ImageValidationError(f"Independent composition verification failed: {exc}") from exc
+            raise ImageValidationError(
+                f"Independent composition verification failed: {exc}"
+            ) from exc
     return {
         "image": image_ref,
         "image_digest": image_digest,
@@ -648,7 +666,11 @@ def validate_image(
         "inventory_verified": True,
         "source_tree_verified": True,
         "source_tree_verification": source_tree_verification,
-        **({"composition_verification": composition_verification} if composition_verification is not None else {}),
+        **(
+            {"composition_verification": composition_verification}
+            if composition_verification is not None
+            else {}
+        ),
         "evidence_binding": binding,
         "status": "passed",
     }
@@ -683,17 +705,27 @@ def validate_from_files(
     labels = inspect_image_labels(image_ref)
     contents = inspect_image_contents(image_ref)
     if apps_json_path is None:
-        raise ImageValidationError("The generated apps.json build input is required for independent composition verification.")
+        raise ImageValidationError(
+            "The generated apps.json build input is required for independent composition verification."
+        )
     apps_json_bytes = apps_json_path.read_bytes()
     try:
         apps_json = json.loads(apps_json_bytes)
     except (OSError, json.JSONDecodeError) as exc:
-        raise ImageValidationError(f"Unable to read generated apps.json: {exc}") from exc
+        raise ImageValidationError(
+            f"Unable to read generated apps.json: {exc}"
+        ) from exc
     if not isinstance(apps_json, list):
         raise ImageValidationError("Generated apps.json must contain an array.")
     repository_root = Path(__file__).resolve().parents[3]
     report = validate_image(
-        image_ref, metadata, lock_data, labels, contents, lock_sha256, image_digest,
+        image_ref,
+        metadata,
+        lock_data,
+        labels,
+        contents,
+        lock_sha256,
+        image_digest,
         repository_root=repository_root,
         lock_bytes=lock_bytes,
         apps_json=apps_json,
@@ -709,7 +741,9 @@ def validate_from_files(
 
     composition_report = report.get("composition_verification")
     if not isinstance(composition_report, dict):
-        raise ImageValidationError("Independent composition verification did not produce a report.")
+        raise ImageValidationError(
+            "Independent composition verification did not produce a report."
+        )
     composition_bytes = (
         json.dumps(composition_report, indent=2, sort_keys=True) + "\n"
     ).encode("utf-8")
@@ -718,7 +752,9 @@ def validate_from_files(
         composition_output_path.write_bytes(composition_bytes)
 
     if verification_evidence_output_path is None:
-        raise ImageValidationError("The digest-bound verification evidence output path is required.")
+        raise ImageValidationError(
+            "The digest-bound verification evidence output path is required."
+        )
     artifacts = {
         "lock_v2": ("lock-v2.json", lock_bytes),
         "apps_json": ("apps.json", apps_json_bytes),
@@ -726,14 +762,31 @@ def validate_from_files(
         "buildx_metadata": ("buildx-metadata.json", buildx_metadata_bytes),
         "build_inventory": ("build-inventory.json", inventory_bytes),
         "build_evidence": ("build-evidence.json", build_evidence_bytes),
-        "source_provenance": ("source-provenance.json", contents["source_provenance_bytes"]),
-        "source_provenance_verification": ("source-provenance-verification.json", contents["source_provenance_verification_bytes"]),
-        "source_tree_post_cleanup": ("source-tree-verification-post-cleanup.json", contents["post_cleanup_verification_bytes"]),
-        "source_tree_runtime": ("source-tree-verification-runtime.json", contents["runtime_verification_bytes"]),
-        "image_composition_verification": ("image-composition-verification.json", composition_bytes),
+        "source_provenance": (
+            "source-provenance.json",
+            contents["source_provenance_bytes"],
+        ),
+        "source_provenance_verification": (
+            "source-provenance-verification.json",
+            contents["source_provenance_verification_bytes"],
+        ),
+        "source_tree_post_cleanup": (
+            "source-tree-verification-post-cleanup.json",
+            contents["post_cleanup_verification_bytes"],
+        ),
+        "source_tree_runtime": (
+            "source-tree-verification-runtime.json",
+            contents["runtime_verification_bytes"],
+        ),
+        "image_composition_verification": (
+            "image-composition-verification.json",
+            composition_bytes,
+        ),
     }
     statuses = {
-        "source_provenance_verification": contents["source_provenance_verification"].get("status"),
+        "source_provenance_verification": contents[
+            "source_provenance_verification"
+        ].get("status"),
         "source_tree_post_cleanup": contents["post_cleanup_verification"].get("status"),
         "source_tree_runtime": contents["runtime_verification"].get("status"),
         "image_composition_verification": composition_report.get("status"),
@@ -749,7 +802,9 @@ def validate_from_files(
             statuses=statuses,
         )
     except VerificationEvidenceError as exc:
-        raise ImageValidationError(f"Digest-bound verification evidence failed: {exc}") from exc
+        raise ImageValidationError(
+            f"Digest-bound verification evidence failed: {exc}"
+        ) from exc
     try:
         verify_verification_evidence(
             verification_evidence,
@@ -758,9 +813,13 @@ def validate_from_files(
             artifacts=artifacts,
         )
     except VerificationEvidenceError as exc:
-        raise ImageValidationError(f"Verification evidence self-check failed: {exc}") from exc
+        raise ImageValidationError(
+            f"Verification evidence self-check failed: {exc}"
+        ) from exc
     report["verification_evidence"] = verification_evidence
-    write_verification_evidence(verification_evidence, verification_evidence_output_path)
+    write_verification_evidence(
+        verification_evidence, verification_evidence_output_path
+    )
     for path, key in (
         (source_provenance_output_path, "source_provenance"),
         (source_provenance_verification_output_path, "source_provenance_verification"),
@@ -808,7 +867,12 @@ def main() -> int:
     parser.add_argument("--source-provenance-verification-output", type=Path)
     parser.add_argument("--composition-output", type=Path)
     parser.add_argument("--verification-evidence-output", required=True, type=Path)
-    parser.add_argument("--apps-json", required=True, type=Path, help="Generated Bench apps.json build input.")
+    parser.add_argument(
+        "--apps-json",
+        required=True,
+        type=Path,
+        help="Generated Bench apps.json build input.",
+    )
     args = parser.parse_args()
     try:
         report = validate_from_files(
@@ -840,7 +904,9 @@ def main() -> int:
     )
     print(f"Image digest: {report['image_digest']}")
     print(f"Inventory SHA-256: {report['evidence_binding']['inventory_sha256']}")
-    print("Image validation, source-tree verification, independent composition verification and digest-bound verification evidence passed.")
+    print(
+        "Image validation, source-tree verification, independent composition verification and digest-bound verification evidence passed."
+    )
     return 0
 
 

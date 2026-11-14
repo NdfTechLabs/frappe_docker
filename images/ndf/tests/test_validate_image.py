@@ -183,10 +183,15 @@ def validation_inputs():
         "verifier": {"name": "verify_source_provenance.py", "version": "1.0"},
         "lock": {"version": 2, "sha256": lock_sha},
         "source_provenance_sha256": provenance_sha,
-        "repositories": [{**json.loads(json.dumps(record)), "status": "verified"} for record in provenance["repositories"]],
+        "repositories": [
+            {**json.loads(json.dumps(record)), "status": "verified"}
+            for record in provenance["repositories"]
+        ],
         "status": "passed",
     }
-    independent_raw = (json.dumps(independent, indent=2, sort_keys=True) + "\n").encode()
+    independent_raw = (
+        json.dumps(independent, indent=2, sort_keys=True) + "\n"
+    ).encode()
     contents = {
         "directories": ["frappe", "erpnext"],
         "apps_txt": ["frappe", "erpnext"],
@@ -347,19 +352,27 @@ def test_validate_image_rejects_source_provenance_lock_mismatch(validation_input
         run_validation(validation_inputs)
 
 
-def test_validate_image_rejects_missing_independent_provenance_report(validation_inputs):
+def test_validate_image_rejects_missing_independent_provenance_report(
+    validation_inputs,
+):
     validation_inputs[3].pop("source_provenance_verification_bytes")
     with pytest.raises(ImageValidationError, match="source_provenance_verification"):
         run_validation(validation_inputs)
 
 
-def test_validate_image_rejects_independent_report_provenance_binding_mismatch(validation_inputs):
-    validation_inputs[3]["source_provenance_verification"]["source_provenance_sha256"] = "0" * 64
+def test_validate_image_rejects_independent_report_provenance_binding_mismatch(
+    validation_inputs,
+):
+    validation_inputs[3]["source_provenance_verification"][
+        "source_provenance_sha256"
+    ] = ("0" * 64)
     with pytest.raises(ImageValidationError, match="not bound to source provenance"):
         run_validation(validation_inputs)
 
 
-def test_validate_image_rejects_independent_report_repository_mismatch(validation_inputs):
+def test_validate_image_rejects_independent_report_repository_mismatch(
+    validation_inputs,
+):
     validation_inputs[3]["source_provenance_verification"]["repositories"].pop()
     with pytest.raises(ImageValidationError, match="repository composition mismatch"):
         run_validation(validation_inputs)
@@ -370,6 +383,7 @@ def test_validate_image_reports_both_source_tree_stages(validation_inputs):
     assert report["source_tree_verified"] is True
     assert report["source_tree_verification"]["post_cleanup_verified"] is True
     assert report["source_tree_verification"]["runtime_image_verified"] is True
+
 
 def test_check_independent_submodules_accepts_normalized_materialized_evidence():
     source_tree = {
@@ -467,7 +481,9 @@ def test_check_independent_submodules_rejects_changed_materialized_commit():
         }
     ]
 
-    with pytest.raises(ImageValidationError, match="Independent submodule evidence mismatch"):
+    with pytest.raises(
+        ImageValidationError, match="Independent submodule evidence mismatch"
+    ):
         check_independent_submodules(observed, expected, "hrms")
 
 
@@ -496,4 +512,3 @@ def test_check_independent_submodules_accepts_metadata_only_evidence():
     ]
 
     check_independent_submodules(observed, expected, "hrms")
-

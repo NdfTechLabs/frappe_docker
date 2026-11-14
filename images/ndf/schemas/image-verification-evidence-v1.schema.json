@@ -22,12 +22,7 @@
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "reference",
-        "repository",
-        "id",
-        "digest"
-      ],
+      "required": ["reference", "repository", "id", "digest"],
       "properties": {
         "reference": {
           "type": "string",
@@ -50,10 +45,7 @@
     "lock": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version",
-        "sha256"
-      ],
+      "required": ["version", "sha256"],
       "properties": {
         "version": {
           "const": 2
@@ -71,12 +63,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "name",
-          "path",
-          "sha256",
-          "size_bytes"
-        ],
+        "required": ["name", "path", "sha256", "size_bytes"],
         "properties": {
           "name": {
             "enum": [

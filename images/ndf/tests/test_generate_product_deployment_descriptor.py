@@ -94,7 +94,9 @@ def test_load_inputs_rejects_apps_json_object(tmp_path):
         json.dumps({"lock_version": 2}), encoding="utf-8"
     )
     (tmp_path / "apps.json").write_text(json.dumps({"apps": []}), encoding="utf-8")
-    with pytest.raises(DescriptorGenerationError, match="apps.json must be a JSON array"):
+    with pytest.raises(
+        DescriptorGenerationError, match="apps.json must be a JSON array"
+    ):
         _load_inputs(tmp_path)
 
 
@@ -260,7 +262,9 @@ def complete_build_output(tmp_path):
         ]
     }
     payloads = {
-        "apps.json": [{"url": "https://github.com/frappe/erpnext", "branch": "version-16"}],
+        "apps.json": [
+            {"url": "https://github.com/frappe/erpnext", "branch": "version-16"}
+        ],
         "build-metadata.json": metadata,
         "buildx-metadata.json": {"containerimage.digest": IMAGE_DIGEST},
         "build-inventory.json": inventory,

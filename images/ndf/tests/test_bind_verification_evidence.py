@@ -1,7 +1,6 @@
 import hashlib
 
 import pytest
-
 from scripts.bind_verification_evidence import (
     VerificationEvidenceError,
     create_verification_evidence,
@@ -23,9 +22,7 @@ def evidence_inputs():
         "source_tree_runtime",
         "image_composition_verification",
     }
-    artifacts = {
-        name: (f"{name}.json", (name + "-bytes").encode()) for name in names
-    }
+    artifacts = {name: (f"{name}.json", (name + "-bytes").encode()) for name in names}
     lock = b'{"lock_version":2}'
     statuses = {
         name: "passed"

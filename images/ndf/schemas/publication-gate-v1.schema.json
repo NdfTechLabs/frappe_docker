@@ -59,10 +59,7 @@
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "sha",
-        "framework_major"
-      ],
+      "required": ["sha", "framework_major"],
       "properties": {
         "sha": {
           "type": "string",
@@ -77,10 +74,7 @@
     "lock": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version",
-        "sha256"
-      ],
+      "required": ["version", "sha256"],
       "properties": {
         "version": {
           "const": 2
