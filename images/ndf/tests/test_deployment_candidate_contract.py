@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from images.ndf.scripts import intake_deployment_candidate as intake
+try:
+    from scripts import intake_deployment_candidate as intake
+except ImportError:
+    from images.ndf.scripts import intake_deployment_candidate as intake
 
 NDF = Path(__file__).resolve().parents[1]
 SCHEMAS = NDF / "schemas"
@@ -214,6 +217,31 @@ def test_payload_rejects_mutable_application_commit():
     candidate["applications"][0]["immutable_commit"] = "version-16"
     raw = json.dumps(candidate).encode()
     with pytest.raises(intake.CandidateIntakeError, match="immutable Git commit"):
+        intake.validate_candidate_payload(
+            raw,
+            expected_candidate_id=CANDIDATE_ID,
+            expected_payload_sha256=payload_hash(raw),
+        )
+
+
+
+def test_payload_rejects_product_not_in_ndf_image_inventory():
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["product"]["id"] = "unknown-product"
+    raw = json.dumps(candidate).encode()
+    with pytest.raises(intake.CandidateIntakeError, match="not present in the NDF image inventory"):
+        intake.validate_candidate_payload(
+            raw,
+            expected_candidate_id=CANDIDATE_ID,
+            expected_payload_sha256=payload_hash(raw),
+        )
+
+
+def test_payload_rejects_framework_version_outside_product_manifest():
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["framework_version"] = "17"
+    raw = json.dumps(candidate).encode()
+    with pytest.raises(intake.CandidateIntakeError, match="does not match product manifest"):
         intake.validate_candidate_payload(
             raw,
             expected_candidate_id=CANDIDATE_ID,
