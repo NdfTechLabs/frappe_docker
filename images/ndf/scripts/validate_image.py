@@ -295,6 +295,14 @@ def validate_source_tree_evidence(
     expected = {item["name"]: item for item in provenance["repositories"]}
     if len(expected) != len(provenance["repositories"]):
         raise ImageValidationError("Source provenance contains duplicate repositories.")
+    locked_names = {
+        item.get("name") for item in lock_data.get("applications", [])
+        if isinstance(item, dict)
+    }
+    if set(expected) != locked_names:
+        raise ImageValidationError(
+            "Source provenance repository composition does not match lock-v2."
+        )
 
     def check_submodules(observed: list[dict[str, Any]], expected_items: list[dict[str, Any]], label: str) -> None:
         by_path = {item["path"]: item for item in observed}
@@ -423,7 +431,7 @@ def validate_image(
     binding = validate_inventory(
         inventory, inventory_bytes, metadata, lock_data, lock_sha256, image_digest
     )
-    source_tree_verification = validate_source_tree_evidence(contents, lock_sha256)
+    source_tree_verification = validate_source_tree_evidence(contents, lock_sha256, lock_data)
     return {
         "image": image_ref,
         "image_digest": image_digest,
