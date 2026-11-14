@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/m4.2.4-immutable-image-construction
+      - feat/m4.2.5.4-independent-source-verification
     paths:
       - "images/ndf/**"
       - "images/layered/Containerfile"
@@ -50,7 +51,7 @@ jobs:
       - name: Configure product matrix
         id: set-matrix
         env:
-          SELECTED_PRODUCT: ${{ inputs.product || (github.ref_name == 'feat/m4.2.4-immutable-image-construction' && 'dalali-v16') || 'all' }}
+          SELECTED_PRODUCT: ${{ inputs.product || ((github.ref_name == 'feat/m4.2.4-immutable-image-construction' || github.ref_name == 'feat/m4.2.5.4-independent-source-verification') && 'dalali-v16') || 'all' }}
         shell: bash
         run: |
           set -euo pipefail
