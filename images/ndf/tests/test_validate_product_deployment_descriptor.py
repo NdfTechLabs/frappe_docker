@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -28,8 +29,6 @@ def _rehash(descriptor: dict) -> None:
             key: value for key, value in integrity.items() if key != "content_sha256"
         },
     }
-    import hashlib
-
     integrity["content_sha256"] = hashlib.sha256(_canonical_json(payload)).hexdigest()
 
 
@@ -262,3 +261,59 @@ def test_rejects_duplicate_json_object_keys(tmp_path):
 
     with pytest.raises(DescriptorValidationError, match="Duplicate JSON object key"):
         validate_descriptor(path)
+
+
+def test_rejects_composition_lock_hash_reference_mismatch(valid_descriptor):
+    _mutate(
+        valid_descriptor,
+        lambda descriptor: descriptor["composition"]["lock"].update({"sha256": "f" * 64}),
+    )
+
+    with pytest.raises(DescriptorValidationError, match="Composition lock SHA-256"):
+        validate_descriptor(valid_descriptor)
+
+
+def test_rejects_artifact_runtime_platform_mismatch(valid_descriptor):
+    _mutate(
+        valid_descriptor,
+        lambda descriptor: descriptor["runtime_inventory"]["platform"].update(
+            {"oci": "linux/arm64"}
+        ),
+    )
+
+    with pytest.raises(DescriptorValidationError, match="Artifact platform"):
+        validate_descriptor(valid_descriptor)
+
+
+def test_rejects_requirement_verification_hash_reference_mismatch(valid_descriptor):
+    def add_invalid_verification(descriptor):
+        descriptor["requirements"]["storage"] = {
+            "state": "verified",
+            "declarations": [
+                {
+                    "authority": "product_manifest",
+                    "reference": "images/ndf/manifests/products/tenant/dalali-v16.json",
+                    "sha256": "a" * 64,
+                    "claims": [{"storage": "persistent"}],
+                }
+            ],
+            "verification": [
+                {
+                    "method": "fixture-check",
+                    "result": "passed",
+                    "evidence_reference": "build-inventory.json",
+                    "evidence_sha256": "f" * 64,
+                }
+            ],
+        }
+
+    _mutate(valid_descriptor, add_invalid_verification)
+    with pytest.raises(DescriptorValidationError, match="verification SHA-256"):
+        validate_descriptor(valid_descriptor)
+
+
+def test_validator_has_no_generator_or_evidence_binder_dependency():
+    source = Path(validate_descriptor.__code__.co_filename).read_text(encoding="utf-8")
+
+    assert "generate_product_deployment_descriptor" not in source
+    assert "bind_verification_evidence" not in source
