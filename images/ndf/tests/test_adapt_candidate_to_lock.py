@@ -312,3 +312,17 @@ def test_candidate_requested_version_is_preserved_separately_from_commit_pin(
     assert frappe["requested_version"] == "candidate-release-2026.11"
     assert frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
     assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
+
+
+
+def test_candidate_required_flag_is_preserved_without_changing_membership(
+    ndf_dir, tmp_path
+):
+    candidate = make_candidate(ndf_dir)
+    candidate["applications"][0]["is_required"] = False
+    result = run_adapter(ndf_dir, tmp_path, candidate)
+    lock = json.loads(result["lock_path"].read_text(encoding="utf-8"))
+    frappe = next(item for item in lock["applications"] if item["name"] == "frappe")
+
+    assert frappe["candidate_is_required"] is False
+    assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
