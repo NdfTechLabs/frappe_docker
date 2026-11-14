@@ -58,7 +58,7 @@ def validation_inputs():
         ]),
     }
     captured = [
-        {"name": app["name"], "repository": f"github.com/{app['name'] if app['name'] == 'frappe' else 'frappe/erpnext'}",
+        {"name": app["name"], "repository": f"github.com/frappe/{app['name']}",
          "requested_ref": app["target_ref"], "resolver_commit": app["resolved_sha"],
          "actual_commit": "d" * 40}
         for app in applications
@@ -78,7 +78,6 @@ def validation_inputs():
         "dependency_files": [],
         "installers": {"uv": {"version": "0.13.7"}, "pip": {"version": "25.0"}},
     }
-    inventory["applications"][1]["repository"] = "github.com/frappe/erpnext"
     raw = (json.dumps(inventory, indent=2, sort_keys=True) + "\n").encode()
     contents = {
         "directories": ["frappe", "erpnext"],
