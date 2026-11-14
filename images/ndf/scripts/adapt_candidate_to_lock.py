@@ -424,6 +424,17 @@ def adapt_candidate_to_lock(
             "Candidate build output must not be written to the obsolete checked-in locks directory."
         )
     output_dir.mkdir(parents=True, exist_ok=True)
+    expected_outputs = {
+        "apps.json",
+        "build-metadata.json",
+        "candidate-composition.json",
+    }
+    existing_outputs = sorted(name for name in expected_outputs if (output_dir / name).exists())
+    if existing_outputs:
+        raise CandidateCompositionError(
+            "Candidate build output already exists; use a fresh attempt directory: "
+            + ", ".join(existing_outputs)
+        )
     lock_name = f"candidate-{hashlib.sha256(candidate['candidate_id'].encode()).hexdigest()[:16]}.lock-v2.json"
     lock_path = output_dir / lock_name
 
