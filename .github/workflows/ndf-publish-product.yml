@@ -247,6 +247,10 @@ jobs:
           EXPECTED_DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
           set -euo pipefail
+          if docker buildx imagetools inspect "$PUBLICATION_REF" >/dev/null 2>&1; then
+            echo "Official immutable source tag appeared during the build: $PUBLICATION_REF" >&2
+            exit 1
+          fi
           docker buildx imagetools create --tag "$PUBLICATION_REF" "$IMAGE_REPOSITORY@$EXPECTED_DIGEST"
           INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF")"
           ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
