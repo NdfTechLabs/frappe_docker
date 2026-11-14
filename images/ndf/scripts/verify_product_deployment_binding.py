@@ -118,6 +118,10 @@ def _resolve_evidence_file(root: Path, relative_path: str) -> Path:
 def _load_and_hash_evidence(
     descriptor: dict[str, Any], evidence_dir: Path, image_id: str
 ) -> tuple[dict[str, tuple[str, bytes]], dict[str, dict[str, Any]]]:
+    if evidence_dir.is_symlink():
+        raise ProductDeploymentBindingError(
+            "Evidence directory must not be a symlink."
+        )
     root = evidence_dir.resolve(strict=True)
     if not root.is_dir():
         raise ProductDeploymentBindingError("Evidence directory must be a directory.")
@@ -207,7 +211,10 @@ def _validate_evidence_manifest(
                 f"PDD and M4.2.5 evidence manifest disagree for {name}."
             )
     lock = descriptor["composition"]["lock"]
-    if report["lock"]["version"] != lock["version"] or report["lock"]["sha256"] != lock["sha256"]:
+    if (
+        report["lock"]["version"] != lock["version"]
+        or report["lock"]["sha256"] != lock["sha256"]
+    ):
         raise ProductDeploymentBindingError(
             "M4.2.5 evidence manifest is bound to a different lock-v2."
         )
@@ -287,8 +294,12 @@ def _cross_check_sidecars(
             "M4.2.5 evidence manifest is not bound to the exact image and lock."
         )
 
-    build_inventory = _read_json_from_bytes(artifacts["build_inventory"][1], "build inventory")
-    build_evidence = _read_json_from_bytes(artifacts["build_evidence"][1], "build evidence")
+    build_inventory = _read_json_from_bytes(
+        artifacts["build_inventory"][1], "build inventory"
+    )
+    build_evidence = _read_json_from_bytes(
+        artifacts["build_evidence"][1], "build evidence"
+    )
     if build_inventory.get("lock") != {"version": 2, "sha256": lock_sha}:
         raise ProductDeploymentBindingError(
             "Build inventory lock identity does not match the exact lock-v2."
@@ -399,8 +410,15 @@ def verify_product_deployment_binding(
             f"Independent PDD validation failed: {exc}"
         ) from exc
     descriptor = _read_json(descriptor_path, "PDD descriptor")
+    if evidence_dir.is_symlink():
+        raise ProductDeploymentBindingError(
+            "Evidence directory must not be a symlink."
+        )
+    evidence_root = evidence_dir.resolve(strict=True)
     sidecars = {
-        name: _read_json(evidence_dir / filename, filename)
+        name: _read_json(
+            _resolve_evidence_file(evidence_root, filename), filename
+        )
         for name, filename in SIDECAR_FILES.items()
     }
     image_id = sidecars["build_result"].get("image_id")
