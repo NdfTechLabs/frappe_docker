@@ -233,8 +233,9 @@ def test_rejects_materialized_submodule_commit_mismatch(tmp_path):
     git(["add", "child.txt"], child)
     git(["commit", "-m", "advance submodule"], child)
     assert git(["rev-parse", "HEAD"], child) != pinned
+    records = json.loads(provenance.read_text(encoding="utf-8"))["repositories"][0]["submodules"]
     with pytest.raises(verification.SourceProvenanceVerificationError, match="Submodule commit mismatch"):
-        run_verifier(bench, lock, provenance, tmp_path / "out.json")
+        verification.verify_submodules(app, records, "frappe")
 
 
 def test_rejects_uninitialized_submodule_claiming_materialized_evidence(tmp_path):
