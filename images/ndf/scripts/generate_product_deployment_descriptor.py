@@ -67,6 +67,7 @@ def _sha(raw: bytes) -> str:
 
 def _canonical_json(value: Any) -> bytes:
     """NDF canonical JSON v1: UTF-8, sorted keys, compact separators, no floats."""
+
     def check(item: Any) -> None:
         if isinstance(item, float):
             raise DescriptorGenerationError(
@@ -80,9 +81,13 @@ def _canonical_json(value: Any) -> bytes:
         elif isinstance(item, list):
             for child in item:
                 check(child)
+
     check(value)
     return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
 
@@ -94,8 +99,12 @@ def _require_string(value: Any, label: str) -> str:
 
 
 def _load_inputs(output_dir: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
-    metadata, metadata_raw = _read_json(output_dir / "build-metadata.json", "build-metadata.json")
-    image_id = _require_string(metadata.get("image", {}).get("id"), "Build metadata image ID")
+    metadata, metadata_raw = _read_json(
+        output_dir / "build-metadata.json", "build-metadata.json"
+    )
+    image_id = _require_string(
+        metadata.get("image", {}).get("id"), "Build metadata image ID"
+    )
     filenames = {
         name: (f"{image_id}.lock-v2.json" if name == "lock_v2" else filename)
         for name, filename in EVIDENCE_FILES.items()
@@ -126,25 +135,43 @@ def _verify_inputs(values: dict[str, dict[str, Any]], files: dict[str, bytes]) -
     if lock.get("lock_version") != 2:
         raise DescriptorGenerationError("PDD generation requires lock-v2.")
     if metadata.get("lock", {}).get("sha256") != lock_sha:
-        raise DescriptorGenerationError("Build metadata does not bind the exact lock-v2 bytes.")
+        raise DescriptorGenerationError(
+            "Build metadata does not bind the exact lock-v2 bytes."
+        )
     if values["build_inventory"].get("lock") != {"version": 2, "sha256": lock_sha}:
         raise DescriptorGenerationError("Build inventory lock identity mismatch.")
     digest = result.get("digest")
     if not isinstance(digest, str) or not OCI_DIGEST.fullmatch(digest):
-        raise DescriptorGenerationError("Build result has no valid immutable image digest.")
+        raise DescriptorGenerationError(
+            "Build result has no valid immutable image digest."
+        )
     if buildx.get("containerimage.digest") != digest:
-        raise DescriptorGenerationError("Buildx metadata and build-result digests differ.")
+        raise DescriptorGenerationError(
+            "Buildx metadata and build-result digests differ."
+        )
     image = metadata.get("image", {})
-    if result.get("image_id") != image.get("id") or result.get("repository") != image.get("repository"):
-        raise DescriptorGenerationError("Build result and build metadata image identities differ.")
+    if result.get("image_id") != image.get("id") or result.get(
+        "repository"
+    ) != image.get("repository"):
+        raise DescriptorGenerationError(
+            "Build result and build metadata image identities differ."
+        )
     if validation.get("status") != "passed" or validation.get("image_digest") != digest:
-        raise DescriptorGenerationError("Image validation is not passed for this exact image digest.")
+        raise DescriptorGenerationError(
+            "Image validation is not passed for this exact image digest."
+        )
     if validation.get("image_id") != image.get("id"):
-        raise DescriptorGenerationError("Image validation identifies a different product image.")
+        raise DescriptorGenerationError(
+            "Image validation identifies a different product image."
+        )
     if evidence.get("image", {}).get("digest") != digest:
-        raise DescriptorGenerationError("Verification evidence is not bound to the image digest.")
+        raise DescriptorGenerationError(
+            "Verification evidence is not bound to the image digest."
+        )
     if evidence.get("lock", {}).get("sha256") != lock_sha:
-        raise DescriptorGenerationError("Verification evidence is not bound to the exact lock-v2.")
+        raise DescriptorGenerationError(
+            "Verification evidence is not bound to the exact lock-v2."
+        )
     if values["build_evidence"].get("status") != "bound":
         raise DescriptorGenerationError("Build inventory evidence is not bound.")
     build_evidence = values["build_evidence"]
@@ -153,7 +180,9 @@ def _verify_inputs(values: dict[str, dict[str, Any]], files: dict[str, bytes]) -
         or build_evidence.get("lock_sha256") != lock_sha
         or build_evidence.get("inventory_sha256") != _sha(files["build_inventory"])
     ):
-        raise DescriptorGenerationError("Build evidence image/lock/inventory binding mismatch.")
+        raise DescriptorGenerationError(
+            "Build evidence image/lock/inventory binding mismatch."
+        )
     for name in (
         "source_provenance_verification",
         "source_tree_post_cleanup",
@@ -161,12 +190,18 @@ def _verify_inputs(values: dict[str, dict[str, Any]], files: dict[str, bytes]) -
         "image_composition_verification",
     ):
         if values[name].get("status") != "passed":
-            raise DescriptorGenerationError(f"Required verification report did not pass: {name}.")
+            raise DescriptorGenerationError(
+                f"Required verification report did not pass: {name}."
+            )
     composition = values["image_composition_verification"]
     if composition.get("lock", {}).get("sha256") != lock_sha:
-        raise DescriptorGenerationError("Composition verification is bound to a different lock.")
+        raise DescriptorGenerationError(
+            "Composition verification is bound to a different lock."
+        )
     if validation.get("verification_evidence") != evidence:
-        raise DescriptorGenerationError("Image validation report does not contain the bound evidence manifest.")
+        raise DescriptorGenerationError(
+            "Image validation report does not contain the bound evidence manifest."
+        )
     artifacts = {
         name: (
             "lock-v2.json" if name == "lock_v2" else EVIDENCE_FILES[name],
@@ -182,7 +217,9 @@ def _verify_inputs(values: dict[str, dict[str, Any]], files: dict[str, bytes]) -
             artifacts=artifacts,
         )
     except VerificationEvidenceError as exc:
-        raise DescriptorGenerationError(f"Digest-bound evidence verification failed: {exc}") from exc
+        raise DescriptorGenerationError(
+            f"Digest-bound evidence verification failed: {exc}"
+        ) from exc
 
 
 def _build_descriptor(
@@ -206,45 +243,95 @@ def _build_descriptor(
     digest = result["digest"]
     platform = result.get("platforms")
     if not isinstance(platform, list) or len(platform) != 1:
-        raise DescriptorGenerationError("PDD v1 requires exactly one measured target platform.")
+        raise DescriptorGenerationError(
+            "PDD v1 requires exactly one measured target platform."
+        )
     platform_name = _require_string(platform[0], "Build target platform")
     if inventory.get("stage") != "builder":
-        raise DescriptorGenerationError("Current build inventory must identify its actual builder stage.")
+        raise DescriptorGenerationError(
+            "Current build inventory must identify its actual builder stage."
+        )
     if inventory.get("lock", {}).get("sha256") != _sha(files["lock_v2"]):
-        raise DescriptorGenerationError("Builder inventory lock SHA does not match lock-v2.")
+        raise DescriptorGenerationError(
+            "Builder inventory lock SHA does not match lock-v2."
+        )
 
-    provenance_by_name = {item["name"]: item for item in provenance.get("repositories", [])}
+    provenance_by_name = {
+        item["name"]: item for item in provenance.get("repositories", [])
+    }
     applications = []
     for app in inventory.get("applications", []):
         name = _require_string(app.get("name"), "Application name")
         source = provenance_by_name.get(name)
         if not source or source.get("actual_commit") != app.get("actual_commit"):
-            raise DescriptorGenerationError(f"Source provenance does not confirm actual commit for {name}.")
+            raise DescriptorGenerationError(
+                f"Source provenance does not confirm actual commit for {name}."
+            )
         source_tree = source.get("source_tree", {})
-        applications.append({
-            "app_name": name,
-            "repository": app["repository"],
-            "requested_ref": app["requested_ref"],
-            "actual_commit": app["actual_commit"],
-            "source_tree_sha256": source_tree.get("sha256"),
-            **({"descriptor_path": next(
-                (item.get("descriptor") for item in lock.get("applications", []) if item.get("name") == name and item.get("descriptor")),
-                None,
-            )} if any(item.get("descriptor") for item in lock.get("applications", []) if item.get("name") == name) else {}),
-            **({"descriptor_sha256": next(
-                (item.get("descriptor_sha256") for item in lock.get("applications", []) if item.get("name") == name and item.get("descriptor_sha256")),
-                None,
-            )} if any(item.get("descriptor_sha256") for item in lock.get("applications", []) if item.get("name") == name) else {}),
-        })
+        applications.append(
+            {
+                "app_name": name,
+                "repository": app["repository"],
+                "requested_ref": app["requested_ref"],
+                "actual_commit": app["actual_commit"],
+                "source_tree_sha256": source_tree.get("sha256"),
+                **(
+                    {
+                        "descriptor_path": next(
+                            (
+                                item.get("descriptor")
+                                for item in lock.get("applications", [])
+                                if item.get("name") == name and item.get("descriptor")
+                            ),
+                            None,
+                        )
+                    }
+                    if any(
+                        item.get("descriptor")
+                        for item in lock.get("applications", [])
+                        if item.get("name") == name
+                    )
+                    else {}
+                ),
+                **(
+                    {
+                        "descriptor_sha256": next(
+                            (
+                                item.get("descriptor_sha256")
+                                for item in lock.get("applications", [])
+                                if item.get("name") == name
+                                and item.get("descriptor_sha256")
+                            ),
+                            None,
+                        )
+                    }
+                    if any(
+                        item.get("descriptor_sha256")
+                        for item in lock.get("applications", [])
+                        if item.get("name") == name
+                    )
+                    else {}
+                ),
+            }
+        )
     applications.sort(key=lambda item: item["app_name"])
 
-    verified_services = {item["service_id"]: item for item in composition_report.get("services", [])}
-    verified_external = {item["service_id"]: item for item in composition_report.get("external_requirements", [])}
+    verified_services = {
+        item["service_id"]: item for item in composition_report.get("services", [])
+    }
+    verified_external = {
+        item["service_id"]: item
+        for item in composition_report.get("external_requirements", [])
+    }
     services = []
     for item in lock.get("services", []):
         record = verified_services.get(item.get("service_id"))
-        if not record or record.get("descriptor_sha256") != item.get("descriptor_sha256"):
-            raise DescriptorGenerationError("Lock service inventory does not match verified composition.")
+        if not record or record.get("descriptor_sha256") != item.get(
+            "descriptor_sha256"
+        ):
+            raise DescriptorGenerationError(
+                "Lock service inventory does not match verified composition."
+            )
         artifact = item.get("artifact", {})
         service = {
             "service_id": item["service_id"],
@@ -259,32 +346,57 @@ def _build_descriptor(
     external = []
     for item in lock.get("external_requirements", []):
         record = verified_external.get(item.get("service_id"))
-        if not record or record.get("descriptor_sha256") != item.get("descriptor_sha256"):
-            raise DescriptorGenerationError("Lock external-requirement inventory does not match verified composition.")
+        if not record or record.get("descriptor_sha256") != item.get(
+            "descriptor_sha256"
+        ):
+            raise DescriptorGenerationError(
+                "Lock external-requirement inventory does not match verified composition."
+            )
         provider = item.get("provider", {})
-        external.append({
-            "requirement_id": item["service_id"],
-            "provider": provider["name"],
-            "requirement": provider["requirement"],
-            "descriptor_path": item["descriptor"],
-            "descriptor_sha256": item["descriptor_sha256"],
-            "depends_on": item.get("depends_on", []),
-            **({"documentation": provider["documentation"]} if provider.get("documentation") else {}),
-        })
+        external.append(
+            {
+                "requirement_id": item["service_id"],
+                "provider": provider["name"],
+                "requirement": provider["requirement"],
+                "descriptor_path": item["descriptor"],
+                "descriptor_sha256": item["descriptor_sha256"],
+                "depends_on": item.get("depends_on", []),
+                **(
+                    {"documentation": provider["documentation"]}
+                    if provider.get("documentation")
+                    else {}
+                ),
+            }
+        )
 
-    def domain(state: str = "not_declared", declarations: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    def domain(
+        state: str = "not_declared", declarations: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         return {"state": state, "declarations": declarations or [], "verification": []}
 
     service_declarations = []
-    for item in composition_report.get("services", []) + composition_report.get("external_requirements", []):
-        service_declarations.append({
-            "authority": "service_descriptor",
-            "reference": item["descriptor"],
-            "sha256": item["descriptor_sha256"],
-            "claims": [{"service_id": item["service_id"], "service_kind": item["service_kind"]}],
-        })
+    for item in composition_report.get("services", []) + composition_report.get(
+        "external_requirements", []
+    ):
+        service_declarations.append(
+            {
+                "authority": "service_descriptor",
+                "reference": item["descriptor"],
+                "sha256": item["descriptor_sha256"],
+                "claims": [
+                    {
+                        "service_id": item["service_id"],
+                        "service_kind": item["service_kind"],
+                    }
+                ],
+            }
+        )
     requirements = {
-        "services": domain("declared", service_declarations) if service_declarations else domain(),
+        "services": (
+            domain("declared", service_declarations)
+            if service_declarations
+            else domain()
+        ),
         "storage": domain(),
         "networking": domain(),
         "configuration": domain(),
@@ -297,14 +409,22 @@ def _build_descriptor(
     bound = {item["name"]: item for item in evidence_report.get("evidence", [])}
     for name in sorted(EVIDENCE_FILES):
         record = bound.get(name)
-        if not record or record.get("sha256") != _sha(files[name]) or record.get("size_bytes") != len(files[name]):
-            raise DescriptorGenerationError(f"Evidence binding record mismatch for {name}.")
-        evidence_records.append({
-            "name": name,
-            "path": record["path"],
-            "sha256": record["sha256"],
-            "size_bytes": record["size_bytes"],
-        })
+        if (
+            not record
+            or record.get("sha256") != _sha(files[name])
+            or record.get("size_bytes") != len(files[name])
+        ):
+            raise DescriptorGenerationError(
+                f"Evidence binding record mismatch for {name}."
+            )
+        evidence_records.append(
+            {
+                "name": name,
+                "path": record["path"],
+                "sha256": record["sha256"],
+                "size_bytes": record["size_bytes"],
+            }
+        )
 
     runtime = inventory["runtime"]
     framework = inventory["framework"]
@@ -359,10 +479,18 @@ def _build_descriptor(
             "excluded_fields": ["integrity.content_sha256"],
         },
     }
-    pdd["integrity"]["content_sha256"] = _sha(_canonical_json({
-        **pdd,
-        "integrity": {key: value for key, value in pdd["integrity"].items() if key != "content_sha256"},
-    }))
+    pdd["integrity"]["content_sha256"] = _sha(
+        _canonical_json(
+            {
+                **pdd,
+                "integrity": {
+                    key: value
+                    for key, value in pdd["integrity"].items()
+                    if key != "content_sha256"
+                },
+            }
+        )
+    )
     return pdd
 
 
@@ -375,12 +503,16 @@ def generate_descriptor(
     workflow_run_url: str | None = None,
 ) -> dict[str, Any]:
     if not GIT_SHA.fullmatch(source_commit):
-        raise DescriptorGenerationError("Source commit must be a full lowercase Git SHA.")
+        raise DescriptorGenerationError(
+            "Source commit must be a full lowercase Git SHA."
+        )
     _require_string(workflow_run_id, "Workflow run ID")
     try:
         parsed = datetime.fromisoformat(built_at.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise DescriptorGenerationError("Build timestamp must be an ISO-8601 date-time.") from exc
+        raise DescriptorGenerationError(
+            "Build timestamp must be an ISO-8601 date-time."
+        ) from exc
     if parsed.tzinfo is None:
         raise DescriptorGenerationError("Build timestamp must include a timezone.")
     values, files = _load_inputs(build_output_dir)
@@ -393,29 +525,44 @@ def generate_descriptor(
         ("image_verification_evidence", "image-verification-evidence.json"),
     ):
         values[key], _ = _read_json(build_output_dir / filename, filename)
-    gate, _ = _read_json(build_output_dir / "publication-gate.json", "publication-gate.json")
+    gate, _ = _read_json(
+        build_output_dir / "publication-gate.json", "publication-gate.json"
+    )
     if gate.get("status") != "ready":
-        raise DescriptorGenerationError("Publication gate must be ready before PDD generation.")
+        raise DescriptorGenerationError(
+            "Publication gate must be ready before PDD generation."
+        )
     gate_image = gate.get("image", {})
     if (
         gate_image.get("digest") != values["build_result"].get("digest")
         or gate_image.get("id") != values["build_metadata"].get("image", {}).get("id")
-        or gate_image.get("repository") != values["build_metadata"].get("image", {}).get("repository")
+        or gate_image.get("repository")
+        != values["build_metadata"].get("image", {}).get("repository")
     ):
-        raise DescriptorGenerationError("Publication gate identifies a different image artifact.")
+        raise DescriptorGenerationError(
+            "Publication gate identifies a different image artifact."
+        )
     _verify_inputs(values, files)
     descriptor = _build_descriptor(
-        values, files, source_commit=source_commit, workflow_run_id=workflow_run_id,
-        built_at=built_at, workflow_run_url=workflow_run_url,
+        values,
+        files,
+        source_commit=source_commit,
+        workflow_run_id=workflow_run_id,
+        built_at=built_at,
+        workflow_run_url=workflow_run_url,
     )
     try:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-        Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER).validate(descriptor)
+        Draft202012Validator(
+            schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+        ).validate(descriptor)
     except (OSError, json.JSONDecodeError) as exc:
         raise DescriptorGenerationError(f"Unable to load PDD schema: {exc}") from exc
     except ValidationError as exc:
         location = ".".join(str(part) for part in exc.absolute_path) or "<root>"
-        raise DescriptorGenerationError(f"PDD schema validation failed at {location}: {exc.message}") from exc
+        raise DescriptorGenerationError(
+            f"PDD schema validation failed at {location}: {exc.message}"
+        ) from exc
     return descriptor
 
 
@@ -424,19 +571,27 @@ def main() -> int:
     parser.add_argument("--build-output-dir", required=True, type=Path)
     parser.add_argument("--source-commit", default=None)
     parser.add_argument("--workflow-run-id", default=None)
-    parser.add_argument("--built-at", required=True, help="ISO-8601 build completion timestamp with timezone.")
+    parser.add_argument(
+        "--built-at",
+        required=True,
+        help="ISO-8601 build completion timestamp with timezone.",
+    )
     parser.add_argument("--workflow-run-url")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
         descriptor = generate_descriptor(
             args.build_output_dir,
-            source_commit=args.source_commit or __import__("os").environ.get("GITHUB_SHA", ""),
-            workflow_run_id=args.workflow_run_id or __import__("os").environ.get("GITHUB_RUN_ID", ""),
+            source_commit=args.source_commit
+            or __import__("os").environ.get("GITHUB_SHA", ""),
+            workflow_run_id=args.workflow_run_id
+            or __import__("os").environ.get("GITHUB_RUN_ID", ""),
             built_at=args.built_at,
             workflow_run_url=args.workflow_run_url,
         )
-        raw = (json.dumps(descriptor, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        raw = (
+            json.dumps(descriptor, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8")
         args.output.parent.mkdir(parents=True, exist_ok=True)
         temporary = args.output.with_suffix(args.output.suffix + ".tmp")
         try:

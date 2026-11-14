@@ -74,10 +74,7 @@
     "product": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "name"
-      ],
+      "required": ["id", "name"],
       "properties": {
         "id": {
           "type": "string",
@@ -99,19 +96,13 @@
         }
       },
       "dependentRequired": {
-        "release": [
-          "release_source"
-        ]
+        "release": ["release_source"]
       }
     },
     "artifact": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "repository",
-        "digest",
-        "platform"
-      ],
+      "required": ["repository", "digest", "platform"],
       "properties": {
         "repository": {
           "type": "string",
@@ -186,10 +177,7 @@
         "lock": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "version",
-            "sha256"
-          ],
+          "required": ["version", "sha256"],
           "properties": {
             "version": {
               "const": 2
@@ -223,11 +211,7 @@
         "verification": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "status",
-            "evidence_name",
-            "evidence_sha256"
-          ],
+          "required": ["status", "evidence_name", "evidence_sha256"],
           "properties": {
             "status": {
               "const": "passed"
@@ -245,12 +229,7 @@
     "application": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "app_name",
-        "repository",
-        "requested_ref",
-        "actual_commit"
-      ],
+      "required": ["app_name", "repository", "requested_ref", "actual_commit"],
       "properties": {
         "app_name": {
           "type": "string",
@@ -378,17 +357,12 @@
       ],
       "properties": {
         "scope": {
-          "enum": [
-            "builder_stage",
-            "final_runtime_image"
-          ],
+          "enum": ["builder_stage", "final_runtime_image"],
           "description": "Must identify the stage actually measured. Builder inventory must not be represented as final runtime inventory."
         },
         "source_evidence": {
           "type": "string",
-          "enum": [
-            "build_inventory"
-          ]
+          "enum": ["build_inventory"]
         },
         "framework": {
           "$ref": "#/$defs/sourceApplication"
@@ -408,11 +382,7 @@
         "platform": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "system",
-            "machine",
-            "oci"
-          ],
+          "required": ["system", "machine", "oci"],
           "properties": {
             "system": {
               "type": "string",
@@ -457,9 +427,7 @@
     "runtimeComponent": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version"
-      ],
+      "required": ["version"],
       "properties": {
         "version": {
           "type": "string",
@@ -474,10 +442,7 @@
     "package": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "name",
-        "version"
-      ],
+      "required": ["name", "version"],
       "properties": {
         "name": {
           "type": "string",
@@ -528,18 +493,10 @@
     "requirementDomain": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "state",
-        "declarations",
-        "verification"
-      ],
+      "required": ["state", "declarations", "verification"],
       "properties": {
         "state": {
-          "enum": [
-            "not_declared",
-            "declared",
-            "verified"
-          ]
+          "enum": ["not_declared", "declared", "verified"]
         },
         "declarations": {
           "type": "array",
@@ -562,9 +519,7 @@
                 "const": "not_declared"
               }
             },
-            "required": [
-              "state"
-            ]
+            "required": ["state"]
           },
           "then": {
             "properties": {
@@ -584,9 +539,7 @@
                 "const": "declared"
               }
             },
-            "required": [
-              "state"
-            ]
+            "required": ["state"]
           },
           "then": {
             "properties": {
@@ -603,9 +556,7 @@
                 "const": "verified"
               }
             },
-            "required": [
-              "state"
-            ]
+            "required": ["state"]
           },
           "then": {
             "properties": {
@@ -623,12 +574,7 @@
     "declaration": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "authority",
-        "reference",
-        "sha256",
-        "claims"
-      ],
+      "required": ["authority", "reference", "sha256", "claims"],
       "properties": {
         "authority": {
           "enum": [
@@ -658,12 +604,7 @@
     "requirementVerification": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "method",
-        "result",
-        "evidence_reference",
-        "evidence_sha256"
-      ],
+      "required": ["method", "result", "evidence_reference", "evidence_sha256"],
       "properties": {
         "method": {
           "type": "string",
@@ -692,12 +633,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "name",
-          "path",
-          "sha256",
-          "size_bytes"
-        ],
+        "required": ["name", "path", "sha256", "size_bytes"],
         "properties": {
           "name": {
             "enum": [
@@ -791,12 +727,7 @@
     "pythonRuntime": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "executable",
-        "environment",
-        "version",
-        "implementation"
-      ],
+      "required": ["executable", "environment", "version", "implementation"],
       "properties": {
         "executable": {
           "type": "string",
@@ -818,16 +749,11 @@
     },
     "optionalVersion": {
       "type": "object",
-      "required": [
-        "version"
-      ],
+      "required": ["version"],
       "additionalProperties": false,
       "properties": {
         "version": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       }
     }

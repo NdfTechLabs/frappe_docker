@@ -2,7 +2,6 @@ import hashlib
 import json
 
 import pytest
-
 from scripts.bind_verification_evidence import create_verification_evidence
 from scripts.generate_product_deployment_descriptor import (
     DescriptorGenerationError,
@@ -108,7 +107,9 @@ def _refresh_evidence_bindings(output_dir):
     inventory_path = output_dir / "build-inventory.json"
     build_evidence_path = output_dir / "build-evidence.json"
     build_evidence = json.loads(build_evidence_path.read_text(encoding="utf-8"))
-    build_evidence["inventory_sha256"] = hashlib.sha256(inventory_path.read_bytes()).hexdigest()
+    build_evidence["inventory_sha256"] = hashlib.sha256(
+        inventory_path.read_bytes()
+    ).hexdigest()
     build_evidence["lock_sha256"] = lock_sha
     _write_json(build_evidence_path, build_evidence)
 
@@ -120,10 +121,22 @@ def _refresh_evidence_bindings(output_dir):
         "build_inventory": ("build-inventory.json", "build-inventory.json"),
         "build_evidence": ("build-evidence.json", "build-evidence.json"),
         "source_provenance": ("source-provenance.json", "source-provenance.json"),
-        "source_provenance_verification": ("source-provenance-verification.json", "source-provenance-verification.json"),
-        "source_tree_post_cleanup": ("source-tree-verification-post-cleanup.json", "source-tree-verification-post-cleanup.json"),
-        "source_tree_runtime": ("source-tree-verification-runtime.json", "source-tree-verification-runtime.json"),
-        "image_composition_verification": ("image-composition-verification.json", "image-composition-verification.json"),
+        "source_provenance_verification": (
+            "source-provenance-verification.json",
+            "source-provenance-verification.json",
+        ),
+        "source_tree_post_cleanup": (
+            "source-tree-verification-post-cleanup.json",
+            "source-tree-verification-post-cleanup.json",
+        ),
+        "source_tree_runtime": (
+            "source-tree-verification-runtime.json",
+            "source-tree-verification-runtime.json",
+        ),
+        "image_composition_verification": (
+            "image-composition-verification.json",
+            "image-composition-verification.json",
+        ),
     }
     artifacts = {
         name: (logical_path, (output_dir / filename).read_bytes())
@@ -148,7 +161,9 @@ def _refresh_evidence_bindings(output_dir):
         statuses=statuses,
     )
     _write_json(output_dir / "image-verification-evidence.json", evidence)
-    validation = json.loads((output_dir / "image-validation.json").read_text(encoding="utf-8"))
+    validation = json.loads(
+        (output_dir / "image-validation.json").read_text(encoding="utf-8")
+    )
     validation["verification_evidence"] = evidence
     _write_json(output_dir / "image-validation.json", validation)
 
@@ -173,12 +188,14 @@ def complete_build_output(tmp_path):
     inventory = {
         "stage": "builder",
         "lock": {"version": 2, "sha256": lock_sha},
-        "applications": [{
-            "name": "frappe",
-            "repository": "frappe/frappe",
-            "requested_ref": "version-16",
-            "actual_commit": APP_COMMIT,
-        }],
+        "applications": [
+            {
+                "name": "frappe",
+                "repository": "frappe/frappe",
+                "requested_ref": "version-16",
+                "actual_commit": APP_COMMIT,
+            }
+        ],
         "framework": {
             "name": "frappe",
             "repository": "frappe/frappe",
@@ -207,11 +224,13 @@ def complete_build_output(tmp_path):
         "external_requirements": [],
     }
     provenance = {
-        "repositories": [{
-            "name": "frappe",
-            "actual_commit": APP_COMMIT,
-            "source_tree": {"sha256": "c" * 64},
-        }]
+        "repositories": [
+            {
+                "name": "frappe",
+                "actual_commit": APP_COMMIT,
+                "source_tree": {"sha256": "c" * 64},
+            }
+        ]
     }
     payloads = {
         "apps.json": {"apps": ["frappe"]},
@@ -240,36 +259,50 @@ def complete_build_output(tmp_path):
         (tmp_path / "build-inventory.json").read_bytes()
     ).hexdigest()
     _write_json(build_evidence_path, build_evidence)
-    _write_json(tmp_path / "image-validation.json", {
-        "status": "passed",
-        "image_id": IMAGE_ID,
-        "image_digest": IMAGE_DIGEST,
-        "verification_evidence": {},
-    })
+    _write_json(
+        tmp_path / "image-validation.json",
+        {
+            "status": "passed",
+            "image_id": IMAGE_ID,
+            "image_digest": IMAGE_DIGEST,
+            "verification_evidence": {},
+        },
+    )
     _refresh_evidence_bindings(tmp_path)
 
-    _write_json(tmp_path / "build-result.json", {
-        "digest": IMAGE_DIGEST,
-        "image_id": IMAGE_ID,
-        "repository": IMAGE_REPOSITORY,
-        "platforms": ["linux/amd64"],
-        "tags": ["candidate-test"],
-    })
-    evidence = json.loads((tmp_path / "image-verification-evidence.json").read_text(encoding="utf-8"))
-    _write_json(tmp_path / "image-validation.json", {
-        "status": "passed",
-        "image_id": IMAGE_ID,
-        "image_digest": IMAGE_DIGEST,
-        "verification_evidence": evidence,
-    })
-    _write_json(tmp_path / "publication-gate.json", {
-        "status": "ready",
-        "image": {
-            "id": IMAGE_ID,
-            "repository": IMAGE_REPOSITORY,
+    _write_json(
+        tmp_path / "build-result.json",
+        {
             "digest": IMAGE_DIGEST,
+            "image_id": IMAGE_ID,
+            "repository": IMAGE_REPOSITORY,
+            "platforms": ["linux/amd64"],
+            "tags": ["candidate-test"],
         },
-    })
+    )
+    evidence = json.loads(
+        (tmp_path / "image-verification-evidence.json").read_text(encoding="utf-8")
+    )
+    _write_json(
+        tmp_path / "image-validation.json",
+        {
+            "status": "passed",
+            "image_id": IMAGE_ID,
+            "image_digest": IMAGE_DIGEST,
+            "verification_evidence": evidence,
+        },
+    )
+    _write_json(
+        tmp_path / "publication-gate.json",
+        {
+            "status": "ready",
+            "image": {
+                "id": IMAGE_ID,
+                "repository": IMAGE_REPOSITORY,
+                "digest": IMAGE_DIGEST,
+            },
+        },
+    )
     return tmp_path
 
 
@@ -283,13 +316,17 @@ def _generate(output_dir, **overrides):
     return generate_descriptor(output_dir, **arguments)
 
 
-def test_generates_complete_schema_valid_descriptor_deterministically(complete_build_output):
+def test_generates_complete_schema_valid_descriptor_deterministically(
+    complete_build_output,
+):
     first = _generate(complete_build_output)
     second = _generate(complete_build_output)
 
     assert first == second
     assert first["descriptor_id"] == f"pdd:dalali:linux-amd64:sha256:{'a' * 64}"
-    assert first["artifact"]["immutable_reference"] == f"{IMAGE_REPOSITORY}@{IMAGE_DIGEST}"
+    assert (
+        first["artifact"]["immutable_reference"] == f"{IMAGE_REPOSITORY}@{IMAGE_DIGEST}"
+    )
     assert first["composition"]["applications"][0]["actual_commit"] == APP_COMMIT
     assert first["runtime_inventory"]["scope"] == "builder_stage"
     assert len(first["evidence"]) == 11
@@ -297,8 +334,13 @@ def test_generates_complete_schema_valid_descriptor_deterministically(complete_b
 
 
 def test_rejects_publication_gate_not_ready(complete_build_output):
-    _write_json(complete_build_output / "publication-gate.json", {"status": "blocked", "image": {}})
-    with pytest.raises(DescriptorGenerationError, match="Publication gate must be ready"):
+    _write_json(
+        complete_build_output / "publication-gate.json",
+        {"status": "blocked", "image": {}},
+    )
+    with pytest.raises(
+        DescriptorGenerationError, match="Publication gate must be ready"
+    ):
         _generate(complete_build_output)
 
 
@@ -311,22 +353,30 @@ def test_rejects_publication_gate_image_digest_mismatch(complete_build_output):
 
 
 def test_rejects_buildx_and_result_digest_mismatch(complete_build_output):
-    _write_json(complete_build_output / "buildx-metadata.json", {
-        "containerimage.digest": "sha256:" + "e" * 64
-    })
-    with pytest.raises(DescriptorGenerationError, match="Buildx metadata and build-result digests differ"):
+    _write_json(
+        complete_build_output / "buildx-metadata.json",
+        {"containerimage.digest": "sha256:" + "e" * 64},
+    )
+    with pytest.raises(
+        DescriptorGenerationError,
+        match="Buildx metadata and build-result digests differ",
+    ):
         _generate(complete_build_output)
 
 
 def test_rejects_lock_bytes_not_bound_by_build_metadata(complete_build_output):
-    (complete_build_output / LOCK_FILENAME).write_bytes(b'{"lock_version":2,"tampered":true}\n')
+    (complete_build_output / LOCK_FILENAME).write_bytes(
+        b'{"lock_version":2,"tampered":true}\n'
+    )
     with pytest.raises(DescriptorGenerationError, match="exact lock-v2 bytes"):
         _generate(complete_build_output)
 
 
 def test_rejects_tampered_bound_evidence(complete_build_output):
     (complete_build_output / "source-provenance.json").write_text('{"tampered":true}\n')
-    with pytest.raises(DescriptorGenerationError, match="Digest-bound evidence verification failed"):
+    with pytest.raises(
+        DescriptorGenerationError, match="Digest-bound evidence verification failed"
+    ):
         _generate(complete_build_output)
 
 
@@ -335,20 +385,25 @@ def test_rejects_application_commit_not_confirmed_by_provenance(complete_build_o
     inventory["applications"][0]["actual_commit"] = "e" * 40
     _write_json(complete_build_output / "build-inventory.json", inventory)
     _refresh_evidence_bindings(complete_build_output)
-    with pytest.raises(DescriptorGenerationError, match="Source provenance does not confirm actual commit"):
+    with pytest.raises(
+        DescriptorGenerationError,
+        match="Source provenance does not confirm actual commit",
+    ):
         _generate(complete_build_output)
 
 
 def test_rejects_lock_service_not_confirmed_by_composition(complete_build_output):
     lock_path = complete_build_output / LOCK_FILENAME
     lock = json.loads(lock_path.read_text())
-    lock["services"] = [{
-        "service_id": "redis",
-        "descriptor": "services/redis.json",
-        "descriptor_sha256": "f" * 64,
-        "depends_on": [],
-        "artifact": {"image": "redis@sha256:" + "1" * 64},
-    }]
+    lock["services"] = [
+        {
+            "service_id": "redis",
+            "descriptor": "services/redis.json",
+            "descriptor_sha256": "f" * 64,
+            "depends_on": [],
+            "artifact": {"image": "redis@sha256:" + "1" * 64},
+        }
+    ]
     lock_bytes = (json.dumps(lock, sort_keys=True) + "\n").encode()
     lock_path.write_bytes(lock_bytes)
     lock_sha = hashlib.sha256(lock_bytes).hexdigest()
@@ -358,29 +413,49 @@ def test_rejects_lock_service_not_confirmed_by_composition(complete_build_output
     inventory = json.loads((complete_build_output / "build-inventory.json").read_text())
     inventory["lock"]["sha256"] = lock_sha
     _write_json(complete_build_output / "build-inventory.json", inventory)
-    composition = json.loads((complete_build_output / "image-composition-verification.json").read_text())
+    composition = json.loads(
+        (complete_build_output / "image-composition-verification.json").read_text()
+    )
     composition["lock"]["sha256"] = lock_sha
-    _write_json(complete_build_output / "image-composition-verification.json", composition)
-    build_evidence = json.loads((complete_build_output / "build-evidence.json").read_text())
+    _write_json(
+        complete_build_output / "image-composition-verification.json", composition
+    )
+    build_evidence = json.loads(
+        (complete_build_output / "build-evidence.json").read_text()
+    )
     build_evidence["lock_sha256"] = lock_sha
     _write_json(complete_build_output / "build-evidence.json", build_evidence)
     _refresh_evidence_bindings(complete_build_output)
-    with pytest.raises(DescriptorGenerationError, match="Lock service inventory does not match verified composition"):
+    with pytest.raises(
+        DescriptorGenerationError,
+        match="Lock service inventory does not match verified composition",
+    ):
         _generate(complete_build_output)
 
 
-def test_cli_writes_descriptor_atomically_and_cleans_temporary_file(complete_build_output, tmp_path, monkeypatch):
+def test_cli_writes_descriptor_atomically_and_cleans_temporary_file(
+    complete_build_output, tmp_path, monkeypatch
+):
     import sys
 
     output = tmp_path / "published" / "product-deployment.json"
-    monkeypatch.setattr(sys, "argv", [
-        "generate_product_deployment_descriptor",
-        "--build-output-dir", str(complete_build_output),
-        "--source-commit", "d" * 40,
-        "--workflow-run-id", "43610000000",
-        "--built-at", "2026-11-14T12:00:00Z",
-        "--output", str(output),
-    ])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_product_deployment_descriptor",
+            "--build-output-dir",
+            str(complete_build_output),
+            "--source-commit",
+            "d" * 40,
+            "--workflow-run-id",
+            "43610000000",
+            "--built-at",
+            "2026-11-14T12:00:00Z",
+            "--output",
+            str(output),
+        ],
+    )
 
     assert main() == 0
     generated = json.loads(output.read_text(encoding="utf-8"))
@@ -405,14 +480,23 @@ def test_cli_preserves_existing_output_and_cleans_temp_file_on_replace_failure(
         return original_replace(self, target)
 
     monkeypatch.setattr(Path, "replace", fail_temporary_replace)
-    monkeypatch.setattr(sys, "argv", [
-        "generate_product_deployment_descriptor",
-        "--build-output-dir", str(complete_build_output),
-        "--source-commit", "d" * 40,
-        "--workflow-run-id", "43610000000",
-        "--built-at", "2026-11-14T12:00:00Z",
-        "--output", str(output),
-    ])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_product_deployment_descriptor",
+            "--build-output-dir",
+            str(complete_build_output),
+            "--source-commit",
+            "d" * 40,
+            "--workflow-run-id",
+            "43610000000",
+            "--built-at",
+            "2026-11-14T12:00:00Z",
+            "--output",
+            str(output),
+        ],
+    )
 
     assert main() == 1
     assert output.read_text(encoding="utf-8") == "previous-valid-output\n"
