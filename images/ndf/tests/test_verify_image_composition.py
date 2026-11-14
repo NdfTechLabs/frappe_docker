@@ -244,3 +244,40 @@ def test_rejects_bench_service_identity_collision(composition_case):
     composition_case["lock"]["external_requirements"]=[record]
     with pytest.raises(CompositionVerificationError,match="collides"):
         run_case(composition_case)
+
+
+
+def test_rejects_manifest_application_missing_from_lock(composition_case):
+    path = composition_case["root"] / "images/ndf/manifests/products/sample.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["applications"].append({"name": "undeclared_in_lock", "required": True})
+    raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\\n").encode()
+    path.write_bytes(raw)
+    composition_case["lock"]["manifests"][0]["sha256"] = hashlib.sha256(raw).hexdigest()
+    with pytest.raises(CompositionVerificationError, match="absent from lock-v2"):
+        run_case(composition_case)
+
+
+def test_rejects_container_external_category_substitution(composition_case):
+    descriptor = {
+        "descriptor_version":"1.0.0","service_id":"worker","name":"Worker",
+        "service_kind":"external","provider":{"name":"Provider","requirement":"Managed worker"},
+    }
+    record = write_service(composition_case, "worker", descriptor)
+    record["resolution_order"] = 1
+    composition_case["lock"]["services"] = [record]
+    with pytest.raises(CompositionVerificationError, match="identity/category mismatch"):
+        run_case(composition_case)
+
+
+def test_rejects_duplicate_service_identity_across_categories(composition_case):
+    descriptor = {
+        "descriptor_version":"1.0.0","service_id":"shared","name":"Shared",
+        "service_kind":"external","provider":{"name":"Provider","requirement":"Shared"},
+    }
+    record = write_service(composition_case, "shared", descriptor)
+    record["resolution_order"] = 1
+    composition_case["lock"]["external_requirements"] = [record]
+    composition_case["lock"]["services"] = [dict(record)]
+    with pytest.raises(CompositionVerificationError, match="Duplicate/cross-category"):
+        run_case(composition_case)
