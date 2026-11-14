@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from scripts.generate_product_deployment_descriptor import _canonical_json
 from scripts.validate_product_deployment_descriptor import (
     DescriptorValidationError,
-    _canonical_json,
     main,
     validate_descriptor,
 )
