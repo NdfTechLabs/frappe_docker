@@ -286,6 +286,52 @@ def validate_inventory(
     }
 
 
+def check_independent_submodules(
+    observed: list[dict[str, Any]],
+    expected_items: list[dict[str, Any]],
+    label: str,
+) -> None:
+    by_path = {item["path"]: item for item in observed}
+    expected_by_path = {item["path"]: item for item in expected_items}
+    if len(by_path) != len(observed) or len(expected_by_path) != len(expected_items):
+        raise ImageValidationError(
+            f"Independent submodule verification contains duplicate paths for {label}."
+        )
+    if set(by_path) != set(expected_by_path):
+        raise ImageValidationError(
+            f"Independent submodule verification composition mismatch for {label}."
+        )
+    for path, expected_item in expected_by_path.items():
+        result = by_path[path]
+        materialized = expected_item["materialized"]
+        if (
+            result["materialized"] is not materialized
+            or result["expected_commit"] != expected_item["expected_commit"]
+        ):
+            raise ImageValidationError(
+                f"Independent submodule identity mismatch for {label}:{path}."
+            )
+        if not materialized:
+            if result["status"] != "metadata_only":
+                raise ImageValidationError(
+                    f"Independent uninitialized submodule status mismatch for {label}:{path}."
+                )
+            continue
+        if (
+            result["status"] != "verified"
+            or result["actual_commit"] != expected_item["actual_commit"]
+            or result["head_tree"] != expected_item["head_tree"]
+            or result["tracked_content"] != expected_item["tracked_content"]
+            or result["generated_content"] != expected_item["generated_content"]
+            or result["source_tree"] != expected_item["source_tree"]
+        ):
+            raise ImageValidationError(
+                f"Independent submodule evidence mismatch for {label}:{path}."
+            )
+        check_independent_submodules(
+            result["submodules"], expected_item["submodules"], f"{label}:{path}"
+        )
+
 def validate_source_tree_evidence(
     contents: dict[str, Any], lock_sha256: str, lock_data: dict[str, Any]
 ) -> dict[str, Any]:
@@ -382,52 +428,6 @@ def validate_source_tree_evidence(
                 check_submodules(
                     actual["submodules"], item["submodules"], f"{label}:{item['path']}"
                 )
-
-    def check_independent_submodules(
-        observed: list[dict[str, Any]],
-        expected_items: list[dict[str, Any]],
-        label: str,
-    ) -> None:
-        by_path = {item["path"]: item for item in observed}
-        expected_by_path = {item["path"]: item for item in expected_items}
-        if len(by_path) != len(observed) or len(expected_by_path) != len(expected_items):
-            raise ImageValidationError(
-                f"Independent submodule verification contains duplicate paths for {label}."
-            )
-        if set(by_path) != set(expected_by_path):
-            raise ImageValidationError(
-                f"Independent submodule verification composition mismatch for {label}."
-            )
-        for path, expected_item in expected_by_path.items():
-            result = by_path[path]
-            materialized = expected_item["materialized"]
-            if (
-                result["materialized"] is not materialized
-                or result["expected_commit"] != expected_item["expected_commit"]
-            ):
-                raise ImageValidationError(
-                    f"Independent submodule identity mismatch for {label}:{path}."
-                )
-            if not materialized:
-                if result["status"] != "metadata_only":
-                    raise ImageValidationError(
-                        f"Independent uninitialized submodule status mismatch for {label}:{path}."
-                    )
-                continue
-            if (
-                result["status"] != "verified"
-                or result["actual_commit"] != expected_item["actual_commit"]
-                or result["head_tree"] != expected_item["head_tree"]
-                or result["tracked_content"] != expected_item["tracked_content"]
-                or result["generated_content"] != expected_item["generated_content"]
-                or result["source_tree"] != expected_item["source_tree"]
-            ):
-                raise ImageValidationError(
-                    f"Independent submodule evidence mismatch for {label}:{path}."
-                )
-            check_independent_submodules(
-                result["submodules"], expected_item["submodules"], f"{label}:{path}"
-            )
 
     independent = decoded["source_provenance_verification"]
     if (
