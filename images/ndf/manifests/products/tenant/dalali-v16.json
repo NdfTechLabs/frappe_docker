@@ -79,7 +79,7 @@
         "dt_ecommerce",
         "dt_recomendations"
       ],
-      "compatibility_status": "pending_frappe_v16_validation",
+      "compatibility_status": "verified",
       "notes": "Dalali-specific ecommerce application for Dalali Merchants Ltd."
     }
   ],

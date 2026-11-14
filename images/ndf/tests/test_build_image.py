@@ -10,6 +10,7 @@ from scripts.build_image import (
     execute_build,
     get_manifest_checksum,
     normalize_platforms,
+    resolve_base_images,
     validate_image_tags,
 )
 
@@ -69,18 +70,25 @@ def _build_command(tmp_path, **overrides):
     root = tmp_path
     dockerfile = root / "images" / "layered" / "Containerfile"
     apps_json = root / "images" / "ndf" / ".build" / "dalali" / "apps.json"
+    build_lock = (
+        root / "images" / "ndf" / ".build" / "dalali" / "dalali-v16.lock-v2.json"
+    )
     dockerfile.parent.mkdir(parents=True, exist_ok=True)
     apps_json.parent.mkdir(parents=True, exist_ok=True)
     dockerfile.touch()
     apps_json.write_text("[]", encoding="utf-8")
+    build_lock.write_text('{"lock_version": 2}', encoding="utf-8")
 
     arguments = {
         "repository_root": root,
         "dockerfile": dockerfile,
         "apps_json": apps_json,
+        "build_lock": build_lock,
         "image_repository": "ghcr.io/ndftechlabs/dalali",
         "image_tag": "local",
         "frappe_branch": "version-16",
+        "builder_image": "frappe/build@sha256:" + "1" * 64,
+        "runtime_image": "frappe/base@sha256:" + "2" * 64,
         "labels": {"com.ndf.image.id": "dalali-v16"},
         "platform": "linux/amd64",
         "no_cache": False,
@@ -88,6 +96,45 @@ def _build_command(tmp_path, **overrides):
     }
     arguments.update(overrides)
     return build_command(**arguments)
+
+
+def test_layered_containerfile_uses_required_independent_digest_inputs():
+    repository_root = Path(__file__).resolve().parents[3]
+    containerfile = (
+        repository_root / "images" / "layered" / "Containerfile"
+    ).read_text(encoding="utf-8")
+
+    assert "ARG FRAPPE_BUILD_IMAGE" in containerfile
+    assert "ARG FRAPPE_BASE_IMAGE" in containerfile
+    assert "FROM ${FRAPPE_BUILD_IMAGE} AS builder" in containerfile
+    assert "FROM ${FRAPPE_BASE_IMAGE} AS backend" in containerfile
+    assert "capture_build_inventory.py" in containerfile
+    assert "id=build_lock" in containerfile
+    capture_position = containerfile.index("--bench /home/frappe/frappe-bench")
+    cleanup_position = containerfile.index('find apps -mindepth 1 -path "*/.git"')
+    assert capture_position < cleanup_position
+    assert "FROM frappe/build:${FRAPPE_BRANCH}" not in containerfile
+    assert "FROM frappe/base:${FRAPPE_BRANCH}" not in containerfile
+
+
+def test_resolve_base_images_uses_the_accepted_rt01_platform_digests():
+    ndf_dir = Path(__file__).resolve().parents[1]
+    resolved = resolve_base_images(ndf_dir, ["linux/amd64"])
+
+    assert resolved["platform"] == "linux/amd64"
+    assert resolved["builder"] == (
+        "frappe/build@sha256:c91399e52261c38422f28ce09ab5884d12e30d4393854ac32ed74975c135805b"
+    )
+    assert resolved["runtime"] == (
+        "frappe/base@sha256:f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+    )
+    assert resolved["inventory_manifest_sha256"]
+
+
+def test_resolve_base_images_rejects_unsupported_platforms():
+    ndf_dir = Path(__file__).resolve().parents[1]
+    with pytest.raises(BuildExecutionError, match="[Oo]nly linux/amd64"):
+        resolve_base_images(ndf_dir, ["linux/arm64"])
 
 
 def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
@@ -101,9 +148,13 @@ def test_build_command_loads_locally_and_uses_buildkit_secret(tmp_path):
     assert "--push" not in command
     assert "--secret" in command
     assert any(item.startswith("id=apps_json,src=") for item in command)
+    assert any(item.startswith("id=build_lock,src=") for item in command)
     assert "FRAPPE_BRANCH=version-16" in command
+    assert "FRAPPE_BUILD_IMAGE=frappe/build@sha256:" + "1" * 64 in command
+    assert "FRAPPE_BASE_IMAGE=frappe/base@sha256:" + "2" * 64 in command
     assert "ghcr.io/ndftechlabs/dalali:local" in command
     assert "linux/amd64" in command
+    assert "--build-arg" in command
     assert "--no-cache" in command
     assert "ndf-local" in command
 

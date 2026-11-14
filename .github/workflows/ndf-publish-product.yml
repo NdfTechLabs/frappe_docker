@@ -14,13 +14,17 @@ on:
           - dalali-v16
           - vincowoods-v16
       platform:
-        description: Target platform(s)
+        description: Target platform
         required: true
         type: choice
         default: linux/amd64
         options:
           - linux/amd64
-          - linux/amd64,linux/arm64
+      publish:
+        description: Promote the verified staging digest to the official immutable source tag (main only)
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,8 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-            echo "Publishing is permitted only from main." >&2
+          if [[ "${{ inputs.publish }}" == "true" && "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Official publication is permitted only from main." >&2
             exit 1
           fi
 
@@ -106,16 +110,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-test.txt
 
+      - name: Run NDF regression tests before staging
+        run: python -m pytest -q images/ndf/tests/
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up QEMU
-        if: contains(env.TARGET_PLATFORMS, 'arm64')
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -128,10 +131,43 @@ jobs:
             --image "$IMAGE_ID" \
             --sha "$GITHUB_SHA" \
             --github-output "$GITHUB_OUTPUT"
+          IMAGE_REPOSITORY="$(awk -F= '$1 == "repository" { value=$2 } END { print value }' "$GITHUB_OUTPUT")"
+          if [[ -z "$IMAGE_REPOSITORY" ]]; then
+            echo "Unable to resolve configured image repository." >&2
+            exit 1
+          fi
+          CANDIDATE_TAG="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "candidate_tag=$CANDIDATE_TAG" >> "$GITHUB_OUTPUT"
+          echo "candidate_ref=$IMAGE_REPOSITORY:$CANDIDATE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Build and publish product image
+      - name: Ensure staging and official tags are unused
         env:
-          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          CANDIDATE_REF: ${{ steps.image.outputs.candidate_ref }}
+          PUBLICATION_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          assert_tag_absent() {
+            local ref="$1"
+            local output
+            if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
+              echo "Registry tag already exists: $ref" >&2
+              return 1
+            fi
+            if grep -Eqi 'not found|manifest unknown|404' <<< "$output"; then
+              return 0
+            fi
+            echo "Unable to prove registry tag is absent: $ref" >&2
+            echo "$output" >&2
+            return 1
+          }
+          assert_tag_absent "$CANDIDATE_REF"
+          if [[ "${{ inputs.publish }}" == "true" ]]; then
+            assert_tag_absent "$PUBLICATION_REF"
+          fi
+
+      - name: Build staging image (not the official product tag)
+        env:
+          IMAGE_TAG: ${{ steps.image.outputs.candidate_tag }}
         run: |
           set -euo pipefail
           mkdir -p "$BUILD_OUTPUT"
@@ -146,7 +182,7 @@ jobs:
             --progress plain \
             --push
 
-      - name: Verify published digest metadata
+      - name: Verify staging digest metadata
         id: digest
         run: |
           set -euo pipefail
@@ -165,17 +201,83 @@ jobs:
           print(f"digest={digest}")
           PY
 
-      - name: Pull published image for validation
-        run: docker pull "${{ steps.image.outputs.image_ref }}"
+      - name: Confirm staging tag resolves to the Buildx digest
+        env:
+          CANDIDATE_REF: ${{ steps.image.outputs.candidate_ref }}
+          EXPECTED_DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          INSPECT_OUTPUT="$(docker buildx imagetools inspect "$CANDIDATE_REF")"
+          ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
+          if [[ "$ACTUAL_DIGEST" != "$EXPECTED_DIGEST" ]]; then
+            echo "Staging tag digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
+            exit 1
+          fi
 
-      - name: Validate published image contents and metadata
+      - name: Pull staging image for validation
+        run: docker pull "${{ steps.image.outputs.candidate_ref }}"
+
+      - name: Validate staging image contents and metadata
         run: |
           set -euo pipefail
           python images/ndf/scripts/validate_image.py \
-            --image "${{ steps.image.outputs.image_ref }}" \
+            --image "${{ steps.image.outputs.candidate_ref }}" \
             --metadata "$BUILD_OUTPUT/build-metadata.json" \
-            --lock "images/ndf/locks/$IMAGE_ID.lock.json" \
-            --report "$BUILD_OUTPUT/registry-validation.json"
+            --lock "$BUILD_OUTPUT/$IMAGE_ID.lock-v2.json" \
+            --buildx-metadata "$BUILD_OUTPUT/buildx-metadata.json" \
+            --inventory-output "$BUILD_OUTPUT/build-inventory.json" \
+            --apps-json "$BUILD_OUTPUT/apps.json" \
+            --composition-output "$BUILD_OUTPUT/image-composition-verification.json" \
+            --verification-evidence-output "$BUILD_OUTPUT/image-verification-evidence.json" \
+            --evidence-output "$BUILD_OUTPUT/build-evidence.json" \
+            --source-provenance-output "$BUILD_OUTPUT/source-provenance.json" \
+            --source-provenance-verification-output "$BUILD_OUTPUT/source-provenance-verification.json" \
+            --post-cleanup-verification-output "$BUILD_OUTPUT/source-tree-verification-post-cleanup.json" \
+            --runtime-verification-output "$BUILD_OUTPUT/source-tree-verification-runtime.json" \
+            --report "$BUILD_OUTPUT/image-validation.json"
+
+      - name: Verify publication gate
+        run: |
+          set -euo pipefail
+          FRAMEWORK_MAJOR="$(python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["framework"]["version"].split(".")[0])' "$BUILD_OUTPUT/build-metadata.json")"
+          python images/ndf/scripts/gate_image_publication.py \
+            --build-output-dir "$BUILD_OUTPUT" \
+            --image-id "$IMAGE_ID" \
+            --source-sha "$GITHUB_SHA" \
+            --framework-major "$FRAMEWORK_MAJOR" \
+            --candidate-image-ref "${{ steps.image.outputs.candidate_ref }}" \
+            --publication-image-ref "${{ steps.image.outputs.image_ref }}" \
+            --report "$BUILD_OUTPUT/publication-gate.json"
+
+      - name: Promote verified digest to official source tag
+        if: ${{ inputs.publish }}
+        env:
+          PUBLICATION_REF: ${{ steps.image.outputs.image_ref }}
+          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
+          EXPECTED_DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          INSPECT_OUTPUT=""
+          if INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF" 2>&1)"; then
+            echo "Official immutable source tag appeared during the build: $PUBLICATION_REF" >&2
+            exit 1
+          fi
+          if ! grep -Eqi 'not found|manifest unknown|404' <<< "$INSPECT_OUTPUT"; then
+            echo "Unable to prove official source tag is absent: $PUBLICATION_REF" >&2
+            echo "$INSPECT_OUTPUT" >&2
+            exit 1
+          fi
+          docker buildx imagetools create --tag "$PUBLICATION_REF" "$IMAGE_REPOSITORY@$EXPECTED_DIGEST"
+          INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF")"
+          ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
+          if [[ "$ACTUAL_DIGEST" != "$EXPECTED_DIGEST" ]]; then
+            echo "Official publication digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
+            exit 1
+          fi
+
+      - name: Record staging-only result
+        if: ${{ !inputs.publish }}
+        run: echo "Verification gate passed. Official publication was not requested; no official product tag was created." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write publishing summary
         env:
@@ -183,10 +285,12 @@ jobs:
           IMAGE_DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
           {
-            echo "## Published NDF product image"
+            echo "## NDF product image verification and publication"
             echo
-            echo "- Image: $IMAGE_REF"
-            echo "- Digest: $IMAGE_DIGEST"
+            echo "- Staging image: ${{ steps.image.outputs.candidate_ref }}"
+            echo "- Validated digest: $IMAGE_DIGEST"
+            echo "- Official source tag: ${{ steps.image.outputs.image_ref }}"
+            echo "- Official publication requested: ${{ inputs.publish }}"
             echo "- Source commit: $GITHUB_SHA"
             echo "- Platforms: $TARGET_PLATFORMS"
           } >> "$GITHUB_STEP_SUMMARY"

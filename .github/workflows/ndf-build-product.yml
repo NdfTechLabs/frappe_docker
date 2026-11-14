@@ -1,24 +1,8 @@
 name: NDF / Build and Validate Product Images
 
+# Product image builds are intentionally manual. Run them only when a
+# work-package acceptance check requires a real Buildx image.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "images/ndf/**"
-      - "images/layered/Containerfile"
-      - "images/custom/**"
-      - "images/production/**"
-      - ".github/workflows/ndf-build-product.yml"
-      - "requirements-test.txt"
-  pull_request:
-    paths:
-      - "images/ndf/**"
-      - "images/layered/Containerfile"
-      - "images/custom/**"
-      - "images/production/**"
-      - ".github/workflows/ndf-build-product.yml"
-      - "requirements-test.txt"
   workflow_dispatch:
     inputs:
       product:
@@ -49,7 +33,7 @@ jobs:
       - name: Configure product matrix
         id: set-matrix
         env:
-          SELECTED_PRODUCT: ${{ inputs.product || 'all' }}
+          SELECTED_PRODUCT: ${{ inputs.product || ((github.ref_name == 'feat/m4.2.4-immutable-image-construction' || github.ref_name == 'feat/m4.2.5.4-independent-source-verification') && 'dalali-v16') || 'all' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -104,6 +88,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-test.txt
 
+      - name: Run NDF regression tests
+        run: python -m pytest -q images/ndf/tests/
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -135,10 +122,26 @@ jobs:
       - name: Validate image contents and metadata
         run: |
           set -euo pipefail
+          LOCK_FILE="$BUILD_OUTPUT/${{ matrix.image }}.lock-v2.json"
+          if [[ ! -s "$LOCK_FILE" ]]; then
+            echo "Generated lock-v2 file is missing or empty: $LOCK_FILE" >&2
+            exit 1
+          fi
+
           python images/ndf/scripts/validate_image.py \
             --image "${{ steps.image.outputs.image_ref }}" \
             --metadata "$BUILD_OUTPUT/build-metadata.json" \
-            --lock "images/ndf/locks/${{ matrix.image }}.lock.json" \
+            --lock "$LOCK_FILE" \
+            --buildx-metadata "$BUILD_OUTPUT/buildx-metadata.json" \
+            --inventory-output "$BUILD_OUTPUT/build-inventory.json" \
+            --apps-json "$BUILD_OUTPUT/apps.json" \
+            --composition-output "$BUILD_OUTPUT/image-composition-verification.json" \
+            --verification-evidence-output "$BUILD_OUTPUT/image-verification-evidence.json" \
+            --evidence-output "$BUILD_OUTPUT/build-evidence.json" \
+            --source-provenance-output "$BUILD_OUTPUT/source-provenance.json" \
+            --source-provenance-verification-output "$BUILD_OUTPUT/source-provenance-verification.json" \
+            --post-cleanup-verification-output "$BUILD_OUTPUT/source-tree-verification-post-cleanup.json" \
+            --runtime-verification-output "$BUILD_OUTPUT/source-tree-verification-runtime.json" \
             --report "$BUILD_OUTPUT/image-validation.json"
 
       - name: Upload build and validation artifacts

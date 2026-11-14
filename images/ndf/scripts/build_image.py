@@ -2,10 +2,11 @@
 """Build an NDF product image locally or publish it with Docker Buildx.
 
 Local loading is the safe default. Registry publishing requires the explicit
---push flag and supports multiple tags and target platforms.
+--push flag. The currently accepted base-image inventory supports linux/amd64.
 """
 
 import argparse
+import hashlib
 import json
 import shlex
 import subprocess
@@ -15,12 +16,72 @@ from typing import Any
 
 try:
     from .prepare_build import BuildPreparationError, prepare_build
+    from .validate_base_inventory import InventoryError, validate_inventory_directory
 except ImportError:
     from prepare_build import BuildPreparationError, prepare_build
+    from validate_base_inventory import InventoryError, validate_inventory_directory
 
 
 class BuildExecutionError(Exception):
     """Raised when a product image build cannot be completed."""
+
+
+DEFAULT_BASE_INVENTORY = Path(
+    "inventories/debian-trixie-amd64/"
+    "f53287f145346c98c7fc4f47d25f86863c5e0be24284f2b8f3346ffe6a76a04c"
+)
+SUPPORTED_PLATFORM = "linux/amd64"
+
+
+def resolve_base_images(
+    ndf_dir: Path,
+    platforms: list[str],
+) -> dict[str, Any]:
+    """Validate the accepted base inventory and return immutable stage refs."""
+    if platforms != [SUPPORTED_PLATFORM]:
+        raise BuildExecutionError(
+            "Only linux/amd64 has accepted RT-01 builder/runtime inventory evidence; "
+            "ARM64 and multi-platform builds remain unsupported."
+        )
+
+    root = (ndf_dir / DEFAULT_BASE_INVENTORY).resolve()
+    ndf_root = ndf_dir.resolve()
+    if not root.is_relative_to(ndf_root):
+        raise BuildExecutionError("Base inventory directory must be inside images/ndf.")
+
+    schema_path = ndf_dir / "schemas" / "base-inventory-manifest-v1.schema.json"
+    try:
+        manifest, _ = validate_inventory_directory(root, schema_path)
+    except InventoryError as exc:
+        raise BuildExecutionError(f"Base inventory validation failed: {exc}") from exc
+
+    stage_refs: dict[str, str] = {}
+    for stage, repository in (("builder", "frappe/build"), ("runtime", "frappe/base")):
+        image = manifest["inventories"][stage]["image"]
+        if image["platform"] != SUPPORTED_PLATFORM:
+            raise BuildExecutionError(
+                f"{stage} base inventory platform {image['platform']!r} "
+                f"does not match {SUPPORTED_PLATFORM!r}."
+            )
+        digest = image["manifest_digest"]
+        expected_ref = f"{repository}@{digest}"
+        if image["reference"] != expected_ref:
+            raise BuildExecutionError(
+                f"{stage} base image must be the approved {repository} "
+                "platform-specific digest reference."
+            )
+        stage_refs[stage] = expected_ref
+
+    manifest_path = root / "inventory-manifest.json"
+    return {
+        "platform": SUPPORTED_PLATFORM,
+        "builder": stage_refs["builder"],
+        "runtime": stage_refs["runtime"],
+        "inventory_manifest": str(manifest_path.relative_to(ndf_root)),
+        "inventory_manifest_sha256": hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest(),
+    }
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -137,9 +198,12 @@ def build_command(
     repository_root: Path,
     dockerfile: Path,
     apps_json: Path,
+    build_lock: Path,
     image_repository: str,
     image_tag: str | None,
     frappe_branch: str,
+    builder_image: str,
+    runtime_image: str,
     labels: dict[str, str],
     platform: str | None = None,
     no_cache: bool = False,
@@ -177,8 +241,14 @@ def build_command(
             f"FRAPPE_BRANCH={frappe_branch}",
             "--build-arg",
             "FRAPPE_PATH=https://github.com/frappe/frappe",
+            "--build-arg",
+            f"FRAPPE_BUILD_IMAGE={builder_image}",
+            "--build-arg",
+            f"FRAPPE_BASE_IMAGE={runtime_image}",
             "--secret",
             f"id=apps_json,src={apps_json}",
+            "--secret",
+            f"id=build_lock,src={build_lock}",
             "--progress",
             progress,
         ]
@@ -290,12 +360,14 @@ def build_image(
     if not dockerfile.is_file():
         raise BuildExecutionError(f"Layered Containerfile not found: {dockerfile}")
 
-    platforms = normalize_platforms(platform)
-    if not push and len(platforms) > 1:
+    platforms = normalize_platforms(platform) or [SUPPORTED_PLATFORM]
+    if platforms != [SUPPORTED_PLATFORM]:
         raise BuildExecutionError(
-            "Local --load supports one platform. "
-            "Use --push for multi-platform builds."
+            "Only linux/amd64 has accepted RT-01 builder/runtime inventory evidence; "
+            "ARM64 and multi-platform builds remain unsupported."
         )
+
+    base_images = resolve_base_images(ndf_dir, platforms)
 
     prepared = prepare_build(
         ndf_dir=ndf_dir,
@@ -306,6 +378,12 @@ def build_image(
 
     metadata = load_json(prepared["metadata_path"])
     lock_data = load_json(prepared["lock_path"])
+    metadata["base_images"] = base_images
+    metadata_path = Path(prepared["metadata_path"])
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     labels = build_labels(metadata, lock_data)
 
     image = prepared["image"]
@@ -324,12 +402,15 @@ def build_image(
         repository_root=repository_root,
         dockerfile=dockerfile,
         apps_json=prepared["apps_json_path"],
+        build_lock=prepared["lock_path"],
         image_repository=image["repository"],
         image_tag=None,
         image_tags=tags,
         frappe_branch=framework["target_ref"],
+        builder_image=base_images["builder"],
+        runtime_image=base_images["runtime"],
         labels=labels,
-        platform=platform,
+        platform=",".join(platforms),
         no_cache=no_cache,
         builder=builder,
         progress=progress,
@@ -355,6 +436,7 @@ def build_image(
         "output": "registry" if push else "local",
         "pushed": push and not dry_run,
         "platforms": platforms,
+        "base_images": base_images,
         "digest": digest,
         "buildx_metadata_file": str(buildx_metadata_path),
         "dry_run": dry_run,

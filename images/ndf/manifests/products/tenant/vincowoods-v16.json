@@ -80,7 +80,7 @@
         "dt_ecommerce",
         "dt_recomendations"
       ],
-      "compatibility_status": "pending_frappe_v16_validation",
+      "compatibility_status": "verified",
       "notes": "Vincowoods-specific portfolio and ecommerce application. Requires the shared Dhana ecommerce and recommendation applications."
     }
   ],

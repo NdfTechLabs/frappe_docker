@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ndf:schemas:image-composition-verification-v1",
+  "title": "NDF Independent Image Composition Verification Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "algorithm",
+    "verifier",
+    "lock",
+    "manifests",
+    "applications",
+    "capabilities",
+    "services",
+    "external_requirements",
+    "service_verification",
+    "category_separation",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "algorithm": {
+      "const": "ndf-image-composition-verification-v1"
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "verify_image_composition.py"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "version": {
+          "const": 2
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "manifests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/manifest"
+      }
+    },
+    "applications": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected",
+        "metadata",
+        "inventory",
+        "runtime_directories",
+        "runtime_apps_txt",
+        "count",
+        "apps_json_verified"
+      ],
+      "properties": {
+        "expected": {
+          "$ref": "#/$defs/names"
+        },
+        "metadata": {
+          "$ref": "#/$defs/names"
+        },
+        "inventory": {
+          "$ref": "#/$defs/names"
+        },
+        "runtime_directories": {
+          "$ref": "#/$defs/names"
+        },
+        "runtime_apps_txt": {
+          "$ref": "#/$defs/names"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "apps_json_verified": {
+          "const": true
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "manifest",
+          "required",
+          "selected"
+        ],
+        "properties": {
+          "manifest": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/service"
+      }
+    },
+    "external_requirements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/service"
+      }
+    },
+    "service_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "descriptor_count",
+        "descriptors",
+        "dependency_order",
+        "dependency_closure_verified"
+      ],
+      "properties": {
+        "descriptor_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "descriptors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "service_id",
+              "path",
+              "sha256",
+              "service_kind"
+            ],
+            "properties": {
+              "service_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "service_kind": {
+                "enum": [
+                  "container",
+                  "external"
+                ]
+              }
+            }
+          }
+        },
+        "dependency_order": {
+          "$ref": "#/$defs/names"
+        },
+        "dependency_closure_verified": {
+          "const": true
+        }
+      }
+    },
+    "category_separation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bench_service_identity_disjoint",
+        "runtime_contains_only_bench_apps"
+      ],
+      "properties": {
+        "bench_service_identity_disjoint": {
+          "const": true
+        },
+        "runtime_contains_only_bench_apps": {
+          "const": true
+        }
+      }
+    },
+    "status": {
+      "const": "passed"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "names": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "service_id",
+        "service_kind",
+        "resolution_order",
+        "descriptor",
+        "descriptor_sha256"
+      ],
+      "properties": {
+        "service_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "service_kind": {
+          "enum": [
+            "container",
+            "external"
+          ]
+        },
+        "resolution_order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "descriptor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

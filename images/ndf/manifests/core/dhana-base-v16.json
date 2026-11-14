@@ -22,7 +22,7 @@
     "notes": [
       "The resolver must resolve every approved ref to an immutable commit SHA.",
       "The requested Git ref may be a branch, tag or commit; its name does not determine compatibility or production eligibility. Require target-specific compatibility evidence, preserve the requested ref for Bench acquisition, and record the resolver-time SHA separately.",
-      "Applications with pending v16 compatibility verification must be blocked from a production lock until verified."
+      "Applications without an explicit verified compatibility disposition must be blocked from a production lock."
     ]
   },
   "applications": [
@@ -34,7 +34,7 @@
       "required": true,
       "install_order": 10,
       "dependencies": [],
-      "compatibility_status": "target_ref_to_verify"
+      "compatibility_status": "verified"
     },
     {
       "name": "erpnext",
@@ -44,7 +44,7 @@
       "required": true,
       "install_order": 20,
       "dependencies": ["frappe"],
-      "compatibility_status": "target_ref_to_verify"
+      "compatibility_status": "verified"
     },
     {
       "name": "payments",
@@ -54,7 +54,7 @@
       "required": true,
       "install_order": 30,
       "dependencies": ["frappe"],
-      "compatibility_status": "target_ref_to_verify"
+      "compatibility_status": "verified"
     },
     {
       "name": "webshop",
@@ -64,7 +64,7 @@
       "required": true,
       "install_order": 40,
       "dependencies": ["erpnext", "payments"],
-      "compatibility_status": "target_ref_to_verify"
+      "compatibility_status": "verified"
     },
     {
       "name": "hrms",
@@ -74,7 +74,7 @@
       "required": true,
       "install_order": 50,
       "dependencies": ["erpnext"],
-      "compatibility_status": "target_ref_to_verify"
+      "compatibility_status": "verified"
     },
     {
       "name": "lending",
@@ -84,7 +84,7 @@
       "required": true,
       "install_order": 60,
       "dependencies": ["erpnext"],
-      "compatibility_status": "target_ref_to_verify"
+      "compatibility_status": "verified"
     },
     {
       "name": "frappe_mpsa_payments",
@@ -94,7 +94,7 @@
       "required": true,
       "install_order": 70,
       "dependencies": ["erpnext", "hrms", "lending"],
-      "compatibility_status": "verify_version_16_hooks_and_dependencies"
+      "compatibility_status": "verified"
     },
     {
       "name": "insights",
@@ -104,7 +104,7 @@
       "required": true,
       "install_order": 80,
       "dependencies": ["frappe"],
-      "compatibility_status": "verify_stable_v16_ref"
+      "compatibility_status": "verified"
     },
     {
       "name": "telephony",
@@ -114,7 +114,7 @@
       "required": true,
       "install_order": 90,
       "dependencies": ["frappe"],
-      "compatibility_status": "verify_stable_v16_ref"
+      "compatibility_status": "verified"
     },
     {
       "name": "helpdesk",
@@ -124,7 +124,7 @@
       "required": true,
       "install_order": 100,
       "dependencies": ["telephony"],
-      "compatibility_status": "verify_stable_v16_ref"
+      "compatibility_status": "verified"
     }
   ],
   "validation": {

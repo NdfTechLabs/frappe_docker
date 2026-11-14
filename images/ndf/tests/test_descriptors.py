@@ -220,6 +220,23 @@ class TestMarketplaceDescriptorSchemas:
         ):
             validate_descriptor(descriptor, SCHEMA_DIR)
 
+    def test_ndf_maintainer_attestation_can_establish_verified_compatibility(self):
+        descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"] = {
+            "status": "verified",
+            "evidence": [
+                {
+                    "kind": "maintainer_attestation",
+                    "authority": "ndf",
+                    "reference": "M4.2.4 platform-owner compatibility disposition",
+                    "result": "passed",
+                    "attested_at": "2026-11-13T00:00:00Z",
+                    "attested_by": "NDF platform owner",
+                }
+            ],
+        }
+        validate_descriptor(descriptor, SCHEMA_DIR)
+
     def test_verified_compatibility_requires_ndf_test_matrix(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
         descriptor["compatibility"] = {
@@ -250,9 +267,10 @@ class TestMarketplaceDescriptorSchemas:
                 "evidence": [
                     {
                         "kind": "automated_test",
-                        "authority": "publisher",
+                        "authority": "ndf",
                         "reference": "https://example.com/test-report",
                         "result": "passed",
+                        "tested_at": "2026-11-13T00:00:00Z",
                         "tested_versions": {
                             "frappe": "17.0.0",
                             "python": "3.14.3",
@@ -295,9 +313,10 @@ class TestMarketplaceDescriptorSchemas:
         descriptor["compatibility"]["evidence"] = [
             {
                 "kind": "automated_test",
-                "authority": "publisher",
+                "authority": "ndf",
                 "reference": "https://example.com/test-report",
                 "result": "passed",
+                "tested_at": "2026-11-13T00:00:00Z",
                 "tested_versions": {
                     "frappe": "sixteen",
                     "python": "3.14.3",
@@ -311,6 +330,7 @@ class TestMarketplaceDescriptorSchemas:
 
     def test_production_metadata_gate_rejects_incomplete_authoring_descriptor(self):
         descriptor = read_json(NDF_DIR / "descriptors" / "apps" / "dt_ecommerce.json")
+        descriptor["compatibility"]["status"] = "pending"
         issues = collect_production_metadata_issues(descriptor)
         assert any("compatibility status is not verified" in item for item in issues)
         assert any("missing explicit version_policy" in item for item in issues)
