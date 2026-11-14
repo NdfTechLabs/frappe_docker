@@ -152,6 +152,9 @@ jobs:
             --buildx-metadata "$BUILD_OUTPUT/buildx-metadata.json" \
             --inventory-output "$BUILD_OUTPUT/build-inventory.json" \
             --evidence-output "$BUILD_OUTPUT/build-evidence.json" \
+            --source-provenance-output "$BUILD_OUTPUT/source-provenance.json" \
+            --post-cleanup-verification-output "$BUILD_OUTPUT/source-tree-verification-post-cleanup.json" \
+            --runtime-verification-output "$BUILD_OUTPUT/source-tree-verification-runtime.json" \
             --report "$BUILD_OUTPUT/image-validation.json"
 
       - name: Upload build and validation artifacts
