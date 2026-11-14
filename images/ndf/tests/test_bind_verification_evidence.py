@@ -127,7 +127,7 @@ def test_rejects_duplicate_evidence_records(evidence_inputs):
     report = build_evidence(artifacts, lock, statuses)
     report["evidence"].append(report["evidence"][0])
 
-    with pytest.raises(VerificationEvidenceError, match="duplicated"):
+    with pytest.raises(VerificationEvidenceError, match="schema failed"):
         verify(report, artifacts, lock)
 
 
