@@ -71,6 +71,10 @@ def verify_publication_candidate(*, build_output_dir: Path, image_id: str,
     repository=image.get("repository")
     if image.get("id")!=image_id or not isinstance(repository,str):
         raise PublicationGateError("Build metadata image identity does not match the requested product.")
+    framework=metadata.get("framework")
+    version=framework.get("version") if isinstance(framework,dict) else None
+    if not isinstance(version,str) or version.split(".",1)[0]!=framework_major:
+        raise PublicationGateError("Build metadata framework major does not match the publication target.")
     if not candidate_image_ref.startswith(repository+":") or not publication_image_ref.startswith(repository+":"):
         raise PublicationGateError("Candidate and publication references must use the configured image repository.")
     candidate_tag=candidate_image_ref.rsplit(":",1)[-1]
@@ -125,8 +129,10 @@ def verify_publication_candidate(*, build_output_dir: Path, image_id: str,
         if _json(build_output_dir/filename).get("status")!="passed":
             raise PublicationGateError(f"Required verification report did not pass: {filename}")
     build_evidence=_json(build_output_dir/"build-evidence.json")
-    if build_evidence.get("status")!="bound" or build_evidence.get("image_digest")!=digest or build_evidence.get("lock_sha256")!=lock_sha:
-        raise PublicationGateError("Existing build-evidence record is not bound to this image and lock.")
+    inventory_sha=_sha(artifacts["build_inventory"][1])
+    if (build_evidence.get("status")!="bound" or build_evidence.get("image_digest")!=digest
+        or build_evidence.get("lock_sha256")!=lock_sha or build_evidence.get("inventory_sha256")!=inventory_sha):
+        raise PublicationGateError("Existing build-evidence record is not bound to this image, lock and inventory.")
     try:
         verify_verification_evidence(evidence,expected_image_digest=digest,
             expected_lock_sha256=lock_sha,artifacts=artifacts)
