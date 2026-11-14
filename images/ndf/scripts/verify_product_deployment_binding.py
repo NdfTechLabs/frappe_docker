@@ -116,7 +116,7 @@ def _resolve_evidence_file(root: Path, relative_path: str) -> Path:
 
 
 def _load_and_hash_evidence(
-    descriptor: dict[str, Any], evidence_dir: Path
+    descriptor: dict[str, Any], evidence_dir: Path, image_id: str
 ) -> tuple[dict[str, tuple[str, bytes]], dict[str, dict[str, Any]]]:
     root = evidence_dir.resolve(strict=True)
     if not root.is_dir():
@@ -133,7 +133,10 @@ def _load_and_hash_evidence(
                 f"Duplicate PDD evidence path: {relative_path}."
             )
         seen_paths.add(relative_path)
-        path = _resolve_evidence_file(root, relative_path)
+        actual_path = (
+            f"{image_id}.lock-v2.json" if name == "lock_v2" else relative_path
+        )
+        path = _resolve_evidence_file(root, actual_path)
         try:
             raw = path.read_bytes()
         except OSError as exc:
@@ -185,18 +188,10 @@ def _validate_evidence_manifest(
     if (
         image["digest"] != artifact["digest"]
         or image["repository"] != artifact["repository"]
-        or image["id"] != descriptor["product"]["id"] + "-v16"
-        and image["id"] != descriptor["build"].get("image_id", image["id"])
     ):
-        # Image ID is independently reconciled with build sidecars below. The
-        # product ID is not necessarily sufficient to derive the image ID.
-        if (
-            image["digest"] != artifact["digest"]
-            or image["repository"] != artifact["repository"]
-        ):
-            raise ProductDeploymentBindingError(
-                "M4.2.5 evidence manifest identifies a different image."
-            )
+        raise ProductDeploymentBindingError(
+            "M4.2.5 evidence manifest identifies a different image."
+        )
     observed = {item["name"]: item for item in report["evidence"]}
     if len(observed) != len(report["evidence"]) or set(observed) != set(records):
         raise ProductDeploymentBindingError(
@@ -404,11 +399,16 @@ def verify_product_deployment_binding(
             f"Independent PDD validation failed: {exc}"
         ) from exc
     descriptor = _read_json(descriptor_path, "PDD descriptor")
-    artifacts, records = _load_and_hash_evidence(descriptor, evidence_dir)
     sidecars = {
         name: _read_json(evidence_dir / filename, filename)
         for name, filename in SIDECAR_FILES.items()
     }
+    image_id = sidecars["build_result"].get("image_id")
+    if not isinstance(image_id, str) or not image_id:
+        raise ProductDeploymentBindingError(
+            "Build result must provide the product image ID."
+        )
+    artifacts, records = _load_and_hash_evidence(descriptor, evidence_dir, image_id)
     _validate_evidence_manifest(
         sidecars["image_verification_evidence"],
         descriptor=descriptor,
