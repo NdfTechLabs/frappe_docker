@@ -52,8 +52,8 @@ def _reject_constant(value: str) -> None:
 def _read_descriptor(path: Path) -> dict[str, Any]:
     try:
         raw = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise DescriptorValidationError(f"Unable to read descriptor: {exc}") from exc
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DescriptorValidationError(f"Unable to read descriptor as UTF-8: {exc}") from exc
     try:
         value = json.loads(
             raw,
