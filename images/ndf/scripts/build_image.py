@@ -381,7 +381,12 @@ def load_prepared_candidate_inputs(
 
     lock_bytes = lock_path.read_bytes()
     lock_data = load_json(lock_path)
-    apps_json = load_json(apps_path)
+    try:
+        apps_json = json.loads(apps_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BuildPreparationError(f"Unable to read candidate apps.json: {exc}") from exc
+    if not isinstance(apps_json, list):
+        raise BuildPreparationError("Candidate apps.json must contain a JSON array.")
     metadata = load_json(metadata_path)
     candidate = lock_data.get("candidate")
 
