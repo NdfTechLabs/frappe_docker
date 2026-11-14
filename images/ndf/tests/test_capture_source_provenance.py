@@ -291,6 +291,9 @@ def test_capture_rejects_submodule_commit_mismatch(bench_fixture, tmp_path):
         "frappe-ui",
         "https://github.com/frappe/frappe-ui.git",
     )
+    git(["config", "user.email", "test@example.invalid"], child)
+    git(["config", "user.name", "Provenance Test"], child)
+
     (child / "ui.txt").write_text("second", encoding="utf-8")
     git(["commit", "-am", "advance submodule"], child)
 
