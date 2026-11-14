@@ -135,10 +135,12 @@ Current relevant components include:
 
 ### M4.2.7 — Candidate-Driven CI/CD
 
-**Status:** Readiness audit A.1–A.4 complete; implementation plan documented; implementation not started.
+**Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 candidate intake implementation in progress on `feat/M4.2.7`.
 
 - [M4.2.7 Readiness Audit](M4.2.7-READINESS-AUDIT.md) — NDF workflow/artifact audit and read-only reconciliation of the accepted DT Master/DT Tenant contracts.
 - [M4.2.7 Implementation Plan](M4.2.7-IMPLEMENTATION-PLAN.md) — NDF-only work packages, candidate/result contract, acceptance criteria, security boundaries and implementation dependencies.
+- [M4.2.7.1 Candidate Artifact and Workflow Contract](M4.2.7.1-CONTRACT.md) — versioned candidate/result envelope, GHCR package permissions and exact proposed OCI artifact layout.
+- [M4.2.7.2 Candidate Intake and Validation](M4.2.7.2-CANDIDATE-INTAKE.md) — strict reference, OCI, payload, schema and semantic validation implementation contract.
 
 M4.2.7 changes are restricted to this NDF repository. DT Master and DT Tenant documentation are read-only requirements references; their missing DocTypes and operations remain their own implementation responsibilities. No implementation branch or code changes are authorized by the planning record.
 
