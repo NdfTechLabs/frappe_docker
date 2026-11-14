@@ -521,6 +521,7 @@ def validate_image(
     image_digest: str,
     repository_root: Path | None = None,
     lock_bytes: bytes | None = None,
+    apps_json: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Compare image labels/composition and bind its exact inventory bytes to the digest."""
     expected_apps = [app["name"] for app in metadata["applications"]]
@@ -617,6 +618,7 @@ def validate_image(
                 inventory_applications=inventory["applications"],
                 runtime_directories=actual_dirs,
                 runtime_apps_txt=actual_apps_txt,
+                apps_json=apps_json if apps_json is not None else [],
             )
         except CompositionVerificationError as exc:
             raise ImageValidationError(f"Independent composition verification failed: {exc}") from exc
@@ -652,6 +654,7 @@ def validate_from_files(
     runtime_verification_output_path: Path | None = None,
     source_provenance_verification_output_path: Path | None = None,
     composition_output_path: Path | None = None,
+    apps_json_path: Path | None = None,
 ) -> dict[str, Any]:
     metadata, lock_data = load_json(metadata_path), load_json(lock_path)
     buildx_metadata = load_json(buildx_metadata_path)
@@ -663,11 +666,20 @@ def validate_from_files(
     lock_sha256 = hashlib.sha256(lock_path.read_bytes()).hexdigest()
     labels = inspect_image_labels(image_ref)
     contents = inspect_image_contents(image_ref)
+    if apps_json_path is None:
+        raise ImageValidationError("The generated apps.json build input is required for independent composition verification.")
+    try:
+        apps_json = json.loads(apps_json_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ImageValidationError(f"Unable to read generated apps.json: {exc}") from exc
+    if not isinstance(apps_json, list):
+        raise ImageValidationError("Generated apps.json must contain an array.")
     repository_root = Path(__file__).resolve().parents[3]
     report = validate_image(
         image_ref, metadata, lock_data, labels, contents, lock_sha256, image_digest,
         repository_root=repository_root,
         lock_bytes=lock_path.read_bytes(),
+        apps_json=apps_json,
     )
     inventory_bytes = contents["build_inventory_bytes"]
     inventory_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -731,6 +743,7 @@ def main() -> int:
     parser.add_argument("--runtime-verification-output", type=Path)
     parser.add_argument("--source-provenance-verification-output", type=Path)
     parser.add_argument("--composition-output", type=Path)
+    parser.add_argument("--apps-json", required=True, type=Path, help="Generated Bench apps.json build input.")
     args = parser.parse_args()
     try:
         report = validate_from_files(
@@ -745,6 +758,7 @@ def main() -> int:
             args.runtime_verification_output,
             args.source_provenance_verification_output,
             args.composition_output,
+            args.apps_json,
         )
         if args.report:
             args.report.parent.mkdir(parents=True, exist_ok=True)
