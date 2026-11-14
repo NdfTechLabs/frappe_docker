@@ -9,6 +9,7 @@ from scripts.build_image import (
     build_labels,
     execute_build,
     get_manifest_checksum,
+    load_prepared_candidate_inputs,
     normalize_platforms,
     resolve_base_images,
     validate_image_tags,
@@ -298,3 +299,118 @@ def test_validate_image_tags_rejects_invalid_and_duplicate_tags():
         validate_image_tags(["invalid tag"])
     with pytest.raises(BuildExecutionError, match="Duplicate"):
         validate_image_tags(["v16-latest", "v16-latest"])
+
+
+
+def _write_prepared_candidate_inputs(tmp_path, *, apps_json=None, lock_sha_override=None):
+    output_dir = tmp_path / "prepared-candidate"
+    output_dir.mkdir()
+    lock_name = "candidate-" + "a" * 16 + ".lock-v2.json"
+    candidate = {
+        "candidate_id": "CAND-TEST-0001",
+        "target_platforms": ["linux/amd64"],
+        "artifact_reference": (
+            "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
+            + "b" * 64
+        ),
+    }
+    framework = {
+        "name": "frappe",
+        "version": "16",
+        "target_ref": "c" * 40,
+        "ref": "c" * 40,
+        "reference_kind": "commit",
+        "resolved_ref": "c" * 40,
+    }
+    lock = {
+        "lock_version": 2,
+        "product": {"id": "dalali-v16"},
+        "candidate": candidate,
+        "framework": framework,
+        "applications": [
+            {
+                "name": "frappe",
+                "repository": "https://github.com/frappe/frappe",
+                "target_ref": "c" * 40,
+                "ref": "c" * 40,
+                "reference_kind": "commit",
+                "resolved_ref": "c" * 40,
+                "installation_order": 1,
+                "dependencies": [],
+            }
+        ],
+    }
+    lock_path = output_dir / lock_name
+    lock_path.write_text(json.dumps(lock, sort_keys=True), encoding="utf-8")
+    lock_sha = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+    metadata = {
+        "image": {
+            "id": "dalali-v16",
+            "repository": "ghcr.io/ndftechlabs/dalali",
+            "manifest": "products/tenant/dalali-v16.json",
+        },
+        "framework": framework,
+        "lock": {
+            "version": 2,
+            "path": lock_name,
+            "sha256": lock_sha_override or lock_sha,
+        },
+        "candidate": candidate,
+    }
+    (output_dir / "build-metadata.json").write_text(
+        json.dumps(metadata, sort_keys=True), encoding="utf-8"
+    )
+    (output_dir / "apps.json").write_text(
+        json.dumps([] if apps_json is None else apps_json), encoding="utf-8"
+    )
+    return output_dir
+
+
+def test_load_prepared_candidate_inputs_validates_lock_metadata_and_apps(tmp_path):
+    ndf_dir = Path(__file__).resolve().parents[1]
+    prepared_dir = _write_prepared_candidate_inputs(tmp_path)
+
+    result = load_prepared_candidate_inputs(
+        ndf_dir=ndf_dir,
+        image_id="dalali-v16",
+        definitions_relative_path="image-definitions/images-v1.json",
+        prepared_inputs_dir=prepared_dir,
+        platforms=["linux/amd64"],
+    )
+
+    assert result["image"]["id"] == "dalali-v16"
+    assert result["lock_path"].name.endswith(".lock-v2.json")
+    assert result["framework"]["target_ref"] == "c" * 40
+    assert result["bench_apps_count"] == 0
+
+
+def test_load_prepared_candidate_inputs_rejects_lock_hash_mismatch(tmp_path):
+    ndf_dir = Path(__file__).resolve().parents[1]
+    prepared_dir = _write_prepared_candidate_inputs(
+        tmp_path, lock_sha_override="d" * 64
+    )
+
+    with pytest.raises(BuildPreparationError, match="lock SHA-256"):
+        load_prepared_candidate_inputs(
+            ndf_dir=ndf_dir,
+            image_id="dalali-v16",
+            definitions_relative_path="image-definitions/images-v1.json",
+            prepared_inputs_dir=prepared_dir,
+            platforms=["linux/amd64"],
+        )
+
+
+def test_load_prepared_candidate_inputs_rejects_apps_lock_disagreement(tmp_path):
+    ndf_dir = Path(__file__).resolve().parents[1]
+    prepared_dir = _write_prepared_candidate_inputs(
+        tmp_path, apps_json=[{"url": "https://example.invalid/app", "branch": "main"}]
+    )
+
+    with pytest.raises(BuildPreparationError, match="apps.json does not match"):
+        load_prepared_candidate_inputs(
+            ndf_dir=ndf_dir,
+            image_id="dalali-v16",
+            definitions_relative_path="image-definitions/images-v1.json",
+            prepared_inputs_dir=prepared_dir,
+            platforms=["linux/amd64"],
+        )
