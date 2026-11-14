@@ -259,18 +259,49 @@ def capture_submodule(
             raise SourceProvenanceError(
                 f"Submodule path contains a symbolic-link component: {relative_path}"
             )
+    if not child.exists():
+        return {
+            "path": relative_path,
+            "repository": expected_repository,
+            "expected_commit": expected_commit,
+            "materialized": False,
+            "actual_commit": None,
+            "head_tree": None,
+            "tracked_content": None,
+            "generated_content": None,
+            "source_tree": None,
+            "submodules": [],
+        }
     if not child.is_dir():
         raise SourceProvenanceError(
-            f"Submodule is missing or not initialized: {parent_repository}:{relative_path}"
+            f"Submodule path is not a directory: {relative_path}"
         )
     root = child.resolve()
     if not root.is_relative_to(parent.resolve()):
         raise SourceProvenanceError(
             f"Submodule path escapes its parent repository: {relative_path}"
         )
-    if not (root / ".git").exists() or (root / ".git").is_symlink():
+    metadata = root / ".git"
+    if not metadata.exists():
+        if any(root.iterdir()):
+            raise SourceProvenanceError(
+                f"Uninitialized submodule contains unexpected files: {relative_path}"
+            )
+        return {
+            "path": relative_path,
+            "repository": expected_repository,
+            "expected_commit": expected_commit,
+            "materialized": False,
+            "actual_commit": None,
+            "head_tree": None,
+            "tracked_content": None,
+            "generated_content": None,
+            "source_tree": None,
+            "submodules": [],
+        }
+    if metadata.is_symlink() or not (metadata.is_file() or metadata.is_dir()):
         raise SourceProvenanceError(
-            f"Submodule Git metadata is missing or unsafe: {relative_path}"
+            f"Submodule Git metadata is unsafe: {relative_path}"
         )
 
     git_root = Path(git_text(root, ["rev-parse", "--show-toplevel"])).resolve()
@@ -299,6 +330,8 @@ def capture_submodule(
         "path": relative_path,
         "repository": expected_repository,
         "expected_commit": expected_commit,
+        "materialized": True,
+        "actual_commit": actual_commit,
         **nested,
     }
 
