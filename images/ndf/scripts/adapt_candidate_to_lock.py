@@ -246,10 +246,6 @@ def _map_candidate_applications(
             raise CandidateCompositionError(
                 f"{app_id}: candidate source repository differs from the NDF manifest."
             )
-        if requested["requested_version"] != expected.get("target_ref"):
-            raise CandidateCompositionError(
-                f"{app_id}: requested_version differs from the NDF manifest target_ref."
-            )
         commit = requested["immutable_commit"]
         if not re.fullmatch(r"[a-f0-9]{40}", commit):
             raise CandidateCompositionError(
