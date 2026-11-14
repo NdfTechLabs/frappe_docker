@@ -19,8 +19,18 @@ try:
         CompositionVerificationError,
         verify_composition,
     )
+    from .bind_verification_evidence import (
+        VerificationEvidenceError,
+        create_verification_evidence,
+        write_report as write_verification_evidence,
+    )
 except ImportError:
     from verify_image_composition import CompositionVerificationError, verify_composition
+    from bind_verification_evidence import (
+        VerificationEvidenceError,
+        create_verification_evidence,
+        write_report as write_verification_evidence,
+    )
 
 
 class ImageValidationError(Exception):
@@ -655,7 +665,11 @@ def validate_from_files(
     source_provenance_verification_output_path: Path | None = None,
     composition_output_path: Path | None = None,
     apps_json_path: Path | None = None,
+    verification_evidence_output_path: Path | None = None,
 ) -> dict[str, Any]:
+    metadata_bytes = metadata_path.read_bytes()
+    lock_bytes = lock_path.read_bytes()
+    buildx_metadata_bytes = buildx_metadata_path.read_bytes()
     metadata, lock_data = load_json(metadata_path), load_json(lock_path)
     buildx_metadata = load_json(buildx_metadata_path)
     image_digest = buildx_metadata.get("containerimage.digest")
@@ -663,13 +677,14 @@ def validate_from_files(
         raise ImageValidationError(
             "Buildx metadata is missing a valid containerimage.digest."
         )
-    lock_sha256 = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+    lock_sha256 = hashlib.sha256(lock_bytes).hexdigest()
     labels = inspect_image_labels(image_ref)
     contents = inspect_image_contents(image_ref)
     if apps_json_path is None:
         raise ImageValidationError("The generated apps.json build input is required for independent composition verification.")
+    apps_json_bytes = apps_json_path.read_bytes()
     try:
-        apps_json = json.loads(apps_json_path.read_text(encoding="utf-8"))
+        apps_json = json.loads(apps_json_bytes)
     except (OSError, json.JSONDecodeError) as exc:
         raise ImageValidationError(f"Unable to read generated apps.json: {exc}") from exc
     if not isinstance(apps_json, list):
@@ -678,25 +693,63 @@ def validate_from_files(
     report = validate_image(
         image_ref, metadata, lock_data, labels, contents, lock_sha256, image_digest,
         repository_root=repository_root,
-        lock_bytes=lock_path.read_bytes(),
+        lock_bytes=lock_bytes,
         apps_json=apps_json,
     )
     inventory_bytes = contents["build_inventory_bytes"]
     inventory_output_path.parent.mkdir(parents=True, exist_ok=True)
     inventory_output_path.write_bytes(inventory_bytes)
     evidence_output_path.parent.mkdir(parents=True, exist_ok=True)
-    evidence_output_path.write_text(
-        json.dumps(report["evidence_binding"], indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    build_evidence_bytes = (
+        json.dumps(report["evidence_binding"], indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    evidence_output_path.write_bytes(build_evidence_bytes)
+
+    composition_report = report.get("composition_verification")
+    if not isinstance(composition_report, dict):
+        raise ImageValidationError("Independent composition verification did not produce a report.")
+    composition_bytes = (
+        json.dumps(composition_report, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
     if composition_output_path is not None:
-        composition_report = report.get("composition_verification")
-        if not isinstance(composition_report, dict):
-            raise ImageValidationError("Independent composition verification did not produce a report.")
         composition_output_path.parent.mkdir(parents=True, exist_ok=True)
-        composition_output_path.write_text(
-            json.dumps(composition_report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        composition_output_path.write_bytes(composition_bytes)
+
+    if verification_evidence_output_path is None:
+        raise ImageValidationError("The digest-bound verification evidence output path is required.")
+    artifacts = {
+        "lock_v2": ("lock-v2.json", lock_bytes),
+        "apps_json": ("apps.json", apps_json_bytes),
+        "build_metadata": ("build-metadata.json", metadata_bytes),
+        "buildx_metadata": ("buildx-metadata.json", buildx_metadata_bytes),
+        "build_inventory": ("build-inventory.json", inventory_bytes),
+        "build_evidence": ("build-evidence.json", build_evidence_bytes),
+        "source_provenance": ("source-provenance.json", contents["source_provenance_bytes"]),
+        "source_provenance_verification": ("source-provenance-verification.json", contents["source_provenance_verification_bytes"]),
+        "source_tree_post_cleanup": ("source-tree-verification-post-cleanup.json", contents["post_cleanup_verification_bytes"]),
+        "source_tree_runtime": ("source-tree-verification-runtime.json", contents["runtime_verification_bytes"]),
+        "image_composition_verification": ("image-composition-verification.json", composition_bytes),
+    }
+    statuses = {
+        "source_provenance_verification": contents["source_provenance_verification"].get("status"),
+        "source_tree_post_cleanup": contents["post_cleanup_verification"].get("status"),
+        "source_tree_runtime": contents["runtime_verification"].get("status"),
+        "image_composition_verification": composition_report.get("status"),
+    }
+    try:
+        verification_evidence = create_verification_evidence(
+            image_reference=image_ref,
+            image_repository=metadata["image"]["repository"],
+            image_id=metadata["image"]["id"],
+            image_digest=image_digest,
+            lock_bytes=lock_bytes,
+            artifacts=artifacts,
+            statuses=statuses,
         )
+    except VerificationEvidenceError as exc:
+        raise ImageValidationError(f"Digest-bound verification evidence failed: {exc}") from exc
+    report["verification_evidence"] = verification_evidence
+    write_verification_evidence(verification_evidence, verification_evidence_output_path)
     for path, key in (
         (source_provenance_output_path, "source_provenance"),
         (source_provenance_verification_output_path, "source_provenance_verification"),
@@ -743,6 +796,7 @@ def main() -> int:
     parser.add_argument("--runtime-verification-output", type=Path)
     parser.add_argument("--source-provenance-verification-output", type=Path)
     parser.add_argument("--composition-output", type=Path)
+    parser.add_argument("--verification-evidence-output", required=True, type=Path)
     parser.add_argument("--apps-json", required=True, type=Path, help="Generated Bench apps.json build input.")
     args = parser.parse_args()
     try:
@@ -759,6 +813,7 @@ def main() -> int:
             args.source_provenance_verification_output,
             args.composition_output,
             args.apps_json,
+            args.verification_evidence_output,
         )
         if args.report:
             args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -774,7 +829,7 @@ def main() -> int:
     )
     print(f"Image digest: {report['image_digest']}")
     print(f"Inventory SHA-256: {report['evidence_binding']['inventory_sha256']}")
-    print("Image validation, source-tree verification, independent composition verification and evidence binding passed.")
+    print("Image validation, source-tree verification, independent composition verification and digest-bound verification evidence passed.")
     return 0
 
 
