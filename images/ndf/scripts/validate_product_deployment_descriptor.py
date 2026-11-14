@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator, ValidationError
+from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 NDF_DIR = Path(__file__).resolve().parents[1]
