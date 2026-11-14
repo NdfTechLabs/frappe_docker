@@ -106,7 +106,6 @@ def _refresh_evidence_bindings(output_dir):
     lock_bytes = (output_dir / LOCK_FILENAME).read_bytes()
     lock_sha = hashlib.sha256(lock_bytes).hexdigest()
     inventory_path = output_dir / "build-inventory.json"
-    inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
     build_evidence_path = output_dir / "build-evidence.json"
     build_evidence = json.loads(build_evidence_path.read_text(encoding="utf-8"))
     build_evidence["inventory_sha256"] = hashlib.sha256(inventory_path.read_bytes()).hexdigest()
