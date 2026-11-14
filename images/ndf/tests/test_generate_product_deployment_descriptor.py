@@ -3,6 +3,7 @@ import pytest
 from scripts.generate_product_deployment_descriptor import (
     DescriptorGenerationError,
     _canonical_json,
+    _load_inputs,
     generate_descriptor,
 )
 
@@ -52,3 +53,29 @@ def test_generator_rejects_non_full_source_commit(tmp_path):
             workflow_run_id="123456",
             built_at="2026-11-14T12:00:00Z",
         )
+
+
+def test_load_inputs_uses_product_specific_lock_filename(tmp_path):
+    (tmp_path / "build-metadata.json").write_text(
+        json.dumps({"image": {"id": "dalali-v16"}}), encoding="utf-8"
+    )
+    expected = {
+        "dalali-v16.lock-v2.json": {"lock_version": 2},
+        "apps.json": {},
+        "buildx-metadata.json": {},
+        "build-inventory.json": {},
+        "build-evidence.json": {},
+        "source-provenance.json": {},
+        "source-provenance-verification.json": {},
+        "source-tree-verification-post-cleanup.json": {},
+        "source-tree-verification-runtime.json": {},
+        "image-composition-verification.json": {},
+    }
+    for filename, value in expected.items():
+        (tmp_path / filename).write_text(json.dumps(value), encoding="utf-8")
+
+    values, files = _load_inputs(tmp_path)
+
+    assert values["lock_v2"]["lock_version"] == 2
+    assert "lock_v2" in files
+    assert "build_metadata" in values
