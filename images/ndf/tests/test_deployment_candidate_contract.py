@@ -250,6 +250,26 @@ def test_payload_rejects_framework_version_outside_product_manifest():
         )
 
 
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("python", "3.13.9", "CPython 3.14 family"),
+        ("node", "22.12.0", "Node.js runtime"),
+    ],
+)
+def test_payload_rejects_unsupported_runtime_family(field, value, message):
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["runtime_profile"][field] = value
+    raw = json.dumps(candidate).encode()
+    with pytest.raises(intake.CandidateIntakeError, match=message):
+        intake.validate_candidate_payload(
+            raw,
+            expected_candidate_id=CANDIDATE_ID,
+            expected_payload_sha256=payload_hash(raw),
+        )
+
+
 def test_result_schema_requires_image_and_descriptor_for_success():
     schema = load(SCHEMAS / "deployment-build-result-v1.schema.json")
     result = {
