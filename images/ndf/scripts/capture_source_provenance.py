@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Capture Git provenance and complete pre-cleanup source-tree evidence."""
 
 from __future__ import annotations
