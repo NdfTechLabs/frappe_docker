@@ -1,5 +1,6 @@
 import json
 import re
+import pytest
 from pathlib import Path
 from jsonschema import Draft202012Validator
 
@@ -14,7 +15,9 @@ def load(path):
 def test_valid_candidate_fixture_conforms():
     schema=load(SCHEMAS/"deployment-candidate-v1.schema.json")
     Draft202012Validator.check_schema(schema)
-    assert not list(Draft202012Validator(schema).iter_errors(load(FIXTURES/"valid"/"candidate-v1.json")))
+    candidate=load(FIXTURES/"valid"/"candidate-v1.json")
+    assert not list(Draft202012Validator(schema).iter_errors(candidate))
+    validate_candidate_semantics(candidate)
 
 def test_candidate_rejects_unrecognized_sensitive_fields():
     schema=load(SCHEMAS/"deployment-candidate-v1.schema.json")
@@ -31,12 +34,27 @@ def test_candidate_rejects_missing_descriptor_digest_and_mutable_commit():
     candidate["applications"][0]["immutable_commit"]="version-16"
     assert list(Draft202012Validator(schema).iter_errors(candidate))
 
+def validate_candidate_semantics(candidate):
+    app_ids=[app["app_id"] for app in candidate["applications"]]
+    if len(app_ids) != len(set(app_ids)):
+        raise ValueError("duplicate application identity")
+    for app in candidate["applications"]:
+        if not app["descriptor_ref"].endswith("@sha256:" + app["descriptor_digest"]):
+            raise ValueError("descriptor reference/digest mismatch")
+
+
 def test_candidate_rejects_duplicate_application_ids():
-    schema=load(SCHEMAS/"deployment-candidate-v1.schema.json")
     candidate=load(FIXTURES/"valid"/"candidate-v1.json")
     candidate["applications"].append(dict(candidate["applications"][0]))
-    ids=[app["app_id"] for app in candidate["applications"]]
-    assert len(ids) != len(set(ids))
+    with pytest.raises(ValueError, match="duplicate application identity"):
+        validate_candidate_semantics(candidate)
+
+
+def test_candidate_rejects_descriptor_reference_digest_mismatch():
+    candidate=load(FIXTURES/"valid"/"candidate-v1.json")
+    candidate["applications"][0]["descriptor_ref"] += "0"
+    with pytest.raises(ValueError, match="descriptor reference/digest mismatch"):
+        validate_candidate_semantics(candidate)
 
 
 def test_candidate_reference_allowlist_rejects_mutable_and_foreign_references():
