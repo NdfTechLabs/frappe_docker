@@ -1,0 +1,14 @@
+{
+  "valid_reference": "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "invalid_references": [
+    "ghcr.io/ndftechlabs/dt-master-deployment-candidates:latest",
+    "ghcr.io/ndftechlabs/dt-master-deployment-candidates",
+    "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:ABCDEF",
+    "ghcr.io/ndftechlabs/other-package@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ghcr.io/other-owner/dt-master-deployment-candidates@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "docker.io/ndftechlabs/dt-master-deployment-candidates@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "https://ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?download=1",
+    "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/extra"
+  ]
+}
