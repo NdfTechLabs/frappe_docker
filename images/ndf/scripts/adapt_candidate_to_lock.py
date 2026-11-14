@@ -255,10 +255,6 @@ def _map_candidate_applications(
             raise CandidateCompositionError(
                 f"{app_id}: candidate app_name differs from the registered NDF application descriptor."
             )
-        if requested["is_required"] is not True:
-            raise CandidateCompositionError(
-                f"{app_id}: every application in the complete candidate composition must be required."
-            )
         if requested["app_source_type"] != "git":
             raise CandidateCompositionError(
                 f"{app_id}: only Git application sources are supported by the NDF resolver."
@@ -297,6 +293,7 @@ def _map_candidate_applications(
         expected["_candidate_descriptor_ref"] = requested["descriptor_ref"]
         expected["_candidate_descriptor_digest"] = requested["descriptor_digest"]
         expected["_candidate_change_action"] = requested["change_action"]
+        expected["_candidate_is_required"] = requested["is_required"]
         mapped.append(expected)
 
     # Preserve the existing resolver's deterministic dependency order.
@@ -409,6 +406,7 @@ def adapt_candidate_to_lock(
                     "_candidate_descriptor_digest"
                 ],
                 "candidate_change_action": mapped_app.get("_candidate_change_action"),
+                "candidate_is_required": mapped_app.get("_candidate_is_required"),
             }
         )
 
