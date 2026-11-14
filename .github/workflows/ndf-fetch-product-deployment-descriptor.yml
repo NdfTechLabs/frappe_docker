@@ -83,7 +83,7 @@ jobs:
               raise SystemExit("PDD publication must have run from main.")
           if str(run.get("id")) != run_id:
               raise SystemExit("Publication run ID mismatch.")
-          match = re.fullmatch(r"ndf-pdd-publication-(\\d+)-(\\d+)", name)
+          match = re.fullmatch(r"ndf-pdd-publication-(\d+)-(\d+)", name)
           if not match:
               raise SystemExit("Invalid publication receipt artifact name.")
           # The first component is the source image-build run ID, not the
