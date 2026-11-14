@@ -25,7 +25,7 @@ def ndf_dir(tmp_path):
     return target
 
 
-def make_candidate(ndf_dir, monkeypatch):
+def make_candidate(ndf_dir):
     """Build a complete candidate from the real Dalali manifest composition."""
     manifests_dir = ndf_dir / "manifests"
     loader = ManifestLoader(manifests_dir)
@@ -83,6 +83,7 @@ def make_candidate(ndf_dir, monkeypatch):
 
 
 def write_candidate(tmp_path, candidate):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "candidate.json"
     path.write_text(
         json.dumps(candidate, indent=2, sort_keys=True) + "\n",
@@ -107,7 +108,7 @@ def run_adapter(ndf_dir, tmp_path, candidate):
 
 
 def test_candidate_adapter_generates_deterministic_lock_v2(ndf_dir, tmp_path):
-    candidate = make_candidate(ndf_dir, None)
+    candidate = make_candidate(ndf_dir)
     first = run_adapter(ndf_dir, tmp_path / "first", candidate)
     second = run_adapter(ndf_dir, tmp_path / "second", candidate)
 
@@ -139,11 +140,13 @@ def test_candidate_adapter_generates_deterministic_lock_v2(ndf_dir, tmp_path):
 def test_candidate_adapter_never_resolves_rolling_git_refs(
     ndf_dir, tmp_path, monkeypatch
 ):
-    def forbidden(*_args, **_kwargs):
-        raise AssertionError("candidate lock generation must not resolve rolling refs")
+    def verify_commit(_loader, _repository, target_ref):
+        assert len(target_ref) == 40
+        assert all(character in "0123456789abcdef" for character in target_ref)
+        return {"sha": target_ref, "kind": "commit", "name": target_ref}
 
-    monkeypatch.setattr(ManifestLoader, "resolve_git_ref", forbidden)
-    candidate = make_candidate(ndf_dir, monkeypatch)
+    monkeypatch.setattr(ManifestLoader, "resolve_git_ref", verify_commit)
+    candidate = make_candidate(ndf_dir)
     run_adapter(ndf_dir, tmp_path, candidate)
 
 
