@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 import sys
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
@@ -165,8 +165,9 @@ def _validate_identity(descriptor: dict[str, Any]) -> None:
 def _safe_evidence_path(value: str) -> bool:
     if not value or "\\" in value:
         return False
-    path = PurePosixPath(value)
-    return not path.is_absolute() and all(part not in ("", ".", "..") for part in path.parts)
+    if value.startswith("/"):
+        return False
+    return all(part not in ("", ".", "..") for part in value.split("/"))
 
 
 def _validate_evidence_references(descriptor: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -202,10 +203,29 @@ def _validate_evidence_references(descriptor: dict[str, Any]) -> dict[str, dict[
         raise DescriptorValidationError(
             "Composition verification SHA-256 does not match its evidence record."
         )
+    if descriptor["composition"]["lock"]["sha256"] != by_name["lock_v2"]["sha256"]:
+        raise DescriptorValidationError(
+            "Composition lock SHA-256 does not match the lock-v2 evidence record."
+        )
     if descriptor["runtime_inventory"]["source_evidence"] != "build_inventory":
         raise DescriptorValidationError(
             "Runtime inventory source must identify the build_inventory evidence."
         )
+    for domain_name, domain in descriptor["requirements"].items():
+        for verification in domain["verification"]:
+            reference = verification["evidence_reference"]
+            match = next(
+                (item for item in records if item["path"] == reference),
+                None,
+            )
+            if match is None:
+                raise DescriptorValidationError(
+                    f"Requirement verification reference is not in the PDD evidence inventory: {reference}."
+                )
+            if verification["evidence_sha256"] != match["sha256"]:
+                raise DescriptorValidationError(
+                    f"Requirement verification SHA-256 does not match evidence record: {reference}."
+                )
     return by_name
 
 
@@ -222,6 +242,13 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
             raise DescriptorValidationError(
                 f"Application {name} must provide descriptor_path and descriptor_sha256 together."
             )
+
+    artifact_platform = descriptor["artifact"]["platform"]
+    runtime_platform = descriptor["runtime_inventory"]["platform"]["oci"]
+    if artifact_platform != runtime_platform:
+        raise DescriptorValidationError(
+            "Artifact platform does not match the measured runtime inventory platform."
+        )
 
     framework = descriptor["runtime_inventory"]["framework"]
     framework_app = app_by_name.get(framework["name"])
