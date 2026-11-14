@@ -63,6 +63,8 @@ def verify_verification_evidence(report: dict[str,Any], *, expected_image_digest
         rec=observed[name]
         if rec.get("path")!=path or rec.get("sha256")!=_sha256(raw) or rec.get("size_bytes")!=len(raw):
             raise VerificationEvidenceError(f"Verification evidence hash/identity mismatch for {name}.")
+    if observed["lock_v2"]["sha256"] != expected_lock_sha256:
+        raise VerificationEvidenceError("Lock-v2 evidence entry does not match the report lock identity.")
 
 def write_report(report:dict[str,Any],path:Path)->bytes:
     """Write deterministic UTF-8 JSON and return the exact bytes written."""
