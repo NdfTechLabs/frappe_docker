@@ -175,10 +175,10 @@ def _validate_supported_product(candidate: dict[str, Any]) -> None:
         raise CandidateIntakeError("Candidate runtime profile framework differs from the product manifest.")
 
     python_version = runtime_profile.get("python")
-    if python_version is not None and not re.fullmatch(r"3\.14(?:\.\d+)?, python_version):
+    if python_version is not None and not re.fullmatch(r"3\.14(?:\.\d+)?", python_version):
         raise CandidateIntakeError("Candidate Python runtime is outside the supported CPython 3.14 family.")
     node_version = runtime_profile.get("node")
-    if node_version is not None and not re.fullmatch(r"24(?:\.\d+){0,2}, node_version):
+    if node_version is not None and not re.fullmatch(r"24(?:\.\d+){0,2}", node_version):
         raise CandidateIntakeError("Candidate Node.js runtime is outside the supported 24.x family.")
 
 def validate_candidate_payload(
