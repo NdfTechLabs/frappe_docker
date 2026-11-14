@@ -14,6 +14,14 @@ from urllib.parse import urlsplit
 
 from jsonschema import Draft202012Validator, ValidationError
 
+try:
+    from .verify_image_composition import (
+        CompositionVerificationError,
+        verify_composition,
+    )
+except ImportError:
+    from verify_image_composition import CompositionVerificationError, verify_composition
+
 
 class ImageValidationError(Exception):
     """Raised when a built image does not match its expected composition or evidence."""
@@ -511,6 +519,8 @@ def validate_image(
     contents: dict[str, Any],
     lock_sha256: str,
     image_digest: str,
+    repository_root: Path | None = None,
+    lock_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     """Compare image labels/composition and bind its exact inventory bytes to the digest."""
     expected_apps = [app["name"] for app in metadata["applications"]]
@@ -595,6 +605,21 @@ def validate_image(
     source_tree_verification = validate_source_tree_evidence(
         contents, lock_sha256, lock_data
     )
+    composition_verification = None
+    if repository_root is not None:
+        try:
+            composition_verification = verify_composition(
+                repository_root=repository_root,
+                manifest_path=image["manifest"],
+                lock_data=lock_data,
+                lock_bytes=lock_bytes if lock_bytes is not None else json.dumps(lock_data, sort_keys=True).encode(),
+                metadata_applications=metadata["applications"],
+                inventory_applications=inventory["applications"],
+                runtime_directories=actual_dirs,
+                runtime_apps_txt=actual_apps_txt,
+            )
+        except CompositionVerificationError as exc:
+            raise ImageValidationError(f"Independent composition verification failed: {exc}") from exc
     return {
         "image": image_ref,
         "image_digest": image_digest,
@@ -609,6 +634,7 @@ def validate_image(
         "inventory_verified": True,
         "source_tree_verified": True,
         "source_tree_verification": source_tree_verification,
+        **({"composition_verification": composition_verification} if composition_verification is not None else {}),
         "evidence_binding": binding,
         "status": "passed",
     }
@@ -625,6 +651,7 @@ def validate_from_files(
     post_cleanup_verification_output_path: Path | None = None,
     runtime_verification_output_path: Path | None = None,
     source_provenance_verification_output_path: Path | None = None,
+    composition_output_path: Path | None = None,
 ) -> dict[str, Any]:
     metadata, lock_data = load_json(metadata_path), load_json(lock_path)
     buildx_metadata = load_json(buildx_metadata_path)
@@ -636,8 +663,11 @@ def validate_from_files(
     lock_sha256 = hashlib.sha256(lock_path.read_bytes()).hexdigest()
     labels = inspect_image_labels(image_ref)
     contents = inspect_image_contents(image_ref)
+    repository_root = Path(__file__).resolve().parents[3]
     report = validate_image(
-        image_ref, metadata, lock_data, labels, contents, lock_sha256, image_digest
+        image_ref, metadata, lock_data, labels, contents, lock_sha256, image_digest,
+        repository_root=repository_root,
+        lock_bytes=lock_path.read_bytes(),
     )
     inventory_bytes = contents["build_inventory_bytes"]
     inventory_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -647,6 +677,14 @@ def validate_from_files(
         json.dumps(report["evidence_binding"], indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    if composition_output_path is not None:
+        composition_report = report.get("composition_verification")
+        if not isinstance(composition_report, dict):
+            raise ImageValidationError("Independent composition verification did not produce a report.")
+        composition_output_path.parent.mkdir(parents=True, exist_ok=True)
+        composition_output_path.write_text(
+            json.dumps(composition_report, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
+        )
     for path, key in (
         (source_provenance_output_path, "source_provenance"),
         (source_provenance_verification_output_path, "source_provenance_verification"),
@@ -692,6 +730,7 @@ def main() -> int:
     parser.add_argument("--post-cleanup-verification-output", type=Path)
     parser.add_argument("--runtime-verification-output", type=Path)
     parser.add_argument("--source-provenance-verification-output", type=Path)
+    parser.add_argument("--composition-output", type=Path)
     args = parser.parse_args()
     try:
         report = validate_from_files(
@@ -705,6 +744,7 @@ def main() -> int:
             args.post_cleanup_verification_output,
             args.runtime_verification_output,
             args.source_provenance_verification_output,
+            args.composition_output,
         )
         if args.report:
             args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -720,7 +760,7 @@ def main() -> int:
     )
     print(f"Image digest: {report['image_digest']}")
     print(f"Inventory SHA-256: {report['evidence_binding']['inventory_sha256']}")
-    print("Image validation, source-tree verification and evidence binding passed.")
+    print("Image validation, source-tree verification, independent composition verification and evidence binding passed.")
     return 0
 
 
