@@ -50,14 +50,17 @@ class DescriptorGenerationError(Exception):
     """Raised when verified inputs cannot produce a truthful PDD."""
 
 
-def _read_json(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
+def _read_json(
+    path: Path, label: str, *, expected_type: type = dict
+) -> tuple[Any, bytes]:
     try:
         raw = path.read_bytes()
         value = json.loads(raw)
     except (OSError, json.JSONDecodeError) as exc:
         raise DescriptorGenerationError(f"Unable to read {label}: {exc}") from exc
-    if not isinstance(value, dict):
-        raise DescriptorGenerationError(f"{label} must be a JSON object.")
+    if not isinstance(value, expected_type):
+        expected = "JSON array" if expected_type is list else "JSON object"
+        raise DescriptorGenerationError(f"{label} must be a {expected}.")
     return value, raw
 
 
@@ -116,13 +119,23 @@ def _load_inputs(output_dir: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
         if name == "build_metadata":
             continue
         path = output_dir / filename
-        value, raw = _read_json(path, filename)
+        value, raw = _read_json(
+            path, filename, expected_type=list if name == "apps_json" else dict
+        )
+        if name == "apps_json":
+            for index, app in enumerate(value):
+                if not isinstance(app, dict) or set(app) != {"url", "branch"}:
+                    raise DescriptorGenerationError(
+                        f"apps.json entry {index} must contain exactly url and branch."
+                    )
+                _require_string(app.get("url"), f"apps.json entry {index} URL")
+                _require_string(app.get("branch"), f"apps.json entry {index} branch")
         values[name] = value
         files[name] = raw
     return values, files
 
 
-def _verify_inputs(values: dict[str, dict[str, Any]], files: dict[str, bytes]) -> None:
+def _verify_inputs(values: dict[str, Any], files: dict[str, bytes]) -> None:
     lock_sha = _sha(files["lock_v2"])
     lock = values["lock_v2"]
     metadata = values["build_metadata"]
@@ -223,7 +236,7 @@ def _verify_inputs(values: dict[str, dict[str, Any]], files: dict[str, bytes]) -
 
 
 def _build_descriptor(
-    values: dict[str, dict[str, Any]],
+    values: dict[str, Any],
     files: dict[str, bytes],
     *,
     source_commit: str,
