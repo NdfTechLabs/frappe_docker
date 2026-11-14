@@ -1,11 +1,13 @@
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
 from scripts.validate_product_deployment_descriptor import (
     DescriptorValidationError,
     _canonical_json,
+    main,
     validate_descriptor,
 )
 from test_generate_product_deployment_descriptor import (
@@ -374,3 +376,36 @@ def test_rejects_service_identity_collision_with_bench_application(valid_descrip
     _mutate(valid_descriptor, add_collision)
     with pytest.raises(DescriptorValidationError, match="collides with a Bench application"):
         validate_descriptor(valid_descriptor)
+
+
+def test_cli_emits_machine_readable_success_report(valid_descriptor, monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["validate_product_deployment_descriptor.py", "--descriptor", str(valid_descriptor)],
+    )
+
+    assert main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "passed"
+    assert report["evidence_count"] == 11
+
+
+def test_cli_emits_machine_readable_failure_and_nonzero_status(
+    valid_descriptor, monkeypatch, capsys
+):
+    _mutate(
+        valid_descriptor,
+        lambda descriptor: descriptor["product"].update({"name": "Tampered"}),
+        rehash=False,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["validate_product_deployment_descriptor.py", "--descriptor", str(valid_descriptor)],
+    )
+
+    assert main() == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "failed"
+    assert "content SHA-256 mismatch" in report["error"]
