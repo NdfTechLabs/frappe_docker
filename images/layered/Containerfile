@@ -9,6 +9,7 @@ FROM ${FRAPPE_BUILD_IMAGE} AS builder
 COPY --chown=frappe:0 images/ndf/scripts/capture_build_inventory.py /opt/ndf/capture_build_inventory.py
 COPY --chown=frappe:0 images/ndf/scripts/capture_source_provenance.py /opt/ndf/capture_source_provenance.py
 COPY --chown=frappe:0 images/ndf/scripts/source_tree_fingerprint.py /opt/ndf/source_tree_fingerprint.py
+COPY --chown=frappe:0 images/ndf/scripts/verify_source_tree.py /opt/ndf/verify_source_tree.py
 
 ARG FRAPPE_BRANCH=version-16
 ARG FRAPPE_PATH=https://github.com/frappe/frappe
@@ -43,6 +44,11 @@ RUN --mount=type=secret,id=apps_json,target=/opt/frappe/apps.json,uid=1000,gid=0
     --lock /opt/ndf/build-lock-v2.json \
     --output /home/frappe/frappe-bench/build-evidence/source-provenance.json && \
   find apps -mindepth 1 -path "*/.git" | xargs rm -fr && \
+  /home/frappe/frappe-bench/env/bin/python /opt/ndf/verify_source_tree.py \
+    --bench /home/frappe/frappe-bench \
+    --provenance /home/frappe/frappe-bench/build-evidence/source-provenance.json \
+    --stage post_cleanup \
+    --output /home/frappe/frappe-bench/build-evidence/source-tree-verification-post-cleanup.json && \
   chmod -R g=u /home/frappe/frappe-bench
 
 FROM ${FRAPPE_BASE_IMAGE} AS backend
@@ -50,6 +56,8 @@ FROM ${FRAPPE_BASE_IMAGE} AS backend
 USER frappe
 
 COPY --from=builder --chown=frappe:0 /home/frappe/frappe-bench /home/frappe/frappe-bench
+COPY --from=builder --chown=frappe:0 /opt/ndf/source_tree_fingerprint.py /opt/ndf/source_tree_fingerprint.py
+COPY --from=builder --chown=frappe:0 /opt/ndf/verify_source_tree.py /opt/ndf/verify_source_tree.py
 
 WORKDIR /home/frappe/frappe-bench
 
