@@ -102,6 +102,19 @@ def read_declared_submodules(root: Path, repository: str) -> dict[str, str]:
             f"Unsupported .gitmodules entry in repository {repository}."
         )
 
+    try:
+        git_bytes(root, ["ls-files", "--error-unmatch", "--", ".gitmodules"])
+        committed_config = git_bytes(root, ["show", "HEAD:.gitmodules"])
+        working_config = config_path.read_bytes()
+    except (OSError, SourceProvenanceError) as exc:
+        raise SourceProvenanceError(
+            f".gitmodules is not tracked by the current HEAD for {repository}."
+        ) from exc
+    if working_config != committed_config:
+        raise SourceProvenanceError(
+            f".gitmodules differs from the checked-out HEAD for {repository}."
+        )
+
     parser = configparser.ConfigParser(interpolation=None, strict=True)
     parser.optionxform = str
     try:
@@ -239,8 +252,14 @@ def capture_submodule(
             f"Submodule nesting exceeds the supported depth in {parent_repository}."
         )
 
-    child = parent.joinpath(*PurePosixPath(relative_path).parts)
-    if child.is_symlink() or not child.is_dir():
+    child = parent
+    for part in PurePosixPath(relative_path).parts:
+        child = child / part
+        if child.is_symlink():
+            raise SourceProvenanceError(
+                f"Submodule path contains a symbolic-link component: {relative_path}"
+            )
+    if not child.is_dir():
         raise SourceProvenanceError(
             f"Submodule is missing or not initialized: {parent_repository}:{relative_path}"
         )
