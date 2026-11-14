@@ -37,8 +37,8 @@ def composition_case(tmp_path):
             "sha256": hashlib.sha256(manifest_raw).hexdigest(),
         }],
         "applications": [
-            {"name": "frappe"},
-            {"name": "sample_app"},
+            {"name": "frappe", "repository": "https://github.com/frappe/frappe", "target_ref": "version-16", "installation_order": 1},
+            {"name": "sample_app", "repository": "https://github.com/example/sample_app", "target_ref": "version-1", "installation_order": 2},
         ],
         "capabilities": [],
         "services": [],
@@ -66,6 +66,7 @@ def run_case(case):
         inventory_applications=case["apps"],
         runtime_directories=case["directories"],
         runtime_apps_txt=case["apps_txt"],
+        apps_json=[{"url": "https://github.com/example/sample_app", "branch": "version-1"}],
     )
 
 
@@ -158,7 +159,7 @@ def test_accepts_selected_v2_capability_and_rejects_unselected_manifest(tmp_path
         entries.append({"id":value["id"],"path":path,"sha256":hashlib.sha256(raw).hexdigest()})
     lock={"lock_version":2,"manifests":entries,"applications":[{"name":"frappe"}],"capabilities":[{"manifest":"capabilities/feature.json","required":False,"selected":True}],"services":[],"external_requirements":[]}
     apps=[{"name":"frappe"}]
-    args=dict(repository_root=tmp_path,manifest_path="products/p.json",lock_data=lock,lock_bytes=json.dumps(lock).encode(),metadata_applications=apps,inventory_applications=apps,runtime_directories=["frappe"],runtime_apps_txt=["frappe"])
+    args=dict(repository_root=tmp_path,manifest_path="products/p.json",lock_data=lock,lock_bytes=json.dumps(lock).encode(),metadata_applications=apps,inventory_applications=apps,runtime_directories=["frappe"],runtime_apps_txt=["frappe"],apps_json=[])
     assert verify_composition(**args)["capabilities"][0]["selected"] is True
     lock["manifests"].pop()
     args["lock_data"]=lock
