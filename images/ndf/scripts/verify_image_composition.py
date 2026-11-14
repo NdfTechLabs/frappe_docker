@@ -417,6 +417,12 @@ def verify_composition(
     """Verify source composition and actual runtime Bench application membership."""
     if lock_data.get("lock_version") != 2:
         raise CompositionVerificationError("Independent composition verification requires lock-v2.")
+    try:
+        decoded_lock = json.loads(lock_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CompositionVerificationError(f"Exact lock-v2 bytes are not valid JSON: {exc}") from exc
+    if decoded_lock != lock_data:
+        raise CompositionVerificationError("Parsed lock-v2 data does not match the exact lock-v2 bytes supplied for verification.")
     lock_sha = hashlib.sha256(lock_bytes).hexdigest()
     manifests, manifest_evidence = _load_manifest_inventory(repository_root, manifest_path, lock_data)
     _verify_manifest_graph(manifest_path, manifests)
