@@ -30,7 +30,7 @@ SERVICE_SCHEMA_PATH = (
     / "service-descriptor-v1.schema.json"
 )
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
-OCI_DIGEST = re.compile(r"^[^@\\s]+@sha256:[a-fA-F0-9]{64}$")
+OCI_DIGEST = re.compile(r"^[^@\s]+@sha256:[a-fA-F0-9]{64}$")
 
 
 def _read_json(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
