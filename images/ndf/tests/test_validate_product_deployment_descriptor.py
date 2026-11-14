@@ -317,3 +317,60 @@ def test_validator_has_no_generator_or_evidence_binder_dependency():
 
     assert "generate_product_deployment_descriptor" not in source
     assert "bind_verification_evidence" not in source
+
+
+def test_allows_requirement_evidence_references_outside_fixed_m425_bundle(valid_descriptor):
+    def add_external_evidence_reference(descriptor):
+        descriptor["requirements"]["storage"] = {
+            "state": "verified",
+            "declarations": [
+                {
+                    "authority": "product_manifest",
+                    "reference": "images/ndf/manifests/products/tenant/dalali-v16.json",
+                    "sha256": "a" * 64,
+                    "claims": [{"storage": "persistent"}],
+                }
+            ],
+            "verification": [
+                {
+                    "method": "storage-contract-review",
+                    "result": "passed",
+                    "evidence_reference": "evidence/storage-verification.json",
+                    "evidence_sha256": "b" * 64,
+                }
+            ],
+        }
+
+    _mutate(valid_descriptor, add_external_evidence_reference)
+    report = validate_descriptor(valid_descriptor)
+
+    assert report["status"] == "passed"
+
+
+def test_rejects_service_identity_collision_with_bench_application(valid_descriptor):
+    def add_collision(descriptor):
+        descriptor["composition"]["services"] = [
+            {
+                "service_id": "frappe",
+                "service_kind": "container",
+                "descriptor_path": "services/frappe.json",
+                "descriptor_sha256": "c" * 64,
+                "depends_on": [],
+            }
+        ]
+        descriptor["requirements"]["services"] = {
+            "state": "declared",
+            "declarations": [
+                {
+                    "authority": "service_descriptor",
+                    "reference": "services/frappe.json",
+                    "sha256": "c" * 64,
+                    "claims": [{"service_id": "frappe", "service_kind": "container"}],
+                }
+            ],
+            "verification": [],
+        }
+
+    _mutate(valid_descriptor, add_collision)
+    with pytest.raises(DescriptorValidationError, match="collides with a Bench application"):
+        validate_descriptor(valid_descriptor)
