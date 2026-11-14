@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -67,6 +68,23 @@ def git_paths(path: Path, arguments: list[str]) -> list[str]:
     return sorted(values)
 
 
+def reject_nested_git_metadata(root: Path, app_name: str) -> None:
+    metadata = root / ".git"
+    if metadata.is_symlink() or not (metadata.is_file() or metadata.is_dir()):
+        raise SourceProvenanceError(
+            f"Unsupported Git metadata entry for application {app_name}."
+        )
+
+    for current, directories, files in os.walk(root, followlinks=False):
+        if Path(current) == root:
+            continue
+        if ".git" in directories or ".git" in files:
+            raise SourceProvenanceError(
+                f"Nested Git metadata is not supported for {app_name}: {current}"
+            )
+        directories[:] = sorted(directories)
+
+
 def reject_gitlinks(path: Path, app_name: str) -> None:
     records = git_bytes(path, ["ls-files", "--stage", "-z"]).split(b"\0")
     submodules = []
@@ -106,6 +124,7 @@ def capture_repository_source(
             f"Git worktree root does not match application root for {app['name']}."
         )
 
+    reject_nested_git_metadata(path, app["name"])
     reject_gitlinks(path, app["name"])
     head_tree = git_text(path, ["rev-parse", "HEAD^{tree}"])
     if not re.fullmatch(r"[0-9a-fA-F]{40,64}", head_tree):
