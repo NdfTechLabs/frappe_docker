@@ -7,6 +7,7 @@ from scripts.generate_product_deployment_descriptor import (
     _canonical_json,
     _load_inputs,
     generate_descriptor,
+    main,
 )
 
 
