@@ -372,7 +372,12 @@ def _verify_registry_manifest(
             ],
             check=False,
             capture_output=True,
+            timeout=120,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise ProductDeploymentBindingError(
+            "Registry manifest inspection timed out."
+        ) from exc
     except OSError as exc:
         raise ProductDeploymentBindingError(
             f"Unable to execute registry manifest inspection: {exc}"
@@ -413,7 +418,12 @@ def verify_product_deployment_binding(
         raise ProductDeploymentBindingError(
             "Evidence directory must not be a symlink."
         )
-    evidence_root = evidence_dir.resolve(strict=True)
+    try:
+        evidence_root = evidence_dir.resolve(strict=True)
+    except OSError as exc:
+        raise ProductDeploymentBindingError(
+            f"Evidence directory is missing or inaccessible: {exc}"
+        ) from exc
     sidecars = {
         name: _read_json(
             _resolve_evidence_file(evidence_root, filename), filename
