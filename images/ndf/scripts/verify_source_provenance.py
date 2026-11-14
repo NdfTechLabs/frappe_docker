@@ -32,16 +32,26 @@ MAX_SUBMODULE_DEPTH = 32
 
 
 def git_bytes(root: Path, args: list[str]) -> bytes:
+    environment = os.environ.copy()
+    for key in list(environment):
+        if key in {
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_COMMON_DIR",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            "GIT_PREFIX",
+        } or key.startswith("GIT_CONFIG_"):
+            environment.pop(key, None)
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
+    environment["GIT_TERMINAL_PROMPT"] = "0"
     try:
         result = subprocess.run(
             ["git", "-C", str(root), *args],
             check=False,
             capture_output=True,
-            env={
-                **os.environ,
-                "GIT_OPTIONAL_LOCKS": "0",
-                "GIT_TERMINAL_PROMPT": "0",
-            },
+            env=environment,
         )
     except OSError as exc:
         raise SourceProvenanceVerificationError(
@@ -336,6 +346,34 @@ def read_gitlinks(root: Path, label: str) -> dict[str, str]:
     return dict(sorted(result.items()))
 
 
+
+def reject_undeclared_nested_git_metadata(
+    root: Path, submodule_paths: set[str], label: str
+) -> None:
+    """Reject embedded Git repositories except declared submodule roots."""
+    allowed = {
+        root.joinpath(*PurePosixPath(path).parts).resolve()
+        for path in submodule_paths
+    }
+    for current, directories, files in os.walk(root, followlinks=False):
+        current_path = Path(current).resolve()
+        if current_path == root.resolve():
+            directories[:] = [name for name in directories if name != ".git"]
+            if ".git" in files:
+                raise SourceProvenanceVerificationError(
+                    f"Root Git metadata is not a directory or worktree file in {label}."
+                )
+            continue
+        if current_path in allowed:
+            directories[:] = []
+            continue
+        if ".git" in directories or ".git" in files:
+            raise SourceProvenanceVerificationError(
+                f"Undeclared nested Git metadata in {label}: "
+                f"{current_path.relative_to(root.resolve()).as_posix()}."
+            )
+        directories[:] = sorted(directories)
+
 def verify_fingerprint(root: Path, expected: Any, label: str) -> dict[str, Any]:
     if not isinstance(expected, dict):
         raise SourceProvenanceVerificationError(f"Source-tree fingerprint is missing for {label}.")
@@ -361,6 +399,7 @@ def verify_submodules(
         raise SourceProvenanceVerificationError(
             f"Declared submodules and Git index gitlinks differ in {label}."
         )
+    reject_undeclared_nested_git_metadata(root, set(gitlinks), label)
     by_path: dict[str, dict[str, Any]] = {}
     for record in records:
         if not isinstance(record, dict):
