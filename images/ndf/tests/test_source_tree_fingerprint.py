@@ -125,3 +125,11 @@ def test_v1_golden_vector(tmp_path: Path) -> None:
         "directory_count": 1,
         "symlink_count": 0,
     }
+
+
+def test_records_use_global_path_order_not_depth_first_order(tmp_path: Path) -> None:
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "child.txt").write_text("child", encoding="utf-8")
+    (tmp_path / "a!").write_text("sibling", encoding="utf-8")
+    result = fingerprint_tree(tmp_path)
+    assert result["sha256"] == "4b171d7dd9907ba3ed4b5149ad689d1c43c1854e9d77d6c96b0d087d9801b415"
