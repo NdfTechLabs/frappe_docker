@@ -407,6 +407,7 @@ def verify_composition(
     inventory_applications: list[dict[str, Any]],
     runtime_directories: list[str],
     runtime_apps_txt: list[str],
+    apps_json: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Verify source composition and actual runtime Bench application membership."""
     if lock_data.get("lock_version") != 2:
@@ -424,6 +425,14 @@ def verify_composition(
     if set(apps) != set(metadata) or set(apps) != set(inventory):
         raise CompositionVerificationError("Bench application composition differs across lock, build metadata and inventory.")
     expected_names = set(apps)
+    ordered_apps = sorted(apps.values(), key=lambda item: item.get("installation_order", 0))
+    expected_apps_json = [
+        {"url": item.get("repository"), "branch": item.get("target_ref")}
+        for item in ordered_apps
+        if item.get("name") != "frappe"
+    ]
+    if apps_json != expected_apps_json:
+        raise CompositionVerificationError("apps.json does not match the exact lock-v2 Bench install input.")
     for label, observed in (("runtime app directories", runtime_directories), ("runtime sites/apps.txt", runtime_apps_txt)):
         if not isinstance(observed, list) or any(not isinstance(name, str) or not name for name in observed):
             raise CompositionVerificationError(f"{label} is not a valid application-name list.")
@@ -441,7 +450,7 @@ def verify_composition(
         "verifier": {"name": "verify_image_composition.py", "version": "1.0.0"},
         "lock": {"version": 2, "sha256": lock_sha},
         "manifests": manifest_evidence,
-        "applications": {"expected": sorted(expected_names), "metadata": sorted(metadata), "inventory": sorted(inventory), "runtime_directories": sorted(runtime_directories), "runtime_apps_txt": sorted(runtime_apps_txt), "count": len(expected_names)},
+        "applications": {"expected": sorted(expected_names), "metadata": sorted(metadata), "inventory": sorted(inventory), "runtime_directories": sorted(runtime_directories), "runtime_apps_txt": sorted(runtime_apps_txt), "count": len(expected_names), "apps_json_verified": True},
         "capabilities": capabilities,
         "services": containers,
         "external_requirements": external,
