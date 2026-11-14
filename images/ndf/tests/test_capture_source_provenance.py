@@ -19,6 +19,33 @@ def git(command, cwd):
     ).stdout.strip()
 
 
+def create_repository(path, filename, value):
+    path.mkdir(parents=True)
+    git(["init", "-b", "main"], path)
+    git(["config", "user.email", "test@example.invalid"], path)
+    git(["config", "user.name", "Provenance Test"], path)
+    (path / filename).write_text(value, encoding="utf-8")
+    git(["add", filename], path)
+    git(["commit", "-m", "initial"], path)
+    return path
+
+
+def add_submodule(parent, source, relative_path, canonical_url):
+    git(
+        ["-c", "protocol.file.allow=always", "submodule", "add", str(source), relative_path],
+        parent,
+    )
+    config_path = parent / ".gitmodules"
+    config = config_path.read_text(encoding="utf-8")
+    config = config.replace(str(source), canonical_url)
+    config_path.write_text(config, encoding="utf-8")
+    child = parent / relative_path
+    git(["remote", "set-url", "origin", canonical_url], child)
+    git(["add", ".gitmodules", relative_path], parent)
+    git(["commit", "-m", f"add {relative_path} submodule"], parent)
+    return child, git(["rev-parse", "HEAD"], child)
+
+
 @pytest.fixture
 def bench_fixture(tmp_path):
     bench = tmp_path / "frappe-bench"
@@ -30,14 +57,7 @@ def bench_fixture(tmp_path):
     ]
     locked = []
     for name, remote, order in definitions:
-        app_path = apps / name
-        app_path.mkdir()
-        git(["init", "-b", "main"], app_path)
-        git(["config", "user.email", "test@example.invalid"], app_path)
-        git(["config", "user.name", "Provenance Test"], app_path)
-        (app_path / "tracked.txt").write_text(name, encoding="utf-8")
-        git(["add", "tracked.txt"], app_path)
-        git(["commit", "-m", "initial"], app_path)
+        app_path = create_repository(apps / name, "tracked.txt", name)
         git(["remote", "add", "upstream", remote], app_path)
         locked.append(
             {
@@ -51,7 +71,7 @@ def bench_fixture(tmp_path):
 
     lock_path = tmp_path / "product.lock-v2.json"
     lock_path.write_text(
-        json.dumps({"lock_version": 2, "applications": locked}, indent=2) + "\n",
+        json.dumps({"lock_version": 2, "applications": locked}, indent=2) + "\\n",
         encoding="utf-8",
     )
     return bench, lock_path, apps
@@ -81,6 +101,7 @@ def test_capture_records_git_identity_and_source_fingerprints(bench_fixture, tmp
     }
     assert frappe["generated_content"]["untracked_paths"] == []
     assert frappe["generated_content"]["ignored_paths"] == []
+    assert frappe["submodules"] == []
     assert frappe["source_tree"] == fingerprint_tree(apps / "frappe")
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
@@ -102,7 +123,7 @@ def test_capture_classifies_modified_untracked_and_ignored_content(
     (frappe / "tracked.txt").write_text("modified after clone", encoding="utf-8")
     (frappe / "generated-output.txt").write_text("generated", encoding="utf-8")
     (frappe / ".git" / "info" / "exclude").write_text(
-        "ignored-output.cache\n", encoding="utf-8"
+        "ignored-output.cache\\n", encoding="utf-8"
     )
     (frappe / "ignored-output.cache").write_text("ignored", encoding="utf-8")
 
@@ -116,6 +137,106 @@ def test_capture_classifies_modified_untracked_and_ignored_content(
     assert len(record["tracked_content"]["installation_diff_sha256"]) == 64
     assert record["generated_content"]["untracked_paths"] == ["generated-output.txt"]
     assert record["generated_content"]["ignored_paths"] == ["ignored-output.cache"]
+
+
+def test_capture_rejects_undeclared_gitlink(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    frappe = apps / "frappe"
+    git(
+        [
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            f"160000,{'a' * 40},vendor/child",
+        ],
+        frappe,
+    )
+
+    with pytest.raises(
+        provenance.SourceProvenanceError, match="gitlinks differ"
+    ):
+        provenance.capture_source_provenance(
+            bench, lock, tmp_path / "source-provenance.json"
+        )
+
+
+def test_capture_records_initialized_submodule_and_fingerprints_its_files(
+    bench_fixture, tmp_path
+):
+    bench, lock, apps = bench_fixture
+    frappe = apps / "frappe"
+    source = create_repository(
+        tmp_path / "frappe-ui-source", "ui-package.json", '{"name":"frappe-ui"}'
+    )
+    child, pinned_commit = add_submodule(
+        frappe,
+        source,
+        "frappe-ui",
+        "https://github.com/frappe/frappe-ui.git",
+    )
+
+    report = provenance.capture_source_provenance(
+        bench, lock, tmp_path / "source-provenance.json"
+    )
+    record = report["repositories"][0]
+    submodule = record["submodules"][0]
+
+    assert submodule["path"] == "frappe-ui"
+    assert submodule["repository"] == "github.com/frappe/frappe-ui"
+    assert submodule["expected_commit"] == pinned_commit
+    assert submodule["actual_commit"] == pinned_commit
+    assert submodule["source_tree"] == fingerprint_tree(child)
+    assert "frappe-ui/ui-package.json" in {
+        item for item in ["frappe-ui/ui-package.json"]
+    }
+    assert record["source_tree"] == fingerprint_tree(frappe)
+    assert submodule["source_tree"]["sha256"] != record["source_tree"]["sha256"]
+
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "source-provenance-v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(report)
+
+
+def test_capture_rejects_submodule_commit_mismatch(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    frappe = apps / "frappe"
+    source = create_repository(tmp_path / "frappe-ui-source", "ui.txt", "first")
+    child, pinned_commit = add_submodule(
+        frappe,
+        source,
+        "frappe-ui",
+        "https://github.com/frappe/frappe-ui.git",
+    )
+    (child / "ui.txt").write_text("second", encoding="utf-8")
+    git(["commit", "-am", "advance submodule"], child)
+
+    assert git(["rev-parse", "HEAD"], child) != pinned_commit
+    with pytest.raises(provenance.SourceProvenanceError, match="commit mismatch"):
+        provenance.capture_source_provenance(
+            bench, lock, tmp_path / "source-provenance.json"
+        )
+
+
+def test_capture_rejects_uninitialized_submodule(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    frappe = apps / "frappe"
+    source = create_repository(tmp_path / "frappe-ui-source", "ui.txt", "content")
+    add_submodule(
+        frappe,
+        source,
+        "frappe-ui",
+        "https://github.com/frappe/frappe-ui.git",
+    )
+    git(["submodule", "deinit", "-f", "--", "frappe-ui"], frappe)
+
+    with pytest.raises(provenance.SourceProvenanceError, match="missing or not initialized"):
+        provenance.capture_source_provenance(
+            bench, lock, tmp_path / "source-provenance.json"
+        )
 
 
 def test_capture_rejects_nested_git_metadata(bench_fixture, tmp_path):
@@ -151,25 +272,6 @@ def test_capture_sanitizes_credentials_from_git_remotes(bench_fixture, tmp_path)
     assert report["repositories"][0]["repository"] == "github.com/frappe/frappe"
     assert "secret-token" not in serialized
     assert "user@" not in serialized
-
-
-def test_capture_rejects_git_submodules(bench_fixture, tmp_path):
-    bench, lock, apps = bench_fixture
-    frappe = apps / "frappe"
-    git(
-        [
-            "update-index",
-            "--add",
-            "--cacheinfo",
-            f"160000,{'a' * 40},vendor/child",
-        ],
-        frappe,
-    )
-
-    with pytest.raises(provenance.SourceProvenanceError, match="Git submodules"):
-        provenance.capture_source_provenance(
-            bench, lock, tmp_path / "source-provenance.json"
-        )
 
 
 def test_capture_rejects_unexpected_application_directory(bench_fixture, tmp_path):
