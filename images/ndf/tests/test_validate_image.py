@@ -147,7 +147,7 @@ def validation_inputs():
             for app in applications
         ],
     }
-    provenance_raw = (json.dumps(provenance, indent=2, sort_keys=True) + "\\n").encode()
+    provenance_raw = (json.dumps(provenance, indent=2, sort_keys=True) + "\n").encode()
     provenance_sha = hashlib.sha256(provenance_raw).hexdigest()
 
     def stage_report(stage):
@@ -172,8 +172,8 @@ def validation_inputs():
 
     post_cleanup = stage_report("post_cleanup")
     runtime_verification = stage_report("runtime_image")
-    post_raw = (json.dumps(post_cleanup, indent=2, sort_keys=True) + "\\n").encode()
-    runtime_raw = (json.dumps(runtime_verification, indent=2, sort_keys=True) + "\\n").encode()
+    post_raw = (json.dumps(post_cleanup, indent=2, sort_keys=True) + "\n").encode()
+    runtime_raw = (json.dumps(runtime_verification, indent=2, sort_keys=True) + "\n").encode()
     contents = {
         "directories": ["frappe", "erpnext"],
         "apps_txt": ["frappe", "erpnext"],
