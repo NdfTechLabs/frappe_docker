@@ -95,9 +95,13 @@ def validate_submodule_path(value: str, repository: str) -> PurePosixPath:
 def read_declared_submodules(root: Path, repository: str) -> dict[str, str]:
     """Read credential-free submodule identities from the checked-out .gitmodules."""
     config_path = root / ".gitmodules"
+    if config_path.is_symlink():
+        raise SourceProvenanceError(
+            f"Unsupported .gitmodules entry in repository {repository}."
+        )
     if not config_path.exists():
         return {}
-    if config_path.is_symlink() or not config_path.is_file():
+    if not config_path.is_file():
         raise SourceProvenanceError(
             f"Unsupported .gitmodules entry in repository {repository}."
         )
