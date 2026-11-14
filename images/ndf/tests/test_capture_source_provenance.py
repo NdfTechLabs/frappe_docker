@@ -219,11 +219,13 @@ def test_capture_rejects_submodule_commit_mismatch(bench_fixture, tmp_path):
         )
 
 
-def test_capture_rejects_uninitialized_submodule(bench_fixture, tmp_path):
+def test_capture_records_uninitialized_submodule_as_gitlink_metadata(
+    bench_fixture, tmp_path
+):
     bench, lock, apps = bench_fixture
     frappe = apps / "frappe"
     source = create_repository(tmp_path / "frappe-ui-source", "ui.txt", "content")
-    add_submodule(
+    _, pinned_commit = add_submodule(
         frappe,
         source,
         "frappe-ui",
@@ -231,11 +233,48 @@ def test_capture_rejects_uninitialized_submodule(bench_fixture, tmp_path):
     )
     git(["submodule", "deinit", "-f", "--", "frappe-ui"], frappe)
 
-    with pytest.raises(provenance.SourceProvenanceError, match="missing or not initialized|Git metadata is missing"):
+    report = provenance.capture_source_provenance(
+        bench, lock, tmp_path / "source-provenance.json"
+    )
+    submodule = report["repositories"][0]["submodules"][0]
+
+    assert submodule == {
+        "path": "frappe-ui",
+        "repository": "github.com/frappe/frappe-ui",
+        "expected_commit": pinned_commit,
+        "materialized": False,
+        "actual_commit": None,
+        "head_tree": None,
+        "tracked_content": None,
+        "generated_content": None,
+        "source_tree": None,
+        "submodules": [],
+    }
+
+
+def test_capture_rejects_uninitialized_submodule_with_unexpected_files(
+    bench_fixture, tmp_path
+):
+    bench, lock, apps = bench_fixture
+    frappe = apps / "frappe"
+    source = create_repository(tmp_path / "frappe-ui-source", "ui.txt", "content")
+    child, _ = add_submodule(
+        frappe,
+        source,
+        "frappe-ui",
+        "https://github.com/frappe/frappe-ui.git",
+    )
+    git(["submodule", "deinit", "-f", "--", "frappe-ui"], frappe)
+    submodule_path = frappe / "frappe-ui"
+    submodule_path.mkdir(exist_ok=True)
+    (submodule_path / "unexpected.txt").write_text("untracked", encoding="utf-8")
+
+    with pytest.raises(
+        provenance.SourceProvenanceError, match="unexpected files"
+    ):
         provenance.capture_source_provenance(
             bench, lock, tmp_path / "source-provenance.json"
         )
-
 
 def test_capture_rejects_nested_git_metadata(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
