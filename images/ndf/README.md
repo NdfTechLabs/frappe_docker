@@ -142,7 +142,7 @@ Current relevant components include:
 - [M4.2.7.2 Candidate Intake and Validation](M4.2.7.2-CANDIDATE-INTAKE.md) — strict reference, OCI, payload, schema and semantic validation implementation contract.
 - [M4.2.7.4 Workflow Orchestration Design](M4.2.7.4-WORKFLOW-ORCHESTRATION-DESIGN.md) — candidate entry workflow, reusable build/PDD stages, least-privilege permissions, result correlation, failure handling and acceptance gates.
 
-M4.2.7 changes are restricted to this NDF repository. DT Master and DT Tenant documentation are read-only requirements references; their missing DocTypes and operations remain their own implementation responsibilities. No implementation branch or code changes are authorized by the planning record.
+M4.2.7 changes are restricted to this NDF repository. DT Master and DT Tenant documentation are read-only requirements references; their missing DocTypes and operations remain their own implementation responsibilities. Implementation is authorized on `feat/M4.2.7` within this NDF repository only; DT Master and DT Tenant remain read-only references.
 
 ## Upstream relationship
 
