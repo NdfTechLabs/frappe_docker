@@ -44,7 +44,7 @@ def manifest_response(
         "digest": f"sha256:{MANIFEST_DIGEST}",
         "content": {
             "schemaVersion": 2,
-            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "mediaType": intake.OCI_MANIFEST_MEDIA_TYPE,
             "artifactType": intake.ARTIFACT_TYPE,
             "config": {
                 "mediaType": intake.EMPTY_CONFIG_MEDIA_TYPE,
@@ -122,6 +122,7 @@ def test_manifest_accepts_exact_artifact_layout():
         lambda m: m.update({"digest": "sha256:" + "b" * 64}),
         lambda m: m["content"].update({"artifactType": "application/vnd.example.other"}),
         lambda m: m["content"].update({"schemaVersion": 1}),
+        lambda m: m["content"].update({"mediaType": "application/json"}),
         lambda m: m["content"].update({"config": {"mediaType": "application/json", "digest": intake.EMPTY_CONFIG_DIGEST, "size": 2}}),
         lambda m: m["content"].update({"layers": []}),
         lambda m: m["content"].update({"layers": m["content"]["layers"] * 2}),
