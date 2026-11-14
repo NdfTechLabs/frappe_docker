@@ -169,15 +169,6 @@ def _verify_inputs(values: dict[str, dict[str, Any]], files: dict[str, bytes]) -
         )
         for name in EVIDENCE_FILES
     }
-    statuses = {
-        name: values[name].get("status", "")
-        for name in (
-            "source_provenance_verification",
-            "source_tree_post_cleanup",
-            "source_tree_runtime",
-            "image_composition_verification",
-        )
-    }
     try:
         verify_verification_evidence(
             evidence,
@@ -400,6 +391,13 @@ def generate_descriptor(
     gate, _ = _read_json(build_output_dir / "publication-gate.json", "publication-gate.json")
     if gate.get("status") != "ready":
         raise DescriptorGenerationError("Publication gate must be ready before PDD generation.")
+    gate_image = gate.get("image", {})
+    if (
+        gate_image.get("digest") != values["build_result"].get("digest")
+        or gate_image.get("id") != values["build_metadata"].get("image", {}).get("id")
+        or gate_image.get("repository") != values["build_metadata"].get("image", {}).get("repository")
+    ):
+        raise DescriptorGenerationError("Publication gate identifies a different image artifact.")
     _verify_inputs(values, files)
     descriptor = _build_descriptor(
         values, files, source_commit=source_commit, workflow_run_id=workflow_run_id,
