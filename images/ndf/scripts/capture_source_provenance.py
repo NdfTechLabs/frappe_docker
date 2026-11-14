@@ -64,9 +64,7 @@ def git_paths(path: Path, arguments: list[str]) -> list[str]:
     raw = git_bytes(path, arguments)
     try:
         values = [
-            item.decode("utf-8", errors="strict")
-            for item in raw.split(b"\0")
-            if item
+            item.decode("utf-8", errors="strict") for item in raw.split(b"\0") if item
         ]
     except UnicodeDecodeError as exc:
         raise SourceProvenanceError(
@@ -225,7 +223,9 @@ def reject_nested_git_metadata(
             f"Unsupported Git metadata entry for repository {repository}."
         )
 
-    allowed_roots = {root.joinpath(*PurePosixPath(item).parts).resolve() for item in submodule_paths}
+    allowed_roots = {
+        root.joinpath(*PurePosixPath(item).parts).resolve() for item in submodule_paths
+    }
     for current, directories, files in os.walk(root, followlinks=False):
         current_path = Path(current).resolve()
         if current_path == root:
@@ -322,9 +322,7 @@ def capture_submodule(
         )
     head_tree = git_text(root, ["rev-parse", "HEAD^{tree}"]).lower()
     if not re.fullmatch(r"[0-9a-f]{40,64}", head_tree):
-        raise SourceProvenanceError(
-            f"Invalid submodule HEAD tree: {relative_path}"
-        )
+        raise SourceProvenanceError(f"Invalid submodule HEAD tree: {relative_path}")
 
     repository_remotes(root, expected_repository, relative_path)
     nested = capture_repository_contents(
@@ -417,9 +415,7 @@ def capture_repository_contents(
     }
 
 
-def capture_repository_source(
-    path: Path, app: dict[str, Any]
-) -> dict[str, Any]:
+def capture_repository_source(path: Path, app: dict[str, Any]) -> dict[str, Any]:
     """Capture root application provenance and all recursively declared submodules."""
     try:
         repository = capture_git_repository(path, app)
@@ -427,9 +423,7 @@ def capture_repository_source(
         raise SourceProvenanceError(str(exc)) from exc
 
     root = path.resolve()
-    git_root = Path(
-        git_text(path, ["rev-parse", "--show-toplevel"])
-    ).resolve()
+    git_root = Path(git_text(path, ["rev-parse", "--show-toplevel"])).resolve()
     if git_root != root:
         raise SourceProvenanceError(
             f"Git worktree root does not match application root for {app['name']}."
