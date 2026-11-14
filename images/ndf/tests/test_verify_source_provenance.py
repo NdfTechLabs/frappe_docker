@@ -67,6 +67,8 @@ def add_submodule(parent: Path, source: Path, path: str, url: str) -> tuple[Path
         text=True,
     )
     child = parent / path
+    git(["config", "user.email", "verification@example.invalid"], child)
+    git(["config", "user.name", "NDF Verification Test"], child)
     git(["remote", "set-url", "origin", url], child)
     modules = parent / ".gitmodules"
     text = modules.read_text(encoding="utf-8").replace(str(source), url)
