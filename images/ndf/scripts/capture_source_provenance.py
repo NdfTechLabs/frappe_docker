@@ -65,7 +65,7 @@ def git_paths(path: Path, arguments: list[str]) -> list[str]:
     try:
         values = [
             item.decode("utf-8", errors="strict")
-            for item in raw.split(b"\\0")
+            for item in raw.split(b"\0")
             if item
         ]
     except UnicodeDecodeError as exc:
@@ -142,12 +142,12 @@ def read_declared_submodules(root: Path, repository: str) -> dict[str, str]:
 
 def read_gitlinks(root: Path, repository: str) -> dict[str, str]:
     """Return stage-zero gitlink paths and their pinned object IDs."""
-    records = git_bytes(root, ["ls-files", "--stage", "-z"]).split(b"\\0")
+    records = git_bytes(root, ["ls-files", "--stage", "-z"]).split(b"\0")
     gitlinks: dict[str, str] = {}
     for record in records:
         if not record:
             continue
-        metadata, separator, encoded_path = record.partition(b"\\t")
+        metadata, separator, encoded_path = record.partition(b"\t")
         if not separator:
             raise SourceProvenanceError(
                 f"Malformed Git index record in repository {repository}."
@@ -442,7 +442,7 @@ def capture_source_provenance(
     temporary = output_path.with_suffix(output_path.suffix + ".tmp")
     try:
         temporary.write_text(
-            json.dumps(report, indent=2, sort_keys=True) + "\\n",
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         temporary.replace(output_path)
