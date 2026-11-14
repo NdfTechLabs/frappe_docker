@@ -296,6 +296,7 @@ def _map_candidate_applications(
         expected["_candidate_release_version"] = requested["release_version"]
         expected["_candidate_descriptor_ref"] = requested["descriptor_ref"]
         expected["_candidate_descriptor_digest"] = requested["descriptor_digest"]
+        expected["_candidate_change_action"] = requested["change_action"]
         mapped.append(expected)
 
     # Preserve the existing resolver's deterministic dependency order.
@@ -407,6 +408,7 @@ def adapt_candidate_to_lock(
                 "candidate_descriptor_digest": mapped_app[
                     "_candidate_descriptor_digest"
                 ],
+                "candidate_change_action": mapped_app.get("_candidate_change_action"),
             }
         )
 
@@ -414,12 +416,20 @@ def adapt_candidate_to_lock(
         "schema_version": candidate["schema_version"],
         "candidate_id": candidate["candidate_id"],
         "candidate_code": candidate["candidate_code"],
+        "candidate_type": candidate["candidate_type"],
+        "product": candidate["product"],
+        "framework_version": candidate["framework_version"],
+        "base_deployment": candidate.get("base_deployment"),
         "artifact_reference": candidate_artifact_ref,
         "artifact_digest": artifact_digest,
         "payload_sha256": payload_sha256,
         "composition_hash": candidate["composition_hash"],
         "optional_capabilities": sorted(selected_capabilities),
         "target_platforms": candidate["target_platforms"],
+        "runtime_profile": candidate["runtime_profile"],
+        "runtime_constraints": candidate["runtime_constraints"],
+        "approved_build_parameters": candidate["approved_build_parameters"],
+        "provenance_refs": candidate["provenance_refs"],
     }
 
     output_dir = output_dir.resolve()
