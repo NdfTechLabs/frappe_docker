@@ -371,6 +371,8 @@
         "source_evidence",
         "framework",
         "python",
+        "node",
+        "yarn",
         "bench",
         "platform"
       ],
@@ -389,19 +391,19 @@
           ]
         },
         "framework": {
-          "$ref": "#/$defs/runtimeComponent"
+          "$ref": "#/$defs/sourceApplication"
         },
         "python": {
-          "$ref": "#/$defs/runtimeComponent"
+          "$ref": "#/$defs/pythonRuntime"
         },
         "node": {
-          "$ref": "#/$defs/runtimeComponent"
+          "$ref": "#/$defs/optionalVersion"
         },
         "yarn": {
-          "$ref": "#/$defs/runtimeComponent"
+          "$ref": "#/$defs/optionalVersion"
         },
         "bench": {
-          "$ref": "#/$defs/runtimeComponent"
+          "$ref": "#/$defs/optionalVersion"
         },
         "platform": {
           "type": "object",
@@ -751,6 +753,80 @@
           },
           "minItems": 1,
           "maxItems": 1
+        }
+      }
+    },
+    "sourceApplication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "repository",
+        "requested_ref",
+        "resolver_commit",
+        "actual_commit"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[^/@:]+/.+$"
+        },
+        "requested_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolver_commit": {
+          "type": "string"
+        },
+        "actual_commit": {
+          "$ref": "#/$defs/gitCommit"
+        }
+      }
+    },
+    "pythonRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable",
+        "environment",
+        "version",
+        "implementation"
+      ],
+      "properties": {
+        "executable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "optionalVersion": {
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     }
