@@ -146,13 +146,23 @@ jobs:
           PUBLICATION_REF: ${{ steps.image.outputs.image_ref }}
         run: |
           set -euo pipefail
-          if docker buildx imagetools inspect "$CANDIDATE_REF" >/dev/null 2>&1; then
-            echo "Staging tag already exists: $CANDIDATE_REF" >&2
-            exit 1
-          fi
-          if [[ "${{ inputs.publish }}" == "true" ]] && docker buildx imagetools inspect "$PUBLICATION_REF" >/dev/null 2>&1; then
-            echo "Official immutable source tag already exists: $PUBLICATION_REF" >&2
-            exit 1
+          assert_tag_absent() {
+            local ref="$1"
+            local output
+            if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
+              echo "Registry tag already exists: $ref" >&2
+              return 1
+            fi
+            if grep -Eqi 'not found|manifest unknown|404' <<< "$output"; then
+              return 0
+            fi
+            echo "Unable to prove registry tag is absent: $ref" >&2
+            echo "$output" >&2
+            return 1
+          }
+          assert_tag_absent "$CANDIDATE_REF"
+          if [[ "${{ inputs.publish }}" == "true" ]]; then
+            assert_tag_absent "$PUBLICATION_REF"
           fi
 
       - name: Build staging image (not the official product tag)
@@ -247,8 +257,14 @@ jobs:
           EXPECTED_DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
           set -euo pipefail
-          if docker buildx imagetools inspect "$PUBLICATION_REF" >/dev/null 2>&1; then
+          INSPECT_OUTPUT=""
+          if INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF" 2>&1)"; then
             echo "Official immutable source tag appeared during the build: $PUBLICATION_REF" >&2
+            exit 1
+          fi
+          if ! grep -Eqi 'not found|manifest unknown|404' <<< "$INSPECT_OUTPUT"; then
+            echo "Unable to prove official source tag is absent: $PUBLICATION_REF" >&2
+            echo "$INSPECT_OUTPUT" >&2
             exit 1
           fi
           docker buildx imagetools create --tag "$PUBLICATION_REF" "$IMAGE_REPOSITORY@$EXPECTED_DIGEST"
