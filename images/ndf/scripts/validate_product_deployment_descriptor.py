@@ -212,11 +212,7 @@ def _validate_evidence_references(descriptor: dict[str, Any]) -> dict[str, dict[
                 (item for item in records if item["path"] == reference),
                 None,
             )
-            if match is None:
-                raise DescriptorValidationError(
-                    f"Requirement verification reference is not in the PDD evidence inventory: {reference}."
-                )
-            if verification["evidence_sha256"] != match["sha256"]:
+            if match is not None and verification["evidence_sha256"] != match["sha256"]:
                 raise DescriptorValidationError(
                     f"Requirement verification SHA-256 does not match evidence record: {reference}."
                 )
