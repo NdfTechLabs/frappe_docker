@@ -38,9 +38,7 @@
       "minimum_version": "24"
     }
   },
-  "target_platforms": [
-    "linux/amd64"
-  ],
+  "target_platforms": ["linux/amd64"],
   "approved_build_parameters": {
     "build_profile": "production",
     "build_options": {

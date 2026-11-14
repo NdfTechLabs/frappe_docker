@@ -132,7 +132,6 @@ Current relevant components include:
 - [DT Master M4 architecture](https://github.com/NdfTechLabs/dt_master/blob/develop/README.md)
 - [DT Tenant M4 architecture](https://github.com/NdfTechLabs/dt_tenant/blob/develop/README.md)
 
-
 ### M4.2.7 — Candidate-Driven CI/CD
 
 **Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 candidate intake implementation in progress on `feat/M4.2.7`.

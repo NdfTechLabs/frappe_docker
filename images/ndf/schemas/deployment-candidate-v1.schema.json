@@ -41,9 +41,7 @@
     "product": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id"
-      ],
+      "required": ["id"],
       "properties": {
         "id": {
           "type": "string",
@@ -60,10 +58,7 @@
       "minLength": 1
     },
     "base_deployment": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "composition_hash": {
       "$ref": "#/$defs/hash"
@@ -122,10 +117,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "enum": [
-          "linux/amd64",
-          "linux/arm64"
-        ]
+        "enum": ["linux/amd64", "linux/arm64"]
       }
     },
     "approved_build_parameters": {
@@ -138,11 +130,7 @@
         "build_options": {
           "type": "object",
           "additionalProperties": {
-            "type": [
-              "string",
-              "integer",
-              "boolean"
-            ]
+            "type": ["string", "integer", "boolean"]
           }
         }
       }

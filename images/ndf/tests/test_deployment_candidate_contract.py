@@ -75,11 +75,14 @@ def test_candidate_schema_and_fixture_are_valid():
     Draft202012Validator.check_schema(schema)
     candidate = load(FIXTURES / "valid" / "candidate-v1.json")
     assert not list(Draft202012Validator(schema).iter_errors(candidate))
-    assert intake.validate_candidate_payload(
-        payload_bytes(),
-        expected_candidate_id=CANDIDATE_ID,
-        expected_payload_sha256=payload_hash(),
-    ) == candidate
+    assert (
+        intake.validate_candidate_payload(
+            payload_bytes(),
+            expected_candidate_id=CANDIDATE_ID,
+            expected_payload_sha256=payload_hash(),
+        )
+        == candidate
+    )
 
 
 @pytest.mark.parametrize(
@@ -87,7 +90,8 @@ def test_candidate_schema_and_fixture_are_valid():
     [
         f"{intake.CANDIDATE_REPOSITORY}:latest",
         intake.CANDIDATE_REPOSITORY,
-        "https://ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:" + "a" * 64,
+        "https://ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
+        + "a" * 64,
         "ghcr.io/other/dt-master-deployment-candidates@sha256:" + "a" * 64,
         "ghcr.io/ndftechlabs/other@sha256:" + "a" * 64,
         f"{intake.CANDIDATE_REPOSITORY}@sha256:" + "A" * 64,
@@ -120,18 +124,36 @@ def test_manifest_accepts_exact_artifact_layout():
     "mutate",
     [
         lambda m: m.update({"digest": "sha256:" + "b" * 64}),
-        lambda m: m["content"].update({"artifactType": "application/vnd.example.other"}),
+        lambda m: m["content"].update(
+            {"artifactType": "application/vnd.example.other"}
+        ),
         lambda m: m["content"].update({"schemaVersion": 1}),
         lambda m: m["content"].update({"mediaType": "application/json"}),
-        lambda m: m["content"].update({"config": {"mediaType": "application/json", "digest": intake.EMPTY_CONFIG_DIGEST, "size": 2}}),
+        lambda m: m["content"].update(
+            {
+                "config": {
+                    "mediaType": "application/json",
+                    "digest": intake.EMPTY_CONFIG_DIGEST,
+                    "size": 2,
+                }
+            }
+        ),
         lambda m: m["content"].update({"layers": []}),
         lambda m: m["content"].update({"layers": m["content"]["layers"] * 2}),
         lambda m: m["content"]["layers"][0].update({"mediaType": "application/json"}),
         lambda m: m["content"]["layers"][0].update({"size": 0}),
-        lambda m: m["content"]["layers"][0]["annotations"].update({"org.opencontainers.image.title": "../candidate.json"}),
-        lambda m: m["content"]["annotations"].update({intake.ANNOTATION_CANDIDATE_ID: "OTHER"}),
-        lambda m: m["content"]["annotations"].update({intake.ANNOTATION_SCHEMA_VERSION: "2.0.0"}),
-        lambda m: m["content"]["annotations"].update({intake.ANNOTATION_PAYLOAD_SHA256: "0" * 64}),
+        lambda m: m["content"]["layers"][0]["annotations"].update(
+            {"org.opencontainers.image.title": "../candidate.json"}
+        ),
+        lambda m: m["content"]["annotations"].update(
+            {intake.ANNOTATION_CANDIDATE_ID: "OTHER"}
+        ),
+        lambda m: m["content"]["annotations"].update(
+            {intake.ANNOTATION_SCHEMA_VERSION: "2.0.0"}
+        ),
+        lambda m: m["content"]["annotations"].update(
+            {intake.ANNOTATION_PAYLOAD_SHA256: "0" * 64}
+        ),
     ],
 )
 def test_manifest_rejects_incorrect_oci_layout_and_annotations(mutate):
@@ -217,7 +239,9 @@ def test_payload_rejects_mutable_application_commit():
     candidate = load(FIXTURES / "valid" / "candidate-v1.json")
     candidate["applications"][0]["immutable_commit"] = "version-16"
     raw = json.dumps(candidate).encode()
-    with pytest.raises(intake.CandidateIntakeError, match="immutable_commit.*does not match"):
+    with pytest.raises(
+        intake.CandidateIntakeError, match="immutable_commit.*does not match"
+    ):
         intake.validate_candidate_payload(
             raw,
             expected_candidate_id=CANDIDATE_ID,
@@ -225,12 +249,13 @@ def test_payload_rejects_mutable_application_commit():
         )
 
 
-
 def test_payload_rejects_product_not_in_ndf_image_inventory():
     candidate = load(FIXTURES / "valid" / "candidate-v1.json")
     candidate["product"]["id"] = "unknown-product"
     raw = json.dumps(candidate).encode()
-    with pytest.raises(intake.CandidateIntakeError, match="not present in the NDF image inventory"):
+    with pytest.raises(
+        intake.CandidateIntakeError, match="not present in the NDF image inventory"
+    ):
         intake.validate_candidate_payload(
             raw,
             expected_candidate_id=CANDIDATE_ID,
@@ -242,13 +267,14 @@ def test_payload_rejects_framework_version_outside_product_manifest():
     candidate = load(FIXTURES / "valid" / "candidate-v1.json")
     candidate["framework_version"] = "17"
     raw = json.dumps(candidate).encode()
-    with pytest.raises(intake.CandidateIntakeError, match="does not match product manifest"):
+    with pytest.raises(
+        intake.CandidateIntakeError, match="does not match product manifest"
+    ):
         intake.validate_candidate_payload(
             raw,
             expected_candidate_id=CANDIDATE_ID,
             expected_payload_sha256=payload_hash(raw),
         )
-
 
 
 @pytest.mark.parametrize(
@@ -268,7 +294,6 @@ def test_payload_rejects_unsupported_runtime_family(field, value, message):
             expected_candidate_id=CANDIDATE_ID,
             expected_payload_sha256=payload_hash(raw),
         )
-
 
 
 def test_payload_rejects_unverified_arm64_target():
@@ -304,7 +329,9 @@ def test_result_schema_requires_image_and_descriptor_for_success():
     assert list(Draft202012Validator(schema).iter_errors(result))
 
 
-def test_intake_uses_digest_pinned_reference_and_writes_verified_payload(tmp_path, monkeypatch):
+def test_intake_uses_digest_pinned_reference_and_writes_verified_payload(
+    tmp_path, monkeypatch
+):
     raw = payload_bytes()
     pulled_dir = None
     calls = []
@@ -313,11 +340,15 @@ def test_intake_uses_digest_pinned_reference_and_writes_verified_payload(tmp_pat
         nonlocal pulled_dir
         calls.append(command)
         if command[1:4] == ["manifest", "fetch", "--format"]:
-            return subprocess.CompletedProcess(command, 0, json.dumps(manifest_response(raw)).encode(), b"")
+            return subprocess.CompletedProcess(
+                command, 0, json.dumps(manifest_response(raw)).encode(), b""
+            )
         if command[1] == "pull":
             pulled_dir = Path(command[command.index("--output") + 1])
             (pulled_dir / intake.LAYER_TITLE).write_bytes(raw)
-            return subprocess.CompletedProcess(command, 0, json.dumps({"reference": REFERENCE}).encode(), b"")
+            return subprocess.CompletedProcess(
+                command, 0, json.dumps({"reference": REFERENCE}).encode(), b""
+            )
         raise AssertionError(command)
 
     monkeypatch.setattr(intake, "_run", fake_run)
@@ -334,17 +365,23 @@ def test_intake_uses_digest_pinned_reference_and_writes_verified_payload(tmp_pat
     assert calls[1][-1] == REFERENCE
 
 
-def test_intake_rejects_layer_tampering_before_payload_validation(tmp_path, monkeypatch):
+def test_intake_rejects_layer_tampering_before_payload_validation(
+    tmp_path, monkeypatch
+):
     raw = payload_bytes()
     tampered = raw + b" "
 
     def fake_run(command, *, timeout):
         if command[1] == "manifest":
-            return subprocess.CompletedProcess(command, 0, json.dumps(manifest_response(raw)).encode(), b"")
+            return subprocess.CompletedProcess(
+                command, 0, json.dumps(manifest_response(raw)).encode(), b""
+            )
         if command[1] == "pull":
             pulled_dir = Path(command[command.index("--output") + 1])
             (pulled_dir / intake.LAYER_TITLE).write_bytes(tampered)
-            return subprocess.CompletedProcess(command, 0, json.dumps({"reference": REFERENCE}).encode(), b"")
+            return subprocess.CompletedProcess(
+                command, 0, json.dumps({"reference": REFERENCE}).encode(), b""
+            )
         raise AssertionError(command)
 
     monkeypatch.setattr(intake, "_run", fake_run)

@@ -40,12 +40,7 @@
     "workflow": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "repository",
-        "workflow_name",
-        "run_id",
-        "source_commit"
-      ],
+      "required": ["repository", "workflow_name", "run_id", "source_commit"],
       "properties": {
         "repository": {
           "const": "NdfTechLabs/frappe_docker"
@@ -67,13 +62,7 @@
       }
     },
     "status": {
-      "enum": [
-        "queued",
-        "in_progress",
-        "succeeded",
-        "failed",
-        "cancelled"
-      ]
+      "enum": ["queued", "in_progress", "succeeded", "failed", "cancelled"]
     },
     "composition_hash": {
       "$ref": "#/$defs/hash"
@@ -84,10 +73,7 @@
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "repository",
-        "digest"
-      ],
+      "required": ["repository", "digest"],
       "properties": {
         "repository": {
           "type": "string"
@@ -104,11 +90,7 @@
     "descriptor": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "reference",
-        "digest",
-        "content_hash"
-      ],
+      "required": ["reference", "digest", "content_hash"],
       "properties": {
         "reference": {
           "type": "string"
@@ -127,10 +109,7 @@
     "failure": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "code",
-        "summary"
-      ],
+      "required": ["code", "summary"],
       "properties": {
         "code": {
           "type": "string",
@@ -169,9 +148,7 @@
             "const": "succeeded"
           }
         },
-        "required": [
-          "status"
-        ]
+        "required": ["status"]
       },
       "then": {
         "required": [
@@ -190,15 +167,10 @@
             "const": "failed"
           }
         },
-        "required": [
-          "status"
-        ]
+        "required": ["status"]
       },
       "then": {
-        "required": [
-          "failure",
-          "completed_at"
-        ]
+        "required": ["failure", "completed_at"]
       }
     }
   ]

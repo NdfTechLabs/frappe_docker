@@ -30,8 +30,7 @@ ANNOTATION_SCHEMA_VERSION = "io.ndf.candidate.schema-version"
 ANNOTATION_PAYLOAD_SHA256 = "io.ndf.candidate.payload-sha256"
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 REFERENCE_RE = re.compile(
-    r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@"
-    r"(sha256:[a-f0-9]{64})$"
+    r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@" r"(sha256:[a-f0-9]{64})$"
 )
 
 
@@ -65,7 +64,9 @@ def _strict_json(raw: bytes, label: str) -> Any:
             text,
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=lambda value: (_ for _ in ()).throw(
-                CandidateIntakeError(f"{label} contains invalid numeric constant {value}.")
+                CandidateIntakeError(
+                    f"{label} contains invalid numeric constant {value}."
+                )
             ),
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -86,11 +87,15 @@ def validate_manifest_response(
     """Validate the ORAS manifest-fetch JSON wrapper and return its OCI content."""
     requested_digest = parse_candidate_reference(reference)
     if response.get("digest") != requested_digest:
-        raise CandidateIntakeError("Registry manifest digest differs from requested digest.")
+        raise CandidateIntakeError(
+            "Registry manifest digest differs from requested digest."
+        )
 
     manifest = response.get("content")
     if not isinstance(manifest, dict):
-        raise CandidateIntakeError("ORAS manifest response has no OCI manifest content.")
+        raise CandidateIntakeError(
+            "ORAS manifest response has no OCI manifest content."
+        )
     if manifest.get("schemaVersion") != 2:
         raise CandidateIntakeError("Candidate OCI manifest must use schemaVersion 2.")
     if manifest.get("mediaType") != OCI_MANIFEST_MEDIA_TYPE:
@@ -107,7 +112,9 @@ def validate_manifest_response(
             "size": len(EMPTY_CONFIG_BYTES),
         }.items()
     ):
-        raise CandidateIntakeError("Candidate OCI manifest has an unexpected empty config.")
+        raise CandidateIntakeError(
+            "Candidate OCI manifest has an unexpected empty config."
+        )
 
     layers = manifest.get("layers")
     if not isinstance(layers, list) or len(layers) != 1:
@@ -122,8 +129,13 @@ def validate_manifest_response(
     if not isinstance(layer.get("size"), int) or layer["size"] <= 0:
         raise CandidateIntakeError("Candidate layer has an invalid byte size.")
     annotations = layer.get("annotations")
-    if not isinstance(annotations, dict) or annotations.get("org.opencontainers.image.title") != LAYER_TITLE:
-        raise CandidateIntakeError("Candidate layer title must be deployment-candidate.json.")
+    if (
+        not isinstance(annotations, dict)
+        or annotations.get("org.opencontainers.image.title") != LAYER_TITLE
+    ):
+        raise CandidateIntakeError(
+            "Candidate layer title must be deployment-candidate.json."
+        )
 
     manifest_annotations = manifest.get("annotations")
     if not isinstance(manifest_annotations, dict):
@@ -134,10 +146,10 @@ def validate_manifest_response(
         ANNOTATION_PAYLOAD_SHA256: payload_sha256,
     }
     if any(manifest_annotations.get(key) != value for key, value in expected.items()):
-        raise CandidateIntakeError("Candidate manifest annotations disagree with the dispatch envelope.")
+        raise CandidateIntakeError(
+            "Candidate manifest annotations disagree with the dispatch envelope."
+        )
     return layer
-
-
 
 
 def _validate_supported_product(candidate: dict[str, Any]) -> None:
@@ -146,23 +158,32 @@ def _validate_supported_product(candidate: dict[str, Any]) -> None:
     try:
         definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CandidateIntakeError(f"Unable to load supported NDF image definitions: {exc}") from exc
+        raise CandidateIntakeError(
+            f"Unable to load supported NDF image definitions: {exc}"
+        ) from exc
 
     product_id = candidate["product"]["id"]
     matches = [
-        image for image in definitions.get("images", [])
+        image
+        for image in definitions.get("images", [])
         if isinstance(image, dict) and image.get("product") == product_id
     ]
     if not matches:
-        raise CandidateIntakeError(f"Candidate product is not present in the NDF image inventory: {product_id}")
+        raise CandidateIntakeError(
+            f"Candidate product is not present in the NDF image inventory: {product_id}"
+        )
     if len(matches) != 1:
-        raise CandidateIntakeError(f"Candidate product maps to multiple NDF image definitions: {product_id}")
+        raise CandidateIntakeError(
+            f"Candidate product maps to multiple NDF image definitions: {product_id}"
+        )
 
     manifest_path = NDF_DIR / "manifests" / matches[0]["manifest"]
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CandidateIntakeError(f"Unable to load authoritative product manifest: {exc}") from exc
+        raise CandidateIntakeError(
+            f"Unable to load authoritative product manifest: {exc}"
+        ) from exc
     supported_framework = manifest.get("framework", {}).get("version")
     if candidate["framework_version"] != supported_framework:
         raise CandidateIntakeError(
@@ -172,14 +193,23 @@ def _validate_supported_product(candidate: dict[str, Any]) -> None:
     runtime_profile = candidate["runtime_profile"]
     runtime_framework = runtime_profile.get("framework")
     if runtime_framework is not None and runtime_framework != supported_framework:
-        raise CandidateIntakeError("Candidate runtime profile framework differs from the product manifest.")
+        raise CandidateIntakeError(
+            "Candidate runtime profile framework differs from the product manifest."
+        )
 
     python_version = runtime_profile.get("python")
-    if python_version is not None and not re.fullmatch(r"3\.14(?:\.\d+)?", python_version):
-        raise CandidateIntakeError("Candidate Python runtime is outside the supported CPython 3.14 family.")
+    if python_version is not None and not re.fullmatch(
+        r"3\.14(?:\.\d+)?", python_version
+    ):
+        raise CandidateIntakeError(
+            "Candidate Python runtime is outside the supported CPython 3.14 family."
+        )
     node_version = runtime_profile.get("node")
     if node_version is not None and not re.fullmatch(r"24(?:\.\d+){0,2}", node_version):
-        raise CandidateIntakeError("Candidate Node.js runtime is outside the supported 24.x family.")
+        raise CandidateIntakeError(
+            "Candidate Node.js runtime is outside the supported 24.x family."
+        )
+
 
 def validate_candidate_payload(
     raw: bytes,
@@ -188,11 +218,17 @@ def validate_candidate_payload(
     expected_payload_sha256: str,
 ) -> dict[str, Any]:
     """Verify exact payload bytes, parse strictly, validate schema and semantics."""
-    if not isinstance(expected_payload_sha256, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_payload_sha256):
-        raise CandidateIntakeError("Dispatch payload_sha256 must be 64 lowercase hexadecimal characters.")
+    if not isinstance(expected_payload_sha256, str) or not re.fullmatch(
+        r"[a-f0-9]{64}", expected_payload_sha256
+    ):
+        raise CandidateIntakeError(
+            "Dispatch payload_sha256 must be 64 lowercase hexadecimal characters."
+        )
     observed_hash = hashlib.sha256(raw).hexdigest()
     if observed_hash != expected_payload_sha256:
-        raise CandidateIntakeError("Candidate payload SHA-256 differs from the authenticated dispatch envelope.")
+        raise CandidateIntakeError(
+            "Candidate payload SHA-256 differs from the authenticated dispatch envelope."
+        )
 
     candidate = _strict_json(raw, "Candidate payload")
     if not isinstance(candidate, dict):
@@ -205,7 +241,9 @@ def validate_candidate_payload(
             key=lambda error: list(map(str, error.absolute_path)),
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
-        raise CandidateIntakeError(f"Unable to validate candidate schema: {exc}") from exc
+        raise CandidateIntakeError(
+            f"Unable to validate candidate schema: {exc}"
+        ) from exc
     if errors:
         detail = "; ".join(
             f"{'/'.join(map(str, error.absolute_path)) or '<root>'}: {error.message}"
@@ -214,7 +252,9 @@ def validate_candidate_payload(
         raise CandidateIntakeError(f"Candidate does not conform to schema: {detail}")
 
     if candidate["candidate_id"] != expected_candidate_id:
-        raise CandidateIntakeError("Candidate ID differs from the authenticated dispatch envelope.")
+        raise CandidateIntakeError(
+            "Candidate ID differs from the authenticated dispatch envelope."
+        )
 
     _validate_supported_product(candidate)
     if any(platform != "linux/amd64" for platform in candidate["target_platforms"]):
@@ -231,7 +271,9 @@ def validate_candidate_payload(
         descriptor_digest = app["descriptor_digest"]
         descriptor_ref = app["descriptor_ref"]
         if not SHA256_RE.fullmatch("sha256:" + descriptor_digest):
-            raise CandidateIntakeError(f"Application {app['app_id']} has an invalid descriptor digest.")
+            raise CandidateIntakeError(
+                f"Application {app['app_id']} has an invalid descriptor digest."
+            )
         if not descriptor_ref.endswith("@sha256:" + descriptor_digest):
             raise CandidateIntakeError(
                 f"Application {app['app_id']} descriptor reference and digest disagree."
@@ -246,14 +288,18 @@ def validate_candidate_payload(
 
 def _run(command: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
     try:
-        return subprocess.run(command, check=False, capture_output=True, timeout=timeout)
+        return subprocess.run(
+            command, check=False, capture_output=True, timeout=timeout
+        )
     except subprocess.TimeoutExpired as exc:
         raise CandidateIntakeError(f"Command timed out: {command[0]}") from exc
     except OSError as exc:
         raise CandidateIntakeError(f"Unable to execute {command[0]}: {exc}") from exc
 
 
-def _command_json(result: subprocess.CompletedProcess[bytes], label: str) -> dict[str, Any]:
+def _command_json(
+    result: subprocess.CompletedProcess[bytes], label: str
+) -> dict[str, Any]:
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
         raise CandidateIntakeError(f"{label} failed: {detail or result.returncode}")
@@ -277,7 +323,10 @@ def intake_candidate(
         raise CandidateIntakeError("Dispatch payload_sha256 is invalid.")
 
     manifest_response = _command_json(
-        _run([oras_bin, "manifest", "fetch", "--format", "json", artifact_reference], timeout=120),
+        _run(
+            [oras_bin, "manifest", "fetch", "--format", "json", artifact_reference],
+            timeout=120,
+        ),
         "ORAS candidate manifest fetch",
     )
     layer = validate_manifest_response(
@@ -291,13 +340,23 @@ def intake_candidate(
         pulled = Path(temp)
         pull_response = _command_json(
             _run(
-                [oras_bin, "pull", "--format", "json", "--output", str(pulled), artifact_reference],
+                [
+                    oras_bin,
+                    "pull",
+                    "--format",
+                    "json",
+                    "--output",
+                    str(pulled),
+                    artifact_reference,
+                ],
                 timeout=300,
             ),
             "ORAS candidate pull",
         )
         if pull_response.get("reference") != artifact_reference:
-            raise CandidateIntakeError("ORAS pull returned a different artifact reference.")
+            raise CandidateIntakeError(
+                "ORAS pull returned a different artifact reference."
+            )
         files: list[Path] = []
         for path in pulled.rglob("*"):
             if path.is_symlink():
@@ -305,12 +364,18 @@ def intake_candidate(
             if path.is_file():
                 files.append(path)
         if len(files) != 1 or files[0].relative_to(pulled).as_posix() != LAYER_TITLE:
-            raise CandidateIntakeError("Pulled candidate artifact must contain only deployment-candidate.json.")
+            raise CandidateIntakeError(
+                "Pulled candidate artifact must contain only deployment-candidate.json."
+            )
         payload = files[0].read_bytes()
         if len(payload) != layer["size"]:
-            raise CandidateIntakeError("Candidate layer byte size differs from its OCI descriptor.")
+            raise CandidateIntakeError(
+                "Candidate layer byte size differs from its OCI descriptor."
+            )
         if _sha256(payload) != layer["digest"]:
-            raise CandidateIntakeError("Candidate layer bytes differ from the OCI layer digest.")
+            raise CandidateIntakeError(
+                "Candidate layer bytes differ from the OCI layer digest."
+            )
 
     candidate = validate_candidate_payload(
         payload,
