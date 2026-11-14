@@ -180,6 +180,11 @@ def _verify_manifest_graph(
             if not isinstance(include, dict):
                 raise CompositionVerificationError(f"Invalid include declaration: {current_path}.")
             child = _safe_relative_path(include.get("manifest"), "Included manifest path")
+            required = include.get("required", True)
+            if not isinstance(required, bool):
+                raise CompositionVerificationError(f"Invalid include required flag: {current_path}.")
+            if child not in manifests and not required:
+                continue
             pending.append(child)
         if manifest.get("manifest_version") == "2.0.0":
             capabilities = manifest.get("capabilities", [])
