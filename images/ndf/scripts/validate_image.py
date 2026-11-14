@@ -94,12 +94,16 @@ def inspect_image_contents(image_ref: str) -> dict[str, Any]:
 
 def canonical_repository(value: str) -> str:
     raw = value.strip()
-    if "://" not in raw:
-        raise ImageValidationError("Unsupported repository URL in lock/build evidence.")
-    parsed = urlsplit(raw)
-    host, path = parsed.hostname, parsed.path.strip("/").removesuffix(".git").lower()
-    if not host or not path:
-        raise ImageValidationError("Invalid repository URL in lock/build evidence.")
+    if "://" in raw:
+        parsed = urlsplit(raw)
+        host, path = parsed.hostname, parsed.path.strip("/").removesuffix(".git").lower()
+    elif re.fullmatch(r"[^/@:]+/.+", raw):
+        host, path = raw.split("/", 1)
+        path = path.removesuffix(".git").lower()
+    else:
+        raise ImageValidationError("Unsupported repository URL or identity in lock/build evidence.")
+    if not host or not path or any(part in {"", ".", ".."} for part in path.split("/")):
+        raise ImageValidationError("Invalid repository URL or identity in lock/build evidence.")
     return f"{host.lower()}/{path}"
 
 
