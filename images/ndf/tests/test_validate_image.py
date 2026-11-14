@@ -111,11 +111,80 @@ def validation_inputs():
         "installers": {"uv": {"version": "0.13.7"}, "pip": {"version": "25.0"}},
     }
     raw = (json.dumps(inventory, indent=2, sort_keys=True) + "\n").encode()
+    source_tree = {
+        "algorithm": "ndf-source-tree-sha256-v1",
+        "sha256": "1" * 64,
+        "entry_count": 2,
+        "file_count": 1,
+        "directory_count": 1,
+        "symlink_count": 0,
+    }
+    provenance = {
+        "schema_version": "1.0",
+        "algorithm": "ndf-source-provenance-v1",
+        "lock": {"version": 2, "sha256": lock_sha},
+        "repositories": [
+            {
+                "name": app["name"],
+                "repository": f"github.com/frappe/{app['name']}",
+                "requested_ref": app["target_ref"],
+                "resolver_commit": app["resolved_sha"],
+                "actual_commit": "d" * 40,
+                "head_tree": "e" * 40,
+                "tracked_content": {
+                    "matches_head": True,
+                    "installation_modified_paths": [],
+                    "installation_diff_sha256": None,
+                },
+                "generated_content": {
+                    "origin": "post_clone_bench_init",
+                    "untracked_paths": [],
+                    "ignored_paths": [],
+                },
+                "source_tree": source_tree,
+                "submodules": [],
+            }
+            for app in applications
+        ],
+    }
+    provenance_raw = (json.dumps(provenance, indent=2, sort_keys=True) + "\\n").encode()
+    provenance_sha = hashlib.sha256(provenance_raw).hexdigest()
+
+    def stage_report(stage):
+        return {
+            "schema_version": "1.0",
+            "algorithm": "ndf-source-tree-verification-v1",
+            "stage": stage,
+            "source_provenance_sha256": provenance_sha,
+            "lock": {"version": 2, "sha256": lock_sha},
+            "repositories": [
+                {
+                    "name": app["name"],
+                    "expected_source_tree": source_tree,
+                    "observed_source_tree": source_tree,
+                    "matches": True,
+                    "submodules": [],
+                }
+                for app in applications
+            ],
+            "status": "passed",
+        }
+
+    post_cleanup = stage_report("post_cleanup")
+    runtime_verification = stage_report("runtime_image")
+    post_raw = (json.dumps(post_cleanup, indent=2, sort_keys=True) + "\\n").encode()
+    runtime_raw = (json.dumps(runtime_verification, indent=2, sort_keys=True) + "\\n").encode()
     contents = {
         "directories": ["frappe", "erpnext"],
         "apps_txt": ["frappe", "erpnext"],
         "build_inventory": inventory,
         "build_inventory_bytes": raw,
+        "source_provenance": provenance,
+        "source_provenance_bytes": provenance_raw,
+        "post_cleanup_verification": post_cleanup,
+        "post_cleanup_verification_bytes": post_raw,
+        "runtime_verification": runtime_verification,
+        "runtime_verification_bytes": runtime_raw,
     }
     return metadata, lock, labels, contents, lock_sha, digest
 
@@ -211,6 +280,9 @@ def test_inspect_image_contents_extracts_exact_inventory_bytes():
             "directories": ["frappe", "erpnext"],
             "apps_txt": ["frappe", "erpnext"],
             "build_inventory_base64": base64.b64encode(raw).decode(),
+            "source_provenance_base64": base64.b64encode(raw).decode(),
+            "post_cleanup_verification_base64": base64.b64encode(raw).decode(),
+            "runtime_verification_base64": base64.b64encode(raw).decode(),
         }
     )
 
@@ -224,6 +296,34 @@ def test_inspect_image_contents_extracts_exact_inventory_bytes():
 
     assert result["build_inventory"] == {"schema_version": "1.0"}
     assert result["build_inventory_bytes"] == raw
+    assert result["source_provenance_bytes"] == raw
+    assert result["post_cleanup_verification_bytes"] == raw
+    assert result["runtime_verification_bytes"] == raw
     command = run.call_args.args[0]
     assert command[:4] == ["docker", "run", "--rm", "--entrypoint"]
     assert "local/dalali:test" in command
+
+
+def test_validate_image_rejects_post_cleanup_fingerprint_mismatch(validation_inputs):
+    validation_inputs[3]["post_cleanup_verification"]["repositories"][0]["observed_source_tree"]["sha256"] = "0" * 64
+    with pytest.raises(ImageValidationError, match="post_cleanup source-tree fingerprint mismatch"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_rejects_runtime_fingerprint_mismatch(validation_inputs):
+    validation_inputs[3]["runtime_verification"]["repositories"][1]["observed_source_tree"]["sha256"] = "0" * 64
+    with pytest.raises(ImageValidationError, match="runtime_image source-tree fingerprint mismatch"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_rejects_source_provenance_lock_mismatch(validation_inputs):
+    validation_inputs[3]["source_provenance"]["lock"]["sha256"] = "0" * 64
+    with pytest.raises(ImageValidationError, match="Source provenance lock identity"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_reports_both_source_tree_stages(validation_inputs):
+    report = run_validation(validation_inputs)
+    assert report["source_tree_verified"] is True
+    assert report["source_tree_verification"]["post_cleanup_verified"] is True
+    assert report["source_tree_verification"]["runtime_image_verified"] is True
