@@ -10,7 +10,6 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
 
-
 SCHEMA_PATH = (
     Path(__file__).resolve().parents[1]
     / "schemas"

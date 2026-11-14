@@ -1,0 +1,221 @@
+name: NDF / Verify Product Deployment Binding
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful NDF Publish Product Images workflow run ID
+        required: true
+        type: string
+      artifact_name:
+        description: Exact evidence artifact name from that build run
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+
+concurrency:
+  group: ndf-pdd-binding-${{ inputs.build_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify PDD and registry binding
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      GH_TOKEN: ${{ github.token }}
+      EVIDENCE_DIR: ${{ runner.temp }}/ndf-pdd-evidence-${{ inputs.build_run_id }}
+    steps:
+      - name: Checkout verification code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Validate source run and resolve build provenance
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "build_run_id must be a numeric GitHub Actions run ID." >&2
+            exit 1
+          fi
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" \
+            > "$RUNNER_TEMP/source-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/jobs?per_page=100" \
+            > "$RUNNER_TEMP/source-jobs.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/source-artifacts.json"
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          run = json.loads(Path(os.environ["RUNNER_TEMP"], "source-run.json").read_text())
+          jobs_payload = json.loads(Path(os.environ["RUNNER_TEMP"], "source-jobs.json").read_text())
+          artifacts_payload = json.loads(Path(os.environ["RUNNER_TEMP"], "source-artifacts.json").read_text())
+          artifact_name = os.environ["ARTIFACT_NAME"]
+          run_id = os.environ["BUILD_RUN_ID"]
+
+          if run.get("status") != "completed" or run.get("conclusion") != "success":
+              raise SystemExit("Source publishing workflow run must have completed successfully.")
+          if run.get("path") != ".github/workflows/ndf-publish-product.yml":
+              raise SystemExit("Source run is not NDF / Publish Product Images.")
+          if str(run.get("id")) != run_id:
+              raise SystemExit("GitHub returned a different source run ID.")
+
+          match = re.fullmatch(r"ndf-publish-(.+)-(\d+)-(\d+)", artifact_name)
+          if not match or match.group(2) != run_id:
+              raise SystemExit("Artifact name does not belong to the supplied source run.")
+          image_id, attempt = match.group(1), int(match.group(3))
+          if attempt != run.get("run_attempt"):
+              raise SystemExit("Artifact attempt does not match the source workflow run attempt.")
+
+          artifact = next(
+              (item for item in artifacts_payload.get("artifacts", [])
+               if item.get("name") == artifact_name),
+              None,
+          )
+          if not artifact or artifact.get("expired"):
+              raise SystemExit("Requested evidence artifact is missing or expired.")
+
+          job_name = f"Publish {image_id}"
+          job = next(
+              (item for item in jobs_payload.get("jobs", [])
+               if item.get("name") == job_name),
+              None,
+          )
+          if not job or job.get("conclusion") != "success":
+              raise SystemExit(f"Successful publishing job not found: {job_name}.")
+
+          build_step = next(
+              (item for item in job.get("steps", [])
+               if item.get("name") == "Build staging image (not the official product tag)"),
+              None,
+          )
+          if not build_step or build_step.get("conclusion") != "success" or not build_step.get("completed_at"):
+              raise SystemExit("Successful staging image build step with completion time was not found.")
+
+          outputs = {
+              "source_commit": run["head_sha"],
+              "workflow_run_url": run["html_url"],
+              "built_at": build_step["completed_at"],
+              "image_id": image_id,
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, value in outputs.items():
+                  output.write(f"{key}={value}\n")
+          print(f"Source run: {run['html_url']}")
+          print(f"Product: {image_id}")
+          print(f"Build completed: {build_step['completed_at']}")
+          print(f"Evidence artifact: {artifact_name}")
+          PY
+
+      - name: Download original build evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          gh run download "$BUILD_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$ARTIFACT_NAME" \
+            --dir "$EVIDENCE_DIR"
+          test -s "$EVIDENCE_DIR/build-result.json"
+          test -s "$EVIDENCE_DIR/publication-gate.json"
+          test -s "$EVIDENCE_DIR/image-verification-evidence.json"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Generate Product Deployment Descriptor
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.source_commit }}
+          SOURCE_RUN_URL: ${{ steps.source.outputs.workflow_run_url }}
+          BUILT_AT: ${{ steps.source.outputs.built_at }}
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/generate_product_deployment_descriptor.py \
+            --build-output-dir "$EVIDENCE_DIR" \
+            --source-commit "$SOURCE_COMMIT" \
+            --workflow-run-id "$BUILD_RUN_ID" \
+            --built-at "$BUILT_AT" \
+            --workflow-run-url "$SOURCE_RUN_URL" \
+            --output "$EVIDENCE_DIR/product-deployment.json"
+
+      - name: Independently validate Product Deployment Descriptor
+        run: |
+          python images/ndf/scripts/validate_product_deployment_descriptor.py \
+            --descriptor "$EVIDENCE_DIR/product-deployment.json"
+
+      - name: Verify exact evidence bytes and OCI registry manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/verify_product_deployment_binding.py \
+            --descriptor "$EVIDENCE_DIR/product-deployment.json" \
+            --evidence-dir "$EVIDENCE_DIR" \
+            | tee "$EVIDENCE_DIR/binding-verification.json"
+
+      - name: Write verification summary
+        if: success()
+        env:
+          SOURCE_RUN_URL: ${{ steps.source.outputs.workflow_run_url }}
+          IMAGE_ID: ${{ steps.source.outputs.image_id }}
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["EVIDENCE_DIR"], "binding-verification.json").read_text())
+          print("## Product Deployment Binding Verification")
+          print()
+          print(f"- Source build: {os.environ['SOURCE_RUN_URL']}")
+          print(f"- Product: {os.environ['IMAGE_ID']}")
+          print(f"- Status: **{report['status']}**")
+          print(f"- Descriptor: `{report['descriptor_id']}`")
+          print(f"- Image digest: `{report['image_digest']}`")
+          print(f"- Evidence files verified: {report['evidence_count']}")
+          print(f"- OCI manifest digest: `{report['registry_manifest_digest']}`")
+          print(f"- Descriptor content SHA-256: `{report['content_sha256']}`")
+          PY
+
+      - name: Upload verified descriptor and report
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-pdd-binding-${{ inputs.build_run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.EVIDENCE_DIR }}/product-deployment.json
+            ${{ env.EVIDENCE_DIR }}/binding-verification.json
+          if-no-files-found: error
+          retention-days: 90
