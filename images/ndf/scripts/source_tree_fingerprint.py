@@ -143,7 +143,8 @@ def fingerprint_tree(root: Path) -> dict[str, Any]:
     digest = hashlib.sha256()
     digest.update(_DOMAIN)
     counts = {"directory": 0, "file": 0, "symlink": 0}
-    for record in _walk(root):
+    records = sorted(_walk(root), key=lambda item: item["path"])
+    for record in records:
         encoded = _json_record(record)
         digest.update(len(encoded).to_bytes(8, byteorder="big", signed=False))
         digest.update(encoded)
