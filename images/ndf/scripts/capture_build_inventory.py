@@ -88,12 +88,33 @@ def capture_git_repository(path: Path, app: dict[str, Any]) -> dict[str, str]:
     head = run(["git", "-C", str(path), "rev-parse", "HEAD"])
     if not re.fullmatch(r"[0-9a-fA-F]{40,64}", head):
         raise InventoryCaptureError(f"Invalid Git HEAD for application {app['name']}.")
-    remote = run(["git", "-C", str(path), "remote", "get-url", "origin"])
-    actual, expected = canonical_repository(remote), canonical_repository(app["repository"])
-    if actual != expected:
+    remote_names = run(["git", "-C", str(path), "remote"]).splitlines()
+    if not remote_names:
+        raise InventoryCaptureError(f"No Git remotes are configured for application {app['name']}.")
+
+    # Bench-managed checkouts are not guaranteed to use the conventional "origin"
+    # remote name. Inspect every configured remote and accept only an identity
+    # that matches the repository recorded in lock-v2.
+    expected = canonical_repository(app["repository"])
+    matching_identities = set()
+    for remote_name in sorted(set(remote_names)):
+        remote_urls = run(
+            ["git", "-C", str(path), "remote", "get-url", "--all", remote_name]
+        ).splitlines()
+        for remote_url in remote_urls:
+            try:
+                matching_identities.add(canonical_repository(remote_url))
+            except InventoryCaptureError:
+                # Do not expose unsupported/raw remote values in build evidence or logs.
+                continue
+
+    if expected not in matching_identities:
+        observed = sorted(matching_identities)
         raise InventoryCaptureError(
-            f"Repository identity mismatch for {app['name']}: lock={expected}, checkout={actual}"
+            f"Repository identity mismatch for {app['name']}: "
+            f"lock={expected}, configured={observed or 'no supported remote URLs'}"
         )
+    actual = expected
     return {
         "name": app["name"], "repository": actual, "requested_ref": app["target_ref"],
         "resolver_commit": str(app.get("ref") or ""), "actual_commit": head.lower(),
