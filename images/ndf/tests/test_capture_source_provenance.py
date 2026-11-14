@@ -199,6 +199,82 @@ def test_capture_records_initialized_submodule_and_fingerprints_its_files(
     Draft202012Validator(schema).validate(report)
 
 
+
+def test_capture_recursively_verifies_nested_submodules(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    frappe = apps / "frappe"
+    nested_source = create_repository(
+        tmp_path / "nested-ui-source", "nested.txt", "nested source"
+    )
+    frappe_ui_source = create_repository(
+        tmp_path / "frappe-ui-source", "ui.txt", "frappe ui source"
+    )
+
+    nested_url = "https://github.com/frappe/nested-ui.git"
+    nested_path = frappe_ui_source / "nested"
+    nested_path.mkdir()
+    subprocess.run(
+        ["git", "clone", str(nested_source), str(nested_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    git(["remote", "set-url", "origin", nested_url], nested_path)
+    nested_commit = git(["rev-parse", "HEAD"], nested_path)
+    (frappe_ui_source / ".gitmodules").write_text(
+        '[submodule "nested"]\\n'
+        f"\\tpath = nested\\n\\turl = {nested_url}\\n",
+        encoding="utf-8",
+    )
+    git(
+        [
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            f"160000,{nested_commit},nested",
+        ],
+        frappe_ui_source,
+    )
+    git(["add", ".gitmodules"], frappe_ui_source)
+    git(["commit", "-m", "record nested submodule"], frappe_ui_source)
+
+    child, _ = add_submodule(
+        frappe,
+        frappe_ui_source,
+        "frappe-ui",
+        "https://github.com/frappe/frappe-ui.git",
+    )
+    nested_checkout = child / "nested"
+    if not nested_checkout.exists():
+        nested_checkout.mkdir()
+    subprocess.run(
+        ["git", "clone", str(nested_source), str(nested_checkout)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    git(["remote", "set-url", "origin", nested_url], nested_checkout)
+
+    report = provenance.capture_source_provenance(
+        bench, lock, tmp_path / "source-provenance.json"
+    )
+    nested_record = report["repositories"][0]["submodules"][0]["submodules"][0]
+
+    assert nested_record["path"] == "nested"
+    assert nested_record["repository"] == "github.com/frappe/nested-ui"
+    assert nested_record["expected_commit"] == nested_commit
+    assert nested_record["actual_commit"] == nested_commit
+    assert nested_record["materialized"] is True
+
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "source-provenance-v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(report)
+
+
 def test_capture_rejects_submodule_commit_mismatch(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     frappe = apps / "frappe"
@@ -250,6 +326,13 @@ def test_capture_records_uninitialized_submodule_as_gitlink_metadata(
         "source_tree": None,
         "submodules": [],
     }
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "source-provenance-v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(report)
 
 
 def test_capture_rejects_uninitialized_submodule_with_unexpected_files(
