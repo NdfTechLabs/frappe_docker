@@ -8,6 +8,7 @@ Local loading is the safe default. Registry publishing requires the explicit
 import argparse
 import hashlib
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -392,6 +393,13 @@ def load_prepared_candidate_inputs(
 
     if not isinstance(candidate, dict) or not candidate.get("candidate_id"):
         raise BuildPreparationError("Prepared lock does not contain candidate identity.")
+    if not re.fullmatch(
+        r"ghcr\\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}",
+        candidate.get("artifact_reference", ""),
+    ):
+        raise BuildPreparationError("Prepared lock has an invalid candidate artifact reference.")
+    if not re.fullmatch(r"[a-f0-9]{64}", candidate.get("payload_sha256", "")):
+        raise BuildPreparationError("Prepared lock has an invalid candidate payload hash.")
     if lock_data.get("lock_version") != 2:
         raise BuildPreparationError("Prepared candidate lock is not lock-v2.")
     if lock_data.get("product", {}).get("id") != image_id:
@@ -418,6 +426,19 @@ def load_prepared_candidate_inputs(
         raise BuildPreparationError(
             "Candidate target platforms do not match the requested Buildx platform."
         )
+    for app in lock_data.get("applications", []):
+        commit = app.get("ref")
+        if (
+            not isinstance(commit, str)
+            or not re.fullmatch(r"[a-f0-9]{40}", commit)
+            or app.get("target_ref") != commit
+            or app.get("reference_kind") != "commit"
+            or app.get("resolved_ref") != commit
+        ):
+            raise BuildPreparationError(
+                f"Candidate lock application is not pinned to one immutable commit: {app.get('name')}"
+            )
+
     if apps_json != build_apps_json(lock_data):
         raise BuildPreparationError(
             "Candidate apps.json does not match immutable lock-v2 application pins."
