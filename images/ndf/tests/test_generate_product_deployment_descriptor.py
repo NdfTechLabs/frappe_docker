@@ -1,7 +1,9 @@
+import hashlib
 import json
 
 import pytest
 
+from scripts.bind_verification_evidence import create_verification_evidence
 from scripts.generate_product_deployment_descriptor import (
     DescriptorGenerationError,
     _canonical_json,
@@ -87,10 +89,6 @@ def test_load_inputs_uses_product_specific_lock_filename(tmp_path):
 # End-to-end generator fixtures use synthetic, internally consistent evidence.
 # They exercise the real file-loading, digest-binding, gate and schema paths
 # without requiring a registry image or trusting a mutable image tag.
-import hashlib
-
-from scripts.bind_verification_evidence import create_verification_evidence
-
 
 IMAGE_ID = "dalali-v16"
 IMAGE_REPOSITORY = "ghcr.io/ndftechlabs/dalali"
