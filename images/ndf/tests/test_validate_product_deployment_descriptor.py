@@ -409,3 +409,47 @@ def test_cli_emits_machine_readable_failure_and_nonzero_status(
     report = json.loads(capsys.readouterr().out)
     assert report["status"] == "failed"
     assert "content SHA-256 mismatch" in report["error"]
+
+
+def test_accepts_verified_service_requirement_state_when_evidence_is_present(
+    valid_descriptor,
+):
+    def add_verified_service(descriptor):
+        service_path = "services/redis.json"
+        service_sha = "c" * 64
+        descriptor["composition"]["services"] = [
+            {
+                "service_id": "redis",
+                "service_kind": "container",
+                "descriptor_path": service_path,
+                "descriptor_sha256": service_sha,
+                "depends_on": [],
+            }
+        ]
+        inventory_evidence = next(
+            item for item in descriptor["evidence"] if item["name"] == "build_inventory"
+        )
+        descriptor["requirements"]["services"] = {
+            "state": "verified",
+            "declarations": [
+                {
+                    "authority": "service_descriptor",
+                    "reference": service_path,
+                    "sha256": service_sha,
+                    "claims": [{"service_id": "redis", "service_kind": "container"}],
+                }
+            ],
+            "verification": [
+                {
+                    "method": "independent-service-check",
+                    "result": "passed",
+                    "evidence_reference": inventory_evidence["path"],
+                    "evidence_sha256": inventory_evidence["sha256"],
+                }
+            ],
+        }
+
+    _mutate(valid_descriptor, add_verified_service)
+    report = validate_descriptor(valid_descriptor)
+
+    assert report["status"] == "passed"
