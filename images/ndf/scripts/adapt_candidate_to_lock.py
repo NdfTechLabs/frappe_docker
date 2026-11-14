@@ -27,7 +27,6 @@ try:
         BuildPreparationError,
         build_apps_json,
         build_metadata,
-        load_image_definition,
         write_json,
     )
     from .resolve_manifest import ManifestError, ManifestLoader
@@ -42,7 +41,6 @@ except ImportError:
         BuildPreparationError,
         build_apps_json,
         build_metadata,
-        load_image_definition,
         write_json,
     )
     from resolve_manifest import ManifestError, ManifestLoader
@@ -253,10 +251,13 @@ def _map_candidate_applications(
             )
 
         descriptor = expected.get("_descriptor") or {}
-        expected_app_name = descriptor.get("name", expected["name"])
-        if requested["app_name"] != expected_app_name:
+        if descriptor and requested["app_name"] != descriptor.get("name"):
             raise CandidateCompositionError(
-                f"{app_id}: candidate app_name differs from the registered NDF application identity."
+                f"{app_id}: candidate app_name differs from the registered NDF application descriptor."
+            )
+        if requested["app_source_type"] != "git":
+            raise CandidateCompositionError(
+                f"{app_id}: only Git application sources are supported by the NDF resolver."
             )
 
         descriptor_release = expected.get("_release_version")
@@ -330,6 +331,11 @@ def adapt_candidate_to_lock(
     manifests_dir = ndf_dir / "manifests"
     manifest_relative_path = image["manifest"]
     loader = CandidateManifestLoader(manifests_dir, selected_capabilities)
+    if selected_capabilities and product_manifest.get("manifest_version") != "2.0.0":
+        raise CandidateCompositionError(
+            "Optional capability overrides require a v2 product manifest; "
+            "the selected product currently uses a v1 manifest."
+        )
     manifest = loader.load(manifest_relative_path)
 
     unknown_capabilities = selected_capabilities - loader.seen_optional_capabilities
@@ -450,6 +456,10 @@ def adapt_candidate_to_lock(
                         "repository": item["repository"],
                         "requested_version": item["requested_version"],
                         "immutable_commit": item["immutable_commit"],
+                        "release_version": item["release_version"],
+                        "change_action": item["change_action"],
+                        "descriptor_ref": item["descriptor_ref"],
+                        "descriptor_digest": item["descriptor_digest"],
                     }
                     for item in candidate["applications"]
                 ],
