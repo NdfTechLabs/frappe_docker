@@ -255,6 +255,10 @@ def _map_candidate_applications(
             raise CandidateCompositionError(
                 f"{app_id}: candidate app_name differs from the registered NDF application descriptor."
             )
+        if requested["is_required"] is not True:
+            raise CandidateCompositionError(
+                f"{app_id}: every application in the complete candidate composition must be required."
+            )
         if requested["app_source_type"] != "git":
             raise CandidateCompositionError(
                 f"{app_id}: only Git application sources are supported by the NDF resolver."
