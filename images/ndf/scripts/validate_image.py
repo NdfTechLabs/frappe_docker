@@ -30,6 +30,7 @@ except ImportError:
     from bind_verification_evidence import (
         VerificationEvidenceError,
         create_verification_evidence,
+        verify_verification_evidence,
         write_report as write_verification_evidence,
     )
 
