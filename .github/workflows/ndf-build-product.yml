@@ -154,6 +154,7 @@ jobs:
             --inventory-output "$BUILD_OUTPUT/build-inventory.json" \
             --evidence-output "$BUILD_OUTPUT/build-evidence.json" \
             --source-provenance-output "$BUILD_OUTPUT/source-provenance.json" \
+            --source-provenance-verification-output "$BUILD_OUTPUT/source-provenance-verification.json" \
             --post-cleanup-verification-output "$BUILD_OUTPUT/source-tree-verification-post-cleanup.json" \
             --runtime-verification-output "$BUILD_OUTPUT/source-tree-verification-runtime.json" \
             --report "$BUILD_OUTPUT/image-validation.json"
