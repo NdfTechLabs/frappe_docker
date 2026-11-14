@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Independently validate an NDF Product Deployment Descriptor."""
 
 from __future__ import annotations
@@ -6,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -28,10 +26,6 @@ EXPECTED_EVIDENCE = {
     "source_tree_runtime",
     "image_composition_verification",
 }
-SHA256 = re.compile(r"^[a-f0-9]{64}$")
-GIT_SHA = re.compile(r"^[a-f0-9]{40,64}$")
-
-
 class DescriptorValidationError(Exception):
     """Raised when a PDD fails independent validation."""
 
@@ -165,7 +159,7 @@ def _validate_identity(descriptor: dict[str, Any]) -> None:
 def _safe_evidence_path(value: str) -> bool:
     if not value or "\\" in value:
         return False
-    if value.startswith("/"):
+    if value.startswith("/") or any(ord(character) < 32 for character in value):
         return False
     return all(part not in ("", ".", "..") for part in value.split("/"))
 
@@ -211,7 +205,7 @@ def _validate_evidence_references(descriptor: dict[str, Any]) -> dict[str, dict[
         raise DescriptorValidationError(
             "Runtime inventory source must identify the build_inventory evidence."
         )
-    for domain_name, domain in descriptor["requirements"].items():
+    for domain in descriptor["requirements"].values():
         for verification in domain["verification"]:
             reference = verification["evidence_reference"]
             match = next(
@@ -268,6 +262,10 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
 
     for service in composition["services"]:
         service_id = service["service_id"]
+        if service_id in app_by_name:
+            raise DescriptorValidationError(
+                f"Service identity {service_id} collides with a Bench application identity."
+            )
         if service_id in service_ids:
             raise DescriptorValidationError(f"Duplicate service identity: {service_id}.")
         service_ids.add(service_id)
@@ -283,6 +281,10 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
 
     for requirement in composition["external_requirements"]:
         requirement_id = requirement["requirement_id"]
+        if requirement_id in app_by_name:
+            raise DescriptorValidationError(
+                f"External requirement identity {requirement_id} collides with a Bench application identity."
+            )
         if requirement_id in service_ids:
             raise DescriptorValidationError(
                 f"Service/external requirement identity collision: {requirement_id}."
