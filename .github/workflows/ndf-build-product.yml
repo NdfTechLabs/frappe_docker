@@ -134,6 +134,8 @@ jobs:
             --lock "$LOCK_FILE" \
             --buildx-metadata "$BUILD_OUTPUT/buildx-metadata.json" \
             --inventory-output "$BUILD_OUTPUT/build-inventory.json" \
+            --apps-json "$BUILD_OUTPUT/apps.json" \
+            --composition-output "$BUILD_OUTPUT/image-composition-verification.json" \
             --evidence-output "$BUILD_OUTPUT/build-evidence.json" \
             --source-provenance-output "$BUILD_OUTPUT/source-provenance.json" \
             --source-provenance-verification-output "$BUILD_OUTPUT/source-provenance-verification.json" \
