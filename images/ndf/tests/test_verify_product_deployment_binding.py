@@ -53,6 +53,33 @@ def _refresh_descriptor_integrity(descriptor):
     descriptor["integrity"]["content_sha256"] = hashlib.sha256(canonical).hexdigest()
 
 
+def _rebind_evidence_record(output_dir, descriptor_path, name):
+    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+    record = next(item for item in descriptor["evidence"] if item["name"] == name)
+    physical_name = (
+        "dalali-v16.lock-v2.json" if name == "lock_v2" else record["path"]
+    )
+    raw = (output_dir / physical_name).read_bytes()
+    record["sha256"] = hashlib.sha256(raw).hexdigest()
+    record["size_bytes"] = len(raw)
+    _refresh_descriptor_integrity(descriptor)
+    _write_descriptor(output_dir, descriptor)
+
+    manifest_path = output_dir / "image-verification-evidence.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_record = next(
+        item for item in manifest["evidence"] if item["name"] == name
+    )
+    manifest_record["sha256"] = record["sha256"]
+    manifest_record["size_bytes"] = record["size_bytes"]
+    _write_json(manifest_path, manifest)
+
+    validation_path = output_dir / "image-validation.json"
+    validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    validation["verification_evidence"] = manifest
+    _write_json(validation_path, validation)
+
+
 def _prepare_binding_fixture(output_dir, monkeypatch):
     monkeypatch.setattr(generator_fixtures, "IMAGE_DIGEST", MANIFEST_DIGEST)
     result_path = output_dir / "build-result.json"
@@ -182,6 +209,7 @@ def test_rejects_buildx_digest_mismatch(binding_fixture, monkeypatch):
         output_dir / "buildx-metadata.json",
         {"containerimage.digest": "sha256:" + "f" * 64},
     )
+    _rebind_evidence_record(output_dir, descriptor_path, "buildx_metadata")
     _mock_registry(monkeypatch)
 
     with pytest.raises(ProductDeploymentBindingError, match="Buildx metadata digest"):
@@ -250,33 +278,7 @@ def test_rejects_failed_verification_report(binding_fixture, monkeypatch):
     path = output_dir / "source-tree-verification-runtime.json"
     _write_json(path, {"status": "failed"})
 
-    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
-    evidence_record = next(
-        item
-        for item in descriptor["evidence"]
-        if item["name"] == "source_tree_runtime"
-    )
-    raw = path.read_bytes()
-    evidence_record["sha256"] = hashlib.sha256(raw).hexdigest()
-    evidence_record["size_bytes"] = len(raw)
-    _refresh_descriptor_integrity(descriptor)
-    _write_descriptor(output_dir, descriptor)
-
-    manifest_path = output_dir / "image-verification-evidence.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest_record = next(
-        item
-        for item in manifest["evidence"]
-        if item["name"] == "source_tree_runtime"
-    )
-    manifest_record["sha256"] = evidence_record["sha256"]
-    manifest_record["size_bytes"] = evidence_record["size_bytes"]
-    _write_json(manifest_path, manifest)
-
-    validation_path = output_dir / "image-validation.json"
-    validation = json.loads(validation_path.read_text(encoding="utf-8"))
-    validation["verification_evidence"] = manifest
-    _write_json(validation_path, validation)
+    _rebind_evidence_record(output_dir, descriptor_path, "source_tree_runtime")
     _mock_registry(monkeypatch)
 
     with pytest.raises(ProductDeploymentBindingError, match="did not pass"):
@@ -293,5 +295,7 @@ def test_rejects_non_digest_pinned_registry_reference(binding_fixture, monkeypat
     _write_descriptor(output_dir, descriptor)
     _mock_registry(monkeypatch)
 
-    with pytest.raises(ProductDeploymentBindingError, match="not pinned"):
+    with pytest.raises(
+        ProductDeploymentBindingError, match="Independent PDD validation failed"
+    ):
         verify_product_deployment_binding(descriptor_path, output_dir)
