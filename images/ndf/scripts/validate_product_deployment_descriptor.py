@@ -162,7 +162,11 @@ def _validate_identity(descriptor: dict[str, Any]) -> None:
 def _safe_evidence_path(value: str) -> bool:
     if not value or "\\" in value:
         return False
-    if value.startswith("/") or any(ord(character) < 32 for character in value):
+    if (
+        value.startswith("/")
+        or ":" in value
+        or any(ord(character) < 32 for character in value)
+    ):
         return False
     return all(part not in ("", ".", "..") for part in value.split("/"))
 
@@ -358,10 +362,14 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
         )
 
     services_state = descriptor["requirements"]["services"]["state"]
-    expected_state = "declared" if expected_service_declarations else "not_declared"
-    if services_state != expected_state:
+    if expected_service_declarations:
+        if services_state not in ("declared", "verified"):
+            raise DescriptorValidationError(
+                "Services requirement state must be declared or verified when composition services exist."
+            )
+    elif services_state != "not_declared":
         raise DescriptorValidationError(
-            f"Services requirement state must be {expected_state} for the declared composition."
+            "Services requirement state must be not_declared when composition has no services."
         )
 
 
