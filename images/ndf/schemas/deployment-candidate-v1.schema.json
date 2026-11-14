@@ -71,6 +71,7 @@
       }
     },
     "optional_capabilities": {
+      "description": "Selected optional capabilities identified by canonical manifest-relative paths in the NDF product manifest.",
       "type": "array",
       "uniqueItems": true,
       "items": {
