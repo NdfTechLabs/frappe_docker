@@ -198,7 +198,7 @@ jobs:
         run: |
           set -euo pipefail
           INSPECT_OUTPUT="$(docker buildx imagetools inspect "$CANDIDATE_REF")"
-          ACTUAL_DIGEST="$(printf '%s\\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
+          ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
           if [[ "$ACTUAL_DIGEST" != "$EXPECTED_DIGEST" ]]; then
             echo "Staging tag digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
             exit 1
@@ -249,7 +249,7 @@ jobs:
           set -euo pipefail
           docker buildx imagetools create --tag "$PUBLICATION_REF" "$IMAGE_REPOSITORY@$EXPECTED_DIGEST"
           INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF")"
-          ACTUAL_DIGEST="$(printf '%s\\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
+          ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
           if [[ "$ACTUAL_DIGEST" != "$EXPECTED_DIGEST" ]]; then
             echo "Official publication digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
             exit 1
