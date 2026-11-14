@@ -163,7 +163,7 @@ def test_accepts_selected_v2_capability_and_rejects_unselected_manifest(tmp_path
     assert verify_composition(**args)["capabilities"][0]["selected"] is True
     lock["manifests"].pop()
     args["lock_data"]=lock
-    with pytest.raises(CompositionVerificationError,match="absent from locked manifests"):
+    with pytest.raises(CompositionVerificationError,match="unlocked source manifest"):
         verify_composition(**args)
 
 
