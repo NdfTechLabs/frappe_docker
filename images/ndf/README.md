@@ -134,12 +134,13 @@ Current relevant components include:
 
 ### M4.2.7 — Candidate-Driven CI/CD
 
-**Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 intake implementation and local regression accepted; M4.2.7.3 candidate-to-lock adapter is next; M4.2.7.4 orchestration design recorded.
+**Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter implementation committed, verification pending; M4.2.7.4 orchestration design recorded.
 
 - [M4.2.7 Readiness Audit](M4.2.7-READINESS-AUDIT.md) — NDF workflow/artifact audit and read-only reconciliation of the accepted DT Master/DT Tenant contracts.
 - [M4.2.7 Implementation Plan](M4.2.7-IMPLEMENTATION-PLAN.md) — NDF-only work packages, candidate/result contract, acceptance criteria, security boundaries and implementation dependencies.
 - [M4.2.7.1 Candidate Artifact and Workflow Contract](M4.2.7.1-CONTRACT.md) — versioned candidate/result envelope, GHCR package permissions and exact proposed OCI artifact layout.
 - [M4.2.7.2 Candidate Intake and Validation](M4.2.7.2-CANDIDATE-INTAKE.md) — strict reference, OCI, payload, schema and semantic validation implementation contract.
+- [M4.2.7.3 Candidate-to-Lock Adapter](M4.2.7.3-CANDIDATE-TO-LOCK.md) — candidate composition mapping, immutable commit pins, lock-v2 and Bench input generation.
 - [M4.2.7.4 Workflow Orchestration Design](M4.2.7.4-WORKFLOW-ORCHESTRATION-DESIGN.md) — candidate entry workflow, reusable build/PDD stages, least-privilege permissions, result correlation, failure handling and acceptance gates.
 
 M4.2.7 changes are restricted to this NDF repository. DT Master and DT Tenant documentation are read-only requirements references; their missing DocTypes and operations remain their own implementation responsibilities. Implementation is authorized on `feat/M4.2.7` within this NDF repository only; DT Master and DT Tenant remain read-only references.
@@ -165,12 +166,13 @@ M4.1 completion records architecture approval, not implementation completion. ND
 
 ### M4.2.7 — Candidate-Driven CI/CD
 
-**Status:** M4.2.7.1 contract baseline verified; M4.2.7.2 intake accepted locally on `feat/M4.2.7`; .3 adapter is next; .4 orchestration design recorded.
+**Status:** M4.2.7.1 contract baseline verified; M4.2.7.2 intake accepted locally on `feat/M4.2.7`; .3 adapter implementation committed, verification pending; .4 orchestration design recorded.
 
 - [M4.2.7 readiness audit](M4.2.7-READINESS-AUDIT.md) — A.1–A.4 cross-repository read-only audit and NDF boundary.
 - [M4.2.7 implementation plan](M4.2.7-IMPLEMENTATION-PLAN.md) — work packages, sequence and acceptance criteria.
 - [M4.2.7.1 candidate artifact contract](M4.2.7.1-CONTRACT.md) — private GHCR OCI transport, permissions, digest verification, rejection cases, retention, workflow and result contract.
 - [M4.2.7.2 candidate intake](M4.2.7.2-CANDIDATE-INTAKE.md) — digest-pinned ORAS intake and strict candidate validation.
+- [M4.2.7.3 candidate-to-lock adapter](M4.2.7.3-CANDIDATE-TO-LOCK.md) — deterministic candidate-to-lock-v2 mapping and immutable Bench inputs.
 - [M4.2.7.4 workflow orchestration design](M4.2.7.4-WORKFLOW-ORCHESTRATION-DESIGN.md) — reusable candidate build/PDD stages and workflow acceptance requirements.
 
 NDF candidate intake schemas and fixtures are under `schemas/deployment-candidate-v1.schema.json`, `schemas/deployment-build-result-v1.schema.json` and `fixtures/candidates/`. DT Master and DT Tenant remain read-only reference repositories; no records or workflows are implemented there by this milestone. The real Master-published OCI artifact remains a required cross-repository acceptance gate.
