@@ -734,7 +734,8 @@
       "required": [
         "algorithm",
         "content_sha256",
-        "canonicalization"
+        "canonicalization",
+        "excluded_fields"
       ],
       "properties": {
         "algorithm": {
