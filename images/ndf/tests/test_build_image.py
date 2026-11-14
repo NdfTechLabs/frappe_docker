@@ -314,6 +314,7 @@ def _write_prepared_candidate_inputs(tmp_path, *, apps_json=None, lock_sha_overr
             "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
             + "b" * 64
         ),
+        "payload_sha256": "c" * 64,
     }
     framework = {
         "name": "frappe",
