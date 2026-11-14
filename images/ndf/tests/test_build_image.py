@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.prepare_build import BuildPreparationError
 from scripts.build_image import (
     BuildExecutionError,
     build_command,
