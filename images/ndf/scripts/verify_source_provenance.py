@@ -359,10 +359,7 @@ def reject_undeclared_nested_git_metadata(
         current_path = Path(current).resolve()
         if current_path == root.resolve():
             directories[:] = [name for name in directories if name != ".git"]
-            if ".git" in files:
-                raise SourceProvenanceVerificationError(
-                    f"Root Git metadata is not a directory or worktree file in {label}."
-                )
+            files[:] = [name for name in files if name != ".git"]
             continue
         if current_path in allowed:
             directories[:] = []
