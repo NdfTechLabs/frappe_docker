@@ -11,7 +11,7 @@ except ImportError:
     from bind_verification_evidence import VerificationEvidenceError, verify_verification_evidence
 
 EVIDENCE_FILES = {
-    "lock_v2":"dalali-v16.lock-v2.json", "apps_json":"apps.json",
+    "lock_v2":None, "apps_json":"apps.json",
     "build_metadata":"build-metadata.json", "buildx_metadata":"buildx-metadata.json",
     "build_inventory":"build-inventory.json", "build_evidence":"build-evidence.json",
     "source_provenance":"source-provenance.json",
@@ -115,6 +115,7 @@ def verify_publication_candidate(*, build_output_dir: Path, image_id: str,
         raise PublicationGateError("Verification evidence is bound to a different lock-v2.")
     artifacts={}
     for name,filename in EVIDENCE_FILES.items():
+        filename = f"{image_id}.lock-v2.json" if name == "lock_v2" else filename
         try:
             raw=(build_output_dir/filename).read_bytes()
         except OSError as exc:
