@@ -135,6 +135,41 @@ def validate_manifest_response(
     return layer
 
 
+
+
+def _validate_supported_product(candidate: dict[str, Any]) -> None:
+    """Bind product/framework identity to the NDF image-definition inventory."""
+    definitions_path = NDF_DIR / "image-definitions" / "images-v1.json"
+    try:
+        definitions = json.loads(definitions_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CandidateIntakeError(f"Unable to load supported NDF image definitions: {exc}") from exc
+
+    product_id = candidate["product"]["id"]
+    matches = [
+        image for image in definitions.get("images", [])
+        if isinstance(image, dict) and image.get("product") == product_id
+    ]
+    if not matches:
+        raise CandidateIntakeError(f"Candidate product is not present in the NDF image inventory: {product_id}")
+    if len(matches) != 1:
+        raise CandidateIntakeError(f"Candidate product maps to multiple NDF image definitions: {product_id}")
+
+    manifest_path = NDF_DIR / "manifests" / matches[0]["manifest"]
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CandidateIntakeError(f"Unable to load authoritative product manifest: {exc}") from exc
+    supported_framework = manifest.get("framework", {}).get("version")
+    if candidate["framework_version"] != supported_framework:
+        raise CandidateIntakeError(
+            f"Candidate framework version {candidate['framework_version']!r} "
+            f"does not match product manifest version {supported_framework!r}."
+        )
+    runtime_framework = candidate["runtime_profile"].get("framework")
+    if runtime_framework is not None and runtime_framework != supported_framework:
+        raise CandidateIntakeError("Candidate runtime profile framework differs from the product manifest.")
+
 def validate_candidate_payload(
     raw: bytes,
     *,
@@ -169,6 +204,8 @@ def validate_candidate_payload(
 
     if candidate["candidate_id"] != expected_candidate_id:
         raise CandidateIntakeError("Candidate ID differs from the authenticated dispatch envelope.")
+
+    _validate_supported_product(candidate)
 
     applications = candidate["applications"]
     app_ids = [app["app_id"] for app in applications]
