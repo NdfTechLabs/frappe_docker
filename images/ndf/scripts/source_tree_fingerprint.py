@@ -37,7 +37,9 @@ def _json_record(record: dict[str, Any]) -> bytes:
             allow_nan=False,
         ).encode("utf-8", errors="strict")
     except (UnicodeEncodeError, TypeError, ValueError) as exc:
-        raise FingerprintError("A filesystem path or record is not valid canonical UTF-8 JSON.") from exc
+        raise FingerprintError(
+            "A filesystem path or record is not valid canonical UTF-8 JSON."
+        ) from exc
 
 
 def _same_file_state(before: os.stat_result, after: os.stat_result) -> bool:
@@ -52,18 +54,24 @@ def _same_file_state(before: os.stat_result, after: os.stat_result) -> bool:
     )
 
 
-def _hash_regular_file(path: Path, relative: str, before: os.stat_result) -> dict[str, Any]:
+def _hash_regular_file(
+    path: Path, relative: str, before: os.stat_result
+) -> dict[str, Any]:
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(path, flags)
     except OSError as exc:
-        raise FingerprintError(f"Cannot safely open regular file {relative!r}: {exc}") from exc
+        raise FingerprintError(
+            f"Cannot safely open regular file {relative!r}: {exc}"
+        ) from exc
 
     digest = hashlib.sha256()
     try:
         opened = os.fstat(fd)
         if not stat.S_ISREG(opened.st_mode) or not _same_file_state(before, opened):
-            raise FingerprintError(f"File changed before it could be fingerprinted: {relative!r}")
+            raise FingerprintError(
+                f"File changed before it could be fingerprinted: {relative!r}"
+            )
         while True:
             chunk = os.read(fd, _CHUNK_SIZE)
             if not chunk:
@@ -71,7 +79,9 @@ def _hash_regular_file(path: Path, relative: str, before: os.stat_result) -> dic
             digest.update(chunk)
         after = os.fstat(fd)
         if not _same_file_state(opened, after):
-            raise FingerprintError(f"File changed while it was being fingerprinted: {relative!r}")
+            raise FingerprintError(
+                f"File changed while it was being fingerprinted: {relative!r}"
+            )
     finally:
         os.close(fd)
 
@@ -90,7 +100,9 @@ def _walk(root: Path) -> Iterator[dict[str, Any]]:
             with os.scandir(directory) as iterator:
                 entries = sorted(iterator, key=lambda item: item.name)
         except OSError as exc:
-            raise FingerprintError(f"Cannot enumerate directory {prefix or '.'!r}: {exc}") from exc
+            raise FingerprintError(
+                f"Cannot enumerate directory {prefix or '.'!r}: {exc}"
+            ) from exc
 
         for entry in entries:
             if entry.name == ".git":
@@ -100,7 +112,9 @@ def _walk(root: Path) -> Iterator[dict[str, Any]]:
                 relative.encode("utf-8", errors="strict")
                 info = entry.stat(follow_symlinks=False)
             except (OSError, UnicodeEncodeError) as exc:
-                raise FingerprintError(f"Cannot safely inspect path {relative!r}: {exc}") from exc
+                raise FingerprintError(
+                    f"Cannot safely inspect path {relative!r}: {exc}"
+                ) from exc
             path = Path(entry.path)
 
             if stat.S_ISDIR(info.st_mode):
@@ -113,12 +127,14 @@ def _walk(root: Path) -> Iterator[dict[str, Any]]:
                     target = os.readlink(path)
                     target.encode("utf-8", errors="strict")
                 except (OSError, UnicodeEncodeError) as exc:
-                    raise FingerprintError(f"Cannot safely read symbolic link {relative!r}: {exc}") from exc
+                    raise FingerprintError(
+                        f"Cannot safely read symbolic link {relative!r}: {exc}"
+                    ) from exc
                 yield {"path": relative, "type": "symlink", "target": target}
             else:
                 raise FingerprintError(
-                    f"Unsupported filesystem object at {relative!r}; only directories, regular files "
-                    "and symbolic links are supported."
+                    f"Unsupported filesystem object at {relative!r}; "
+                    "only directories, regular files and symbolic links are supported."
                 )
 
     yield from visit(root, "")
@@ -136,9 +152,13 @@ def fingerprint_tree(root: Path) -> dict[str, Any]:
     try:
         root_info = root.lstat()
     except OSError as exc:
-        raise FingerprintError(f"Cannot inspect source-tree root {root}: {exc}") from exc
+        raise FingerprintError(
+            f"Cannot inspect source-tree root {root}: {exc}"
+        ) from exc
     if not stat.S_ISDIR(root_info.st_mode):
-        raise FingerprintError(f"Source-tree root must be a real directory, not a symlink: {root}")
+        raise FingerprintError(
+            f"Source-tree root must be a real directory, not a symlink: {root}"
+        )
 
     digest = hashlib.sha256()
     digest.update(_DOMAIN)
@@ -162,7 +182,9 @@ def fingerprint_tree(root: Path) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("root", type=Path, help="Directory whose contents should be fingerprinted")
+    parser.add_argument(
+        "root", type=Path, help="Directory whose contents should be fingerprinted"
+    )
     args = parser.parse_args()
     try:
         result = fingerprint_tree(args.root)
