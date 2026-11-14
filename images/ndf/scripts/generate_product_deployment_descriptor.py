@@ -113,7 +113,7 @@ def _load_inputs(output_dir: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
         for name, filename in EVIDENCE_FILES.items()
     }
     files: dict[str, bytes] = {}
-    values: dict[str, dict[str, Any]] = {"build_metadata": metadata}
+    values: dict[str, Any] = {"build_metadata": metadata}
     files["build_metadata"] = metadata_raw
     for name, filename in filenames.items():
         if name == "build_metadata":
