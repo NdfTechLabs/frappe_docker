@@ -1,0 +1,758 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/product-deployment-descriptor-v1.schema.json",
+  "title": "NDF Product Deployment Descriptor",
+  "description": "Versioned, evidence-backed description of an NDF product image and its declared runtime requirements. Environment-specific allocations are intentionally excluded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "descriptor_type",
+    "descriptor_id",
+    "product",
+    "artifact",
+    "build",
+    "composition",
+    "runtime_inventory",
+    "requirements",
+    "evidence",
+    "integrity"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "descriptor_type": {
+      "const": "ndf.product-deployment"
+    },
+    "descriptor_id": {
+      "type": "string",
+      "pattern": "^pdd:[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9._-]*:sha256:[a-f0-9]{64}$",
+      "description": "Deterministic identity derived from product ID, platform and immutable image digest."
+    },
+    "product": {
+      "$ref": "#/$defs/product"
+    },
+    "artifact": {
+      "$ref": "#/$defs/artifact"
+    },
+    "build": {
+      "$ref": "#/$defs/build"
+    },
+    "composition": {
+      "$ref": "#/$defs/composition"
+    },
+    "runtime_inventory": {
+      "$ref": "#/$defs/runtimeInventory"
+    },
+    "requirements": {
+      "$ref": "#/$defs/requirements"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "integrity": {
+      "$ref": "#/$defs/integrity"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40,64}$"
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "release": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact publisher-declared release only. Omit when no authoritative release declaration exists."
+        },
+        "release_source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reference to the authoritative declaration for release."
+        }
+      },
+      "dependentRequired": {
+        "release": [
+          "release_source"
+        ]
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "digest",
+        "platform"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "platform": {
+          "type": "string",
+          "pattern": "^linux/(amd64|arm64)$"
+        },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        },
+        "informational_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_repository",
+        "source_commit",
+        "workflow_run_id",
+        "built_at"
+      ],
+      "properties": {
+        "source_repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "workflow_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workflow_run_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "built_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "build_metadata_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lock",
+        "applications",
+        "services",
+        "external_requirements",
+        "verification"
+      ],
+      "properties": {
+        "lock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "sha256"
+          ],
+          "properties": {
+            "version": {
+              "const": 2
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "applications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/application"
+          },
+          "minItems": 1
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/service"
+          },
+          "uniqueItems": true
+        },
+        "external_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/externalRequirement"
+          },
+          "uniqueItems": true
+        },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "evidence_name",
+            "evidence_sha256"
+          ],
+          "properties": {
+            "status": {
+              "const": "passed"
+            },
+            "evidence_name": {
+              "const": "image_composition_verification"
+            },
+            "evidence_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "app_name",
+        "repository",
+        "requested_ref",
+        "actual_commit"
+      ],
+      "properties": {
+        "app_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requested_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actual_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "source_tree_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "descriptor_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service_id",
+        "service_kind",
+        "descriptor_path",
+        "descriptor_sha256",
+        "depends_on"
+      ],
+      "properties": {
+        "service_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "service_kind": {
+          "const": "container"
+        },
+        "descriptor_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "image": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "externalRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "provider",
+        "requirement",
+        "descriptor_path",
+        "descriptor_sha256",
+        "depends_on"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requirement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "documentation": {
+          "type": "string",
+          "format": "uri"
+        },
+        "descriptor_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "runtimeInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "source_evidence",
+        "framework",
+        "python",
+        "bench",
+        "platform"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "builder_stage",
+            "final_runtime_image"
+          ],
+          "description": "Must identify the stage actually measured. Builder inventory must not be represented as final runtime inventory."
+        },
+        "source_evidence": {
+          "type": "string",
+          "enum": [
+            "build_inventory"
+          ]
+        },
+        "framework": {
+          "$ref": "#/$defs/runtimeComponent"
+        },
+        "python": {
+          "$ref": "#/$defs/runtimeComponent"
+        },
+        "node": {
+          "$ref": "#/$defs/runtimeComponent"
+        },
+        "yarn": {
+          "$ref": "#/$defs/runtimeComponent"
+        },
+        "bench": {
+          "$ref": "#/$defs/runtimeComponent"
+        },
+        "platform": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "system",
+            "machine",
+            "oci"
+          ],
+          "properties": {
+            "system": {
+              "type": "string",
+              "minLength": 1
+            },
+            "machine": {
+              "type": "string",
+              "minLength": 1
+            },
+            "oci": {
+              "type": "string",
+              "pattern": "^linux/.+$"
+            }
+          }
+        },
+        "installed_packages": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "python": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/package"
+              }
+            },
+            "node": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/package"
+              }
+            },
+            "debian": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/package"
+              }
+            }
+          }
+        }
+      }
+    },
+    "runtimeComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "services",
+        "storage",
+        "networking",
+        "configuration",
+        "health_readiness",
+        "operations",
+        "infrastructure"
+      ],
+      "properties": {
+        "services": {
+          "$ref": "#/$defs/requirementDomain"
+        },
+        "storage": {
+          "$ref": "#/$defs/requirementDomain"
+        },
+        "networking": {
+          "$ref": "#/$defs/requirementDomain"
+        },
+        "configuration": {
+          "$ref": "#/$defs/requirementDomain"
+        },
+        "health_readiness": {
+          "$ref": "#/$defs/requirementDomain"
+        },
+        "operations": {
+          "$ref": "#/$defs/requirementDomain"
+        },
+        "infrastructure": {
+          "$ref": "#/$defs/requirementDomain"
+        }
+      }
+    },
+    "requirementDomain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "declarations",
+        "verification"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "not_declared",
+            "declared",
+            "verified"
+          ]
+        },
+        "declarations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/declaration"
+          }
+        },
+        "verification": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requirementVerification"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "not_declared"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "declarations": {
+                "maxItems": 0
+              },
+              "verification": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "declared"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "declarations": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "verified"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "declarations": {
+                "minItems": 1
+              },
+              "verification": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority",
+        "reference",
+        "sha256",
+        "claims"
+      ],
+      "properties": {
+        "authority": {
+          "enum": [
+            "product_manifest",
+            "application_descriptor",
+            "service_descriptor",
+            "product_policy"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "requirementVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "result",
+        "evidence_reference",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "const": "passed"
+        },
+        "evidence_reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "path",
+          "sha256",
+          "size_bytes"
+        ],
+        "properties": {
+          "name": {
+            "enum": [
+              "lock_v2",
+              "apps_json",
+              "build_metadata",
+              "buildx_metadata",
+              "build_inventory",
+              "build_evidence",
+              "source_provenance",
+              "source_provenance_verification",
+              "source_tree_post_cleanup",
+              "source_tree_runtime",
+              "image_composition_verification"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "content_sha256",
+        "canonicalization"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "canonicalization": {
+          "const": "RFC8785"
+        },
+        "excluded_fields": {
+          "type": "array",
+          "items": {
+            "const": "integrity.content_sha256"
+          },
+          "minItems": 1,
+          "maxItems": 1
+        }
+      }
+    }
+  }
+}
