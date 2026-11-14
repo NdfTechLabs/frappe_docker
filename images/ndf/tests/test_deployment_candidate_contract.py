@@ -270,6 +270,19 @@ def test_payload_rejects_unsupported_runtime_family(field, value, message):
         )
 
 
+
+def test_payload_rejects_unverified_arm64_target():
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["target_platforms"] = ["linux/arm64"]
+    raw = json.dumps(candidate).encode()
+    with pytest.raises(intake.CandidateIntakeError, match="only linux/amd64"):
+        intake.validate_candidate_payload(
+            raw,
+            expected_candidate_id=CANDIDATE_ID,
+            expected_payload_sha256=payload_hash(raw),
+        )
+
+
 def test_result_schema_requires_image_and_descriptor_for_success():
     schema = load(SCHEMAS / "deployment-build-result-v1.schema.json")
     result = {
