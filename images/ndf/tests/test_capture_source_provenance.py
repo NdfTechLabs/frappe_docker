@@ -71,7 +71,7 @@ def bench_fixture(tmp_path):
 
     lock_path = tmp_path / "product.lock-v2.json"
     lock_path.write_text(
-        json.dumps({"lock_version": 2, "applications": locked}, indent=2) + "\\n",
+        json.dumps({"lock_version": 2, "applications": locked}, indent=2) + "\n",
         encoding="utf-8",
     )
     return bench, lock_path, apps
@@ -123,7 +123,7 @@ def test_capture_classifies_modified_untracked_and_ignored_content(
     (frappe / "tracked.txt").write_text("modified after clone", encoding="utf-8")
     (frappe / "generated-output.txt").write_text("generated", encoding="utf-8")
     (frappe / ".git" / "info" / "exclude").write_text(
-        "ignored-output.cache\\n", encoding="utf-8"
+        "ignored-output.cache\n", encoding="utf-8"
     )
     (frappe / "ignored-output.cache").write_text("ignored", encoding="utf-8")
 
@@ -186,9 +186,7 @@ def test_capture_records_initialized_submodule_and_fingerprints_its_files(
     assert submodule["expected_commit"] == pinned_commit
     assert submodule["actual_commit"] == pinned_commit
     assert submodule["source_tree"] == fingerprint_tree(child)
-    assert "frappe-ui/ui-package.json" in {
-        item for item in ["frappe-ui/ui-package.json"]
-    }
+    assert record["source_tree"]["file_count"] == 2
     assert record["source_tree"] == fingerprint_tree(frappe)
     assert submodule["source_tree"]["sha256"] != record["source_tree"]["sha256"]
 
