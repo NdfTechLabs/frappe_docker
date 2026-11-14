@@ -130,11 +130,15 @@ def _verify_capabilities(manifests: dict[str, dict[str, Any]], lock: dict[str, A
             if not isinstance(item, dict):
                 raise CompositionVerificationError(f"Invalid capability declaration in {source_path}.")
             path = _safe_relative_path(item.get("manifest"), "Capability manifest path")
-            required, selected = item.get("required"), item.get("selected")
-            if not isinstance(required, bool) or not isinstance(selected, bool):
-                raise CompositionVerificationError(f"Capability selection must use boolean required/selected values: {path}.")
-            if required and not selected:
-                raise CompositionVerificationError(f"Required capability is unselected: {path}.")
+            required, raw_selected = item.get("required"), item.get("selected")
+            if not isinstance(required, bool):
+                raise CompositionVerificationError(f"Capability required flag must be boolean: {path}.")
+            if required:
+                selected = True
+            else:
+                if not isinstance(raw_selected, bool):
+                    raise CompositionVerificationError(f"Optional capability selection must be boolean: {path}.")
+                selected = raw_selected
             if path in expected:
                 raise CompositionVerificationError(f"Duplicate capability selection: {path}.")
             expected[path] = {"manifest": path, "required": required, "selected": selected}
@@ -218,9 +222,9 @@ def _verify_service_source_declarations(
                 if not isinstance(declaration, dict):
                     raise CompositionVerificationError(f"Invalid {field} declaration in {source_path}.")
                 required = declaration.get("required", False)
-                selected = declaration.get("selected", False)
-                if not isinstance(required, bool) or not isinstance(selected, bool):
-                    raise CompositionVerificationError(f"Invalid {field} selection flags in {source_path}.")
+                selected = declaration.get("selected") is True
+                if not isinstance(required, bool):
+                    raise CompositionVerificationError(f"Invalid {field} required flag in {source_path}.")
                 if required or selected:
                     expected[kind].add(_safe_relative_path(declaration.get("descriptor"), f"{field} descriptor path"))
     all_items = {item["service_id"]: item for item in containers + external}
