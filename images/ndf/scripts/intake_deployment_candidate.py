@@ -20,6 +20,7 @@ SCHEMA_PATH = NDF_DIR / "schemas" / "deployment-candidate-v1.schema.json"
 CANDIDATE_REPOSITORY = "ghcr.io/ndftechlabs/dt-master-deployment-candidates"
 ARTIFACT_TYPE = "application/vnd.ndf.deployment-candidate.v1"
 CANDIDATE_MEDIA_TYPE = "application/vnd.ndf.deployment-candidate.v1+json"
+OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json"
 EMPTY_CONFIG_MEDIA_TYPE = "application/vnd.oci.empty.v1+json"
 EMPTY_CONFIG_BYTES = b"{}"
 EMPTY_CONFIG_DIGEST = "sha256:" + hashlib.sha256(EMPTY_CONFIG_BYTES).hexdigest()
@@ -92,6 +93,8 @@ def validate_manifest_response(
         raise CandidateIntakeError("ORAS manifest response has no OCI manifest content.")
     if manifest.get("schemaVersion") != 2:
         raise CandidateIntakeError("Candidate OCI manifest must use schemaVersion 2.")
+    if manifest.get("mediaType") != OCI_MANIFEST_MEDIA_TYPE:
+        raise CandidateIntakeError("Candidate OCI manifest mediaType is not supported.")
     if manifest.get("artifactType") != ARTIFACT_TYPE:
         raise CandidateIntakeError("Candidate OCI artifactType is not supported.")
 
