@@ -109,11 +109,28 @@ def test_capture_rejects_unexpected_application_directory(bench_fixture, tmp_pat
         capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
 
 
+def test_capture_accepts_matching_non_origin_remote(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    git(["remote", "rename", "origin", "upstream"], apps / "erpnext")
+
+    report = capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
+
+    assert report["applications"][1]["repository"] == "github.com/frappe/erpnext"
+
+
 def test_capture_rejects_repository_identity_mismatch(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     git(["remote", "set-url", "origin", "https://github.com/other/erpnext.git"], apps / "erpnext")
 
     with pytest.raises(capture.InventoryCaptureError, match="Repository identity mismatch"):
+        capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
+
+
+def test_capture_rejects_repository_without_remotes(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    git(["remote", "remove", "origin"], apps / "frappe")
+
+    with pytest.raises(capture.InventoryCaptureError, match="No Git remotes are configured"):
         capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
 
 
