@@ -171,9 +171,9 @@ def test_candidate_adapter_never_resolves_rolling_git_refs(
         ),
         (
             lambda candidate: candidate["applications"][0].update(
-                app_name="Unregistered Application"
+                app_source_type="oci"
             ),
-            "app_name differs",
+            "only Git application sources",
         ),
         (
             lambda candidate: candidate["applications"][0].update(
