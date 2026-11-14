@@ -94,13 +94,18 @@ def _require_string(value: Any, label: str) -> str:
 
 
 def _load_inputs(output_dir: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
+    metadata, metadata_raw = _read_json(output_dir / "build-metadata.json", "build-metadata.json")
+    image_id = _require_string(metadata.get("image", {}).get("id"), "Build metadata image ID")
     filenames = {
-        name: (f"{name}.lock-v2.json" if name == "lock_v2" else filename)
+        name: (f"{image_id}.lock-v2.json" if name == "lock_v2" else filename)
         for name, filename in EVIDENCE_FILES.items()
     }
     files: dict[str, bytes] = {}
-    values: dict[str, dict[str, Any]] = {}
+    values: dict[str, dict[str, Any]] = {"build_metadata": metadata}
+    files["build_metadata"] = metadata_raw
     for name, filename in filenames.items():
+        if name == "build_metadata":
+            continue
         path = output_dir / filename
         value, raw = _read_json(path, filename)
         values[name] = value
