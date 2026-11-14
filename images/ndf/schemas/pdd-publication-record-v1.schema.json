@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/pdd-publication-record-v1.schema.json",
+  "title": "NDF Product Deployment Descriptor Publication Record",
+  "description": "Digest-pinned publication receipt for a verified PDD OCI artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "publication_type",
+    "descriptor",
+    "subject_image",
+    "artifact",
+    "evidence",
+    "published_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "publication_type": {
+      "const": "ndf.product-deployment.publication"
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "schema_version", "content_sha256"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^pdd:[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9._-]*:sha256:[a-f0-9]{64}$"
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "subject_image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "digest", "platform"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "platform": {
+          "type": "string",
+          "pattern": "^linux/(amd64|arm64)$"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "repository",
+        "locator_tag",
+        "digest",
+        "immutable_reference"
+      ],
+      "properties": {
+        "type": {
+          "const": "application/vnd.ndf.product-deployment-descriptor.v1"
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator_tag": {
+          "type": "string",
+          "pattern": "^pdd-v1-linux-(amd64|arm64)-[a-f0-9]{64}$"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "binding_report_sha256", "published_file_count"],
+      "properties": {
+        "count": {
+          "const": 11
+        },
+        "binding_report_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "published_file_count": {
+          "const": 16
+        }
+      }
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

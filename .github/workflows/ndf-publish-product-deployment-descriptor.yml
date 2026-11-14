@@ -1,0 +1,195 @@
+name: NDF / Publish Product Deployment Descriptor
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful NDF Publish Product Images run ID
+        required: true
+        type: string
+      build_artifact_name:
+        description: Exact original build evidence artifact name
+        required: true
+        type: string
+      verification_run_id:
+        description: Successful NDF Verify Product Deployment Binding run ID
+        required: true
+        type: string
+      verification_artifact_name:
+        description: Exact verified descriptor/report artifact name
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  packages: write
+
+concurrency:
+  group: ndf-pdd-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish verified PDD OCI artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      BUILD_ARTIFACT_NAME: ${{ inputs.build_artifact_name }}
+      VERIFICATION_RUN_ID: ${{ inputs.verification_run_id }}
+      VERIFICATION_ARTIFACT_NAME: ${{ inputs.verification_artifact_name }}
+      GH_TOKEN: ${{ github.token }}
+      EVIDENCE_DIR: ${{ github.workspace }}/.ndf-pdd-publication-evidence
+      VERIFICATION_DIR: ${{ github.workspace }}/.ndf-pdd-verification
+    steps:
+      - name: Checkout publication code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@v2.0.3
+        with:
+          version: 1.3.6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Validate source runs and artifact ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "PDD publication is restricted to main." >&2; exit 1; }
+          [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid build_run_id" >&2; exit 1; }
+          [[ "$VERIFICATION_RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid verification_run_id" >&2; exit 1; }
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/build-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFICATION_RUN_ID" > "$RUNNER_TEMP/verification-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/build-artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFICATION_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/verification-artifacts.json"
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          build = json.loads(Path(os.environ["RUNNER_TEMP"], "build-run.json").read_text())
+          verification = json.loads(Path(os.environ["RUNNER_TEMP"], "verification-run.json").read_text())
+          build_artifacts = json.loads(Path(os.environ["RUNNER_TEMP"], "build-artifacts.json").read_text())
+          verification_artifacts = json.loads(Path(os.environ["RUNNER_TEMP"], "verification-artifacts.json").read_text())
+
+          build_id = os.environ["BUILD_RUN_ID"]
+          verification_id = os.environ["VERIFICATION_RUN_ID"]
+          build_name = os.environ["BUILD_ARTIFACT_NAME"]
+          verification_name = os.environ["VERIFICATION_ARTIFACT_NAME"]
+
+          if build.get("status") != "completed" or build.get("conclusion") != "success":
+              raise SystemExit("Source image build run must have completed successfully.")
+          if build.get("path") != ".github/workflows/ndf-publish-product.yml":
+              raise SystemExit("Source run is not NDF / Publish Product Images.")
+          if str(build.get("id")) != build_id:
+              raise SystemExit("Source build run ID mismatch.")
+          build_match = re.fullmatch(r"ndf-publish-(.+)-(\d+)-(\d+)", build_name)
+          if not build_match or build_match.group(2) != build_id or int(build_match.group(3)) != build.get("run_attempt"):
+              raise SystemExit("Build evidence artifact does not belong to the supplied build run/attempt.")
+          build_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == build_name), None)
+          if not build_artifact or build_artifact.get("expired"):
+              raise SystemExit("Original build evidence artifact is missing or expired.")
+
+          if verification.get("status") != "completed" or verification.get("conclusion") != "success":
+              raise SystemExit("PDD binding verification run must have completed successfully.")
+          if verification.get("head_branch") != "main":
+              raise SystemExit("PDD binding verification must have run from main.")
+          if verification.get("path") != ".github/workflows/ndf-verify-product-deployment-binding.yml":
+              raise SystemExit("Verification run is not NDF / Verify Product Deployment Binding.")
+          if str(verification.get("id")) != verification_id:
+              raise SystemExit("Verification run ID mismatch.")
+          verification_match = re.fullmatch(r"ndf-pdd-binding-(\d+)-(\d+)", verification_name)
+          if not verification_match or verification_match.group(1) != build_id or int(verification_match.group(2)) != verification.get("run_attempt"):
+              raise SystemExit("PDD verification artifact does not belong to the supplied source build.")
+          verification_artifact = next((item for item in verification_artifacts.get("artifacts", []) if item.get("name") == verification_name), None)
+          if not verification_artifact or verification_artifact.get("expired"):
+              raise SystemExit("Verified descriptor/report artifact is missing or expired.")
+
+          print(f"Source image build: {build['html_url']}")
+          print(f"Binding verification: {verification['html_url']}")
+          print(f"Build evidence: {build_name}")
+          print(f"Verified descriptor/report: {verification_name}")
+          PY
+
+      - name: Download original build evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR" "$VERIFICATION_DIR"
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$BUILD_ARTIFACT_NAME" --dir "$EVIDENCE_DIR"
+          gh run download "$VERIFICATION_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$VERIFICATION_ARTIFACT_NAME" --dir "$VERIFICATION_DIR"
+          test -s "$EVIDENCE_DIR/build-result.json"
+          test -s "$VERIFICATION_DIR/product-deployment.json"
+          test -s "$VERIFICATION_DIR/binding-verification.json"
+          cp "$VERIFICATION_DIR/product-deployment.json" "$EVIDENCE_DIR/product-deployment.json"
+          cp "$VERIFICATION_DIR/binding-verification.json" "$EVIDENCE_DIR/binding-verification.json"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate ORAS to GHCR
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish PDD and verified evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/publish_product_deployment_descriptor.py \
+            --descriptor "$EVIDENCE_DIR/product-deployment.json" \
+            --evidence-dir "$EVIDENCE_DIR" \
+            --publication-record "$RUNNER_TEMP/pdd-publication-record.json"
+
+      - name: Write publication summary
+        if: success()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          record = json.loads(Path(os.environ["RUNNER_TEMP"], "pdd-publication-record.json").read_text())
+          print("## Product Deployment Descriptor Publication")
+          print()
+          print(f"- Descriptor: `{record['descriptor']['id']}`")
+          print(f"- Image digest: `{record['subject_image']['digest']}`")
+          print(f"- Artifact reference: `{record['artifact']['immutable_reference']}`")
+          print(f"- Locator tag (discovery only): `{record['artifact']['locator_tag']}`")
+          print(f"- Evidence files included: {record['evidence']['count']}")
+          print(f"- Published files: {record['evidence']['published_file_count']}")
+          print(f"- Publication time: {record['published_at']}")
+          PY
+
+      - name: Upload publication receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-pdd-publication-${{ inputs.build_run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pdd-publication-record.json
+          if-no-files-found: error
+          retention-days: 90
