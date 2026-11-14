@@ -176,6 +176,16 @@ def validation_inputs():
     runtime_raw = (
         json.dumps(runtime_verification, indent=2, sort_keys=True) + "\n"
     ).encode()
+    independent = {
+        "schema_version": "1.0",
+        "algorithm": "ndf-source-provenance-verification-v1",
+        "verifier": {"name": "verify_source_provenance.py", "version": "1.0"},
+        "lock": {"version": 2, "sha256": lock_sha},
+        "source_provenance_sha256": provenance_sha,
+        "repositories": [{**json.loads(json.dumps(record)), "status": "verified"} for record in provenance["repositories"]],
+        "status": "passed",
+    }
+    independent_raw = (json.dumps(independent, indent=2, sort_keys=True) + "\n").encode()
     contents = {
         "directories": ["frappe", "erpnext"],
         "apps_txt": ["frappe", "erpnext"],
@@ -183,6 +193,8 @@ def validation_inputs():
         "build_inventory_bytes": raw,
         "source_provenance": provenance,
         "source_provenance_bytes": provenance_raw,
+        "source_provenance_verification": independent,
+        "source_provenance_verification_bytes": independent_raw,
         "post_cleanup_verification": post_cleanup,
         "post_cleanup_verification_bytes": post_raw,
         "runtime_verification": runtime_verification,
@@ -283,6 +295,7 @@ def test_inspect_image_contents_extracts_exact_inventory_bytes():
             "apps_txt": ["frappe", "erpnext"],
             "build_inventory_base64": base64.b64encode(raw).decode(),
             "source_provenance_base64": base64.b64encode(raw).decode(),
+            "source_provenance_verification_base64": base64.b64encode(raw).decode(),
             "post_cleanup_verification_base64": base64.b64encode(raw).decode(),
             "runtime_verification_base64": base64.b64encode(raw).decode(),
         }
@@ -299,6 +312,7 @@ def test_inspect_image_contents_extracts_exact_inventory_bytes():
     assert result["build_inventory"] == {"schema_version": "1.0"}
     assert result["build_inventory_bytes"] == raw
     assert result["source_provenance_bytes"] == raw
+    assert result["source_provenance_verification_bytes"] == raw
     assert result["post_cleanup_verification_bytes"] == raw
     assert result["runtime_verification_bytes"] == raw
     command = run.call_args.args[0]
@@ -329,6 +343,24 @@ def test_validate_image_rejects_runtime_fingerprint_mismatch(validation_inputs):
 def test_validate_image_rejects_source_provenance_lock_mismatch(validation_inputs):
     validation_inputs[3]["source_provenance"]["lock"]["sha256"] = "0" * 64
     with pytest.raises(ImageValidationError, match="Source provenance lock identity"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_rejects_missing_independent_provenance_report(validation_inputs):
+    validation_inputs[3].pop("source_provenance_verification_bytes")
+    with pytest.raises(ImageValidationError, match="source_provenance_verification"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_rejects_independent_report_provenance_binding_mismatch(validation_inputs):
+    validation_inputs[3]["source_provenance_verification"]["source_provenance_sha256"] = "0" * 64
+    with pytest.raises(ImageValidationError, match="not bound to source provenance"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_rejects_independent_report_repository_mismatch(validation_inputs):
+    validation_inputs[3]["source_provenance_verification"]["repositories"].pop()
+    with pytest.raises(ImageValidationError, match="repository composition mismatch"):
         run_validation(validation_inputs)
 
 
