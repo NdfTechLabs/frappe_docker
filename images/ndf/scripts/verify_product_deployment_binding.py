@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Independently bind a PDD to exact evidence bytes and an OCI registry manifest."""
 
 from __future__ import annotations
