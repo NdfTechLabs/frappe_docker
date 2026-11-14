@@ -65,7 +65,7 @@ def test_load_inputs_uses_product_specific_lock_filename(tmp_path):
     )
     expected = {
         "dalali-v16.lock-v2.json": {"lock_version": 2},
-        "apps.json": {},
+        "apps.json": [],
         "buildx-metadata.json": {},
         "build-inventory.json": {},
         "build-evidence.json": {},
@@ -83,6 +83,27 @@ def test_load_inputs_uses_product_specific_lock_filename(tmp_path):
     assert values["lock_v2"]["lock_version"] == 2
     assert "lock_v2" in files
     assert "build_metadata" in values
+    assert values["apps_json"] == []
+
+
+def test_load_inputs_rejects_apps_json_object(tmp_path):
+    (tmp_path / "build-metadata.json").write_text(
+        json.dumps({"image": {"id": "dalali-v16"}}), encoding="utf-8"
+    )
+    (tmp_path / "apps.json").write_text(json.dumps({"apps": []}), encoding="utf-8")
+    with pytest.raises(DescriptorGenerationError, match="apps.json must be a JSON array"):
+        _load_inputs(tmp_path)
+
+
+def test_load_inputs_rejects_malformed_apps_json_entry(tmp_path):
+    (tmp_path / "build-metadata.json").write_text(
+        json.dumps({"image": {"id": "dalali-v16"}}), encoding="utf-8"
+    )
+    (tmp_path / "apps.json").write_text(
+        json.dumps([{"url": "https://github.com/frappe/erpnext"}]), encoding="utf-8"
+    )
+    with pytest.raises(DescriptorGenerationError, match="exactly url and branch"):
+        _load_inputs(tmp_path)
 
 
 # End-to-end generator fixtures use synthetic, internally consistent evidence.
@@ -233,7 +254,7 @@ def complete_build_output(tmp_path):
         ]
     }
     payloads = {
-        "apps.json": {"apps": ["frappe"]},
+        "apps.json": [{"url": "https://github.com/frappe/erpnext", "branch": "version-16"}],
         "build-metadata.json": metadata,
         "buildx-metadata.json": {"containerimage.digest": IMAGE_DIGEST},
         "build-inventory.json": inventory,
