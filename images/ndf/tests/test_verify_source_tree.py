@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
-
 from scripts import verify_source_tree as verification
 from scripts.source_tree_fingerprint import fingerprint_tree
 
@@ -64,14 +63,19 @@ def test_verification_accepts_unchanged_tree_after_git_cleanup(source_fixture):
     )
     assert report["status"] == "passed"
     assert report["repositories"][0]["matches"] is True
-    assert report["repositories"][0]["observed_source_tree"] == report["repositories"][0]["expected_source_tree"]
+    assert (
+        report["repositories"][0]["observed_source_tree"]
+        == report["repositories"][0]["expected_source_tree"]
+    )
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
 
 def test_verification_rejects_changed_source_after_cleanup(source_fixture):
     bench, provenance_path, app, root = source_fixture
     (app / "source.txt").write_text("tampered", encoding="utf-8")
-    with pytest.raises(verification.SourceTreeVerificationError, match="fingerprint mismatch"):
+    with pytest.raises(
+        verification.SourceTreeVerificationError, match="fingerprint mismatch"
+    ):
         verification.verify_source_trees(
             bench, provenance_path, "post_cleanup", root / "failed.json"
         )
@@ -80,7 +84,9 @@ def test_verification_rejects_changed_source_after_cleanup(source_fixture):
 def test_verification_rejects_unexpected_application_directory(source_fixture):
     bench, provenance_path, app, root = source_fixture
     (bench / "apps" / "unexpected").mkdir()
-    with pytest.raises(verification.SourceTreeVerificationError, match="directories differ"):
+    with pytest.raises(
+        verification.SourceTreeVerificationError, match="directories differ"
+    ):
         verification.verify_source_trees(
             bench, provenance_path, "runtime_image", root / "failed.json"
         )
@@ -91,7 +97,9 @@ def test_verification_rejects_unsafe_application_name(source_fixture):
     data = json.loads(provenance_path.read_text(encoding="utf-8"))
     data["repositories"][0]["name"] = "../escape"
     provenance_path.write_text(json.dumps(data), encoding="utf-8")
-    with pytest.raises(verification.SourceTreeVerificationError, match="Unsafe application name"):
+    with pytest.raises(
+        verification.SourceTreeVerificationError, match="Unsafe application name"
+    ):
         verification.verify_source_trees(
             bench, provenance_path, "post_cleanup", root / "failed.json"
         )
@@ -99,7 +107,9 @@ def test_verification_rejects_unsafe_application_name(source_fixture):
 
 def test_verification_rejects_invalid_stage(source_fixture):
     bench, provenance_path, app, root = source_fixture
-    with pytest.raises(verification.SourceTreeVerificationError, match="Unsupported verification stage"):
+    with pytest.raises(
+        verification.SourceTreeVerificationError, match="Unsupported verification stage"
+    ):
         verification.verify_source_trees(
             bench, provenance_path, "builder", root / "failed.json"
         )

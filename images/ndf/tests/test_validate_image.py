@@ -173,7 +173,9 @@ def validation_inputs():
     post_cleanup = stage_report("post_cleanup")
     runtime_verification = stage_report("runtime_image")
     post_raw = (json.dumps(post_cleanup, indent=2, sort_keys=True) + "\n").encode()
-    runtime_raw = (json.dumps(runtime_verification, indent=2, sort_keys=True) + "\n").encode()
+    runtime_raw = (
+        json.dumps(runtime_verification, indent=2, sort_keys=True) + "\n"
+    ).encode()
     contents = {
         "directories": ["frappe", "erpnext"],
         "apps_txt": ["frappe", "erpnext"],
@@ -305,14 +307,22 @@ def test_inspect_image_contents_extracts_exact_inventory_bytes():
 
 
 def test_validate_image_rejects_post_cleanup_fingerprint_mismatch(validation_inputs):
-    validation_inputs[3]["post_cleanup_verification"]["repositories"][0]["observed_source_tree"]["sha256"] = "0" * 64
-    with pytest.raises(ImageValidationError, match="post_cleanup source-tree fingerprint mismatch"):
+    validation_inputs[3]["post_cleanup_verification"]["repositories"][0][
+        "observed_source_tree"
+    ]["sha256"] = ("0" * 64)
+    with pytest.raises(
+        ImageValidationError, match="post_cleanup source-tree fingerprint mismatch"
+    ):
         run_validation(validation_inputs)
 
 
 def test_validate_image_rejects_runtime_fingerprint_mismatch(validation_inputs):
-    validation_inputs[3]["runtime_verification"]["repositories"][1]["observed_source_tree"]["sha256"] = "0" * 64
-    with pytest.raises(ImageValidationError, match="runtime_image source-tree fingerprint mismatch"):
+    validation_inputs[3]["runtime_verification"]["repositories"][1][
+        "observed_source_tree"
+    ]["sha256"] = ("0" * 64)
+    with pytest.raises(
+        ImageValidationError, match="runtime_image source-tree fingerprint mismatch"
+    ):
         run_validation(validation_inputs)
 
 

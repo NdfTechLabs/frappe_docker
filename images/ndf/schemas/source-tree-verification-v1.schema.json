@@ -21,10 +21,7 @@
       "const": "ndf-source-tree-verification-v1"
     },
     "stage": {
-      "enum": [
-        "post_cleanup",
-        "runtime_image"
-      ]
+      "enum": ["post_cleanup", "runtime_image"]
     },
     "source_provenance_sha256": {
       "type": "string",
@@ -33,10 +30,7 @@
     "lock": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version",
-        "sha256"
-      ],
+      "required": ["version", "sha256"],
       "properties": {
         "version": {
           "const": 2

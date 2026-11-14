@@ -25,7 +25,9 @@ def load_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise SourceTreeVerificationError(f"Unable to read JSON evidence {path}: {exc}") from exc
+        raise SourceTreeVerificationError(
+            f"Unable to read JSON evidence {path}: {exc}"
+        ) from exc
     if not isinstance(value, dict):
         raise SourceTreeVerificationError(f"Expected a JSON object in {path}.")
     return value
@@ -45,13 +47,22 @@ def validate_relative_path(value: str, label: str) -> PurePosixPath:
     return candidate
 
 
-def compare_fingerprint(root: Path, expected: dict[str, Any], label: str) -> dict[str, Any]:
-    if not isinstance(expected, dict) or expected.get("algorithm") != "ndf-source-tree-sha256-v1":
-        raise SourceTreeVerificationError(f"Missing or unsupported captured fingerprint for {label}.")
+def compare_fingerprint(
+    root: Path, expected: dict[str, Any], label: str
+) -> dict[str, Any]:
+    if (
+        not isinstance(expected, dict)
+        or expected.get("algorithm") != "ndf-source-tree-sha256-v1"
+    ):
+        raise SourceTreeVerificationError(
+            f"Missing or unsupported captured fingerprint for {label}."
+        )
     try:
         observed = fingerprint_tree(root)
     except FingerprintError as exc:
-        raise SourceTreeVerificationError(f"Unable to fingerprint {label}: {exc}") from exc
+        raise SourceTreeVerificationError(
+            f"Unable to fingerprint {label}: {exc}"
+        ) from exc
     if observed != expected:
         raise SourceTreeVerificationError(
             f"Source-tree fingerprint mismatch for {label}: "
@@ -71,7 +82,9 @@ def verify_submodules(
         child = parent_root.joinpath(*relative.parts)
         materialized = record.get("materialized")
         if not isinstance(materialized, bool):
-            raise SourceTreeVerificationError(f"Missing materialization state for {label}:{relative}.")
+            raise SourceTreeVerificationError(
+                f"Missing materialization state for {label}:{relative}."
+            )
         if materialized:
             if child.is_symlink() or not child.is_dir():
                 raise SourceTreeVerificationError(
@@ -121,7 +134,9 @@ def verify_source_trees(
     bench = bench_path.resolve()
     apps_root = bench / "apps"
     if not apps_root.is_dir() or apps_root.is_symlink():
-        raise SourceTreeVerificationError(f"Bench apps directory is missing or unsafe: {apps_root}")
+        raise SourceTreeVerificationError(
+            f"Bench apps directory is missing or unsafe: {apps_root}"
+        )
 
     provenance = load_json(provenance_path)
     if (
@@ -133,21 +148,33 @@ def verify_source_trees(
         or not isinstance(provenance.get("repositories"), list)
         or not provenance["repositories"]
     ):
-        raise SourceTreeVerificationError("Source provenance evidence has an invalid contract.")
+        raise SourceTreeVerificationError(
+            "Source provenance evidence has an invalid contract."
+        )
 
     records = provenance["repositories"]
     names = [item.get("name") for item in records if isinstance(item, dict)]
     if len(names) != len(records) or len(names) != len(set(names)):
-        raise SourceTreeVerificationError("Source provenance contains invalid or duplicate repository names.")
+        raise SourceTreeVerificationError(
+            "Source provenance contains invalid or duplicate repository names."
+        )
 
     results = []
     for record in records:
         name = record.get("name")
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", name):
-            raise SourceTreeVerificationError(f"Unsafe application name in source provenance: {name!r}")
+            raise SourceTreeVerificationError(
+                f"Unsafe application name in source provenance: {name!r}"
+            )
         app_path = apps_root / name
-        if app_path.is_symlink() or not app_path.is_dir() or not app_path.resolve().is_relative_to(apps_root):
-            raise SourceTreeVerificationError(f"Application directory is missing or unsafe: {name}")
+        if (
+            app_path.is_symlink()
+            or not app_path.is_dir()
+            or not app_path.resolve().is_relative_to(apps_root)
+        ):
+            raise SourceTreeVerificationError(
+                f"Application directory is missing or unsafe: {name}"
+            )
         observed = compare_fingerprint(app_path, record.get("source_tree"), name)
         submodules = verify_submodules(app_path, record.get("submodules", []), name)
         results.append(
@@ -160,7 +187,11 @@ def verify_source_trees(
             }
         )
 
-    actual_names = sorted(item.name for item in apps_root.iterdir() if item.is_dir() and not item.name.startswith("."))
+    actual_names = sorted(
+        item.name
+        for item in apps_root.iterdir()
+        if item.is_dir() and not item.name.startswith(".")
+    )
     if actual_names != sorted(names):
         raise SourceTreeVerificationError(
             "Application directories differ from source provenance: "
@@ -179,7 +210,9 @@ def verify_source_trees(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = output_path.with_suffix(output_path.suffix + ".tmp")
-    temporary.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(output_path)
     return report
 
@@ -188,11 +221,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bench", type=Path, required=True)
     parser.add_argument("--provenance", type=Path, required=True)
-    parser.add_argument("--stage", choices=("post_cleanup", "runtime_image"), required=True)
+    parser.add_argument(
+        "--stage", choices=("post_cleanup", "runtime_image"), required=True
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        report = verify_source_trees(args.bench, args.provenance, args.stage, args.output)
+        report = verify_source_trees(
+            args.bench, args.provenance, args.stage, args.output
+        )
     except (SourceTreeVerificationError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
