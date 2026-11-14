@@ -90,6 +90,7 @@
         "path",
         "repository",
         "expected_commit",
+        "materialized",
         "actual_commit",
         "head_tree",
         "tracked_content",
@@ -100,6 +101,72 @@
       "properties": {
         "path": { "type": "string", "minLength": 1 },
         "repository": { "type": "string", "pattern": "^[^/@:]+/.+$" },
+        "expected_commit": { "$ref": "#/$defs/gitObject" },
+        "materialized": { "type": "boolean" },
+        "actual_commit": {
+          "oneOf": [
+            { "$ref": "#/$defs/gitObject" },
+            { "type": "null" }
+          ]
+        },
+        "head_tree": {
+          "oneOf": [
+            { "$ref": "#/$defs/gitObject" },
+            { "type": "null" }
+          ]
+        },
+        "tracked_content": {
+          "oneOf": [
+            { "$ref": "#/$defs/trackedContent" },
+            { "type": "null" }
+          ]
+        },
+        "generated_content": {
+          "oneOf": [
+            { "$ref": "#/$defs/generatedContent" },
+            { "type": "null" }
+          ]
+        },
+        "source_tree": {
+          "oneOf": [
+            { "$ref": "#/$defs/sourceTree" },
+            { "type": "null" }
+          ]
+        },
+        "submodules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/submodule" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "materialized": { "const": true } },
+            "required": ["materialized"]
+          },
+          "then": {
+            "properties": {
+              "actual_commit": { "$ref": "#/$defs/gitObject" },
+              "head_tree": { "$ref": "#/$defs/gitObject" },
+              "tracked_content": { "$ref": "#/$defs/trackedContent" },
+              "generated_content": { "$ref": "#/$defs/generatedContent" },
+              "source_tree": { "$ref": "#/$defs/sourceTree" }
+            }
+          },
+          "else": {
+            "properties": {
+              "actual_commit": { "type": "null" },
+              "head_tree": { "type": "null" },
+              "tracked_content": { "type": "null" },
+              "generated_content": { "type": "null" },
+              "source_tree": { "type": "null" },
+              "submodules": { "maxItems": 0 }
+            }
+          }
+        }
+      ]
+    },
+    "repository": { "type": "string", "pattern": "^[^/@:]+/.+$" },
         "expected_commit": { "$ref": "#/$defs/gitObject" },
         "actual_commit": { "$ref": "#/$defs/gitObject" },
         "head_tree": { "$ref": "#/$defs/gitObject" },
