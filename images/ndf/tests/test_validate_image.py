@@ -16,23 +16,38 @@ def validation_inputs():
     digest = "sha256:" + "f" * 64
     lock_sha = "b" * 64
     applications = [
-        {"name": "frappe", "target_ref": "version-16", "resolved_sha": "a" * 40,
-         "repository": "https://github.com/frappe/frappe"},
-        {"name": "erpnext", "target_ref": "version-16", "resolved_sha": "c" * 40,
-         "repository": "https://github.com/frappe/erpnext"},
+        {
+            "name": "frappe",
+            "target_ref": "version-16",
+            "resolved_sha": "a" * 40,
+            "repository": "https://github.com/frappe/frappe",
+        },
+        {
+            "name": "erpnext",
+            "target_ref": "version-16",
+            "resolved_sha": "c" * 40,
+            "repository": "https://github.com/frappe/erpnext",
+        },
     ]
     metadata = {
-        "image": {"id": "dalali-v16", "product": "dalali",
-                  "manifest": "products/tenant/dalali-v16.json",
-                  "repository": "ghcr.io/ndftechlabs/dalali"},
+        "image": {
+            "id": "dalali-v16",
+            "product": "dalali",
+            "manifest": "products/tenant/dalali-v16.json",
+            "repository": "ghcr.io/ndftechlabs/dalali",
+        },
         "framework": {"name": "frappe", "version": "16", "target_ref": "version-16"},
         "lock": {"sha256": lock_sha},
         "base_images": {"platform": "linux/amd64"},
         "applications": applications,
     }
     lock_apps = [
-        {"name": app["name"], "repository": app["repository"],
-         "target_ref": app["target_ref"], "ref": app["resolved_sha"]}
+        {
+            "name": app["name"],
+            "repository": app["repository"],
+            "target_ref": app["target_ref"],
+            "ref": app["resolved_sha"],
+        }
         for app in applications
     ]
     lock = {
@@ -52,25 +67,42 @@ def validation_inputs():
         "com.ndf.framework.version": "16",
         "com.ndf.framework.target-ref": "version-16",
         "com.ndf.lock.sha256": lock_sha,
-        "com.ndf.applications": json.dumps([
-            {"name": app["name"], "target_ref": app["target_ref"],
-             "resolved_sha": app["resolved_sha"]} for app in applications
-        ]),
+        "com.ndf.applications": json.dumps(
+            [
+                {
+                    "name": app["name"],
+                    "target_ref": app["target_ref"],
+                    "resolved_sha": app["resolved_sha"],
+                }
+                for app in applications
+            ]
+        ),
     }
     captured = [
-        {"name": app["name"], "repository": f"github.com/frappe/{app['name']}",
-         "requested_ref": app["target_ref"], "resolver_commit": app["resolved_sha"],
-         "actual_commit": "d" * 40}
+        {
+            "name": app["name"],
+            "repository": f"github.com/frappe/{app['name']}",
+            "requested_ref": app["target_ref"],
+            "resolver_commit": app["resolved_sha"],
+            "actual_commit": "d" * 40,
+        }
         for app in applications
     ]
     inventory = {
-        "schema_version": "1.0", "stage": "builder",
+        "schema_version": "1.0",
+        "stage": "builder",
         "lock": {"version": 2, "sha256": lock_sha},
-        "framework": captured[0], "applications": captured,
+        "framework": captured[0],
+        "applications": captured,
         "runtime": {
-            "python": {"executable": "/bench/env/bin/python", "environment": "/bench/env",
-                       "version": "3.14.10", "implementation": "CPython"},
-            "node": {"version": "v24.21.0"}, "yarn": {"version": "1.22.22"},
+            "python": {
+                "executable": "/bench/env/bin/python",
+                "environment": "/bench/env",
+                "version": "3.14.10",
+                "implementation": "CPython",
+            },
+            "node": {"version": "v24.21.0"},
+            "yarn": {"version": "1.22.22"},
             "bench": {"version": "5.31.1"},
             "platform": {"system": "Linux", "machine": "x86_64", "oci": "linux/amd64"},
         },
@@ -90,19 +122,24 @@ def validation_inputs():
 
 def run_validation(inputs):
     metadata, lock, labels, contents, lock_sha, digest = inputs
-    return validate_image("local/dalali:test", metadata, lock, labels, contents, lock_sha, digest)
+    return validate_image(
+        "local/dalali:test", metadata, lock, labels, contents, lock_sha, digest
+    )
 
 
-def test_validate_image_accepts_contents_labels_and_digest_bound_inventory(validation_inputs):
+def test_validate_image_accepts_contents_labels_and_digest_bound_inventory(
+    validation_inputs,
+):
     report = run_validation(validation_inputs)
     assert report["status"] == "passed"
     assert report["application_count"] == 2
     assert report["inventory_verified"] is True
     binding = report["evidence_binding"]
     assert binding["image_digest"] == validation_inputs[5]
-    assert binding["inventory_sha256"] == hashlib.sha256(
-        validation_inputs[3]["build_inventory_bytes"]
-    ).hexdigest()
+    assert (
+        binding["inventory_sha256"]
+        == hashlib.sha256(validation_inputs[3]["build_inventory_bytes"]).hexdigest()
+    )
     assert binding["lock_sha256"] == validation_inputs[4]
     assert binding["status"] == "bound"
 
@@ -120,7 +157,9 @@ def test_validate_image_rejects_unexpected_application_in_apps_txt(validation_in
 
 
 def test_validate_image_rejects_mismatched_oci_label(validation_inputs):
-    validation_inputs[2]["org.opencontainers.image.url"] = "https://github.com/frappe/frappe_docker"
+    validation_inputs[2][
+        "org.opencontainers.image.url"
+    ] = "https://github.com/frappe/frappe_docker"
     with pytest.raises(ImageValidationError, match="org.opencontainers.image.url"):
         run_validation(validation_inputs)
 
@@ -144,7 +183,9 @@ def test_validate_image_rejects_missing_inventory(validation_inputs):
 
 
 def test_validate_image_rejects_malformed_inventory(validation_inputs):
-    validation_inputs[3]["build_inventory"]["runtime"]["platform"]["oci"] = "windows/amd64"
+    validation_inputs[3]["build_inventory"]["runtime"]["platform"][
+        "oci"
+    ] = "windows/amd64"
     with pytest.raises(ImageValidationError, match="schema validation"):
         run_validation(validation_inputs)
 
@@ -156,18 +197,22 @@ def test_validate_image_rejects_inventory_lock_mismatch(validation_inputs):
 
 
 def test_validate_image_rejects_repository_identity_mismatch(validation_inputs):
-    validation_inputs[3]["build_inventory"]["applications"][1]["repository"] = "github.com/other/erpnext"
+    validation_inputs[3]["build_inventory"]["applications"][1][
+        "repository"
+    ] = "github.com/other/erpnext"
     with pytest.raises(ImageValidationError, match="repository identity mismatch"):
         run_validation(validation_inputs)
 
 
 def test_inspect_image_contents_extracts_exact_inventory_bytes():
     raw = json.dumps({"schema_version": "1.0"}).encode()
-    response = json.dumps({
-        "directories": ["frappe", "erpnext"],
-        "apps_txt": ["frappe", "erpnext"],
-        "build_inventory_base64": base64.b64encode(raw).decode(),
-    })
+    response = json.dumps(
+        {
+            "directories": ["frappe", "erpnext"],
+            "apps_txt": ["frappe", "erpnext"],
+            "build_inventory_base64": base64.b64encode(raw).decode(),
+        }
+    )
 
     class Result:
         returncode = 0

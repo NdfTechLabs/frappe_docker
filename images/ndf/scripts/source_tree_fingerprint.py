@@ -7,6 +7,7 @@ Only Git metadata entries named .git are excluded. Symbolic links are
 recorded without following them. Regular-file content and executable status,
 directory paths, and symlink targets contribute to the root digest.
 """
+
 from __future__ import annotations
 
 import argparse

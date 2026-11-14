@@ -41,7 +41,12 @@
       "properties": {
         "python": {
           "type": "object",
-          "required": ["executable", "environment", "version", "implementation"],
+          "required": [
+            "executable",
+            "environment",
+            "version",
+            "implementation"
+          ],
           "properties": {
             "executable": { "type": "string", "minLength": 1 },
             "environment": { "type": "string", "minLength": 1 },
@@ -143,7 +148,13 @@
     "application": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "repository", "requested_ref", "resolver_commit", "actual_commit"],
+      "required": [
+        "name",
+        "repository",
+        "requested_ref",
+        "resolver_commit",
+        "actual_commit"
+      ],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "repository": { "type": "string", "pattern": "^[^/@:]+/.+$" },

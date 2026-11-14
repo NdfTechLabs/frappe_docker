@@ -278,9 +278,7 @@ def test_prepare_build_uses_current_manifest_content(
     fake_git_refs,
     tmp_path,
 ):
-    manifest_path = (
-        build_project / "manifests" / "products" / "test-product-v16.json"
-    )
+    manifest_path = build_project / "manifests" / "products" / "test-product-v16.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["name"] = "Updated Product"
     manifest_path.write_text(
@@ -299,9 +297,10 @@ def test_prepare_build_uses_current_manifest_content(
     )
 
     assert lock["product"]["name"] == "Updated Product"
-    assert product_manifest["sha256"] == hashlib.sha256(
-        manifest_path.read_bytes()
-    ).hexdigest()
+    assert (
+        product_manifest["sha256"]
+        == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    )
 
 
 def test_prepare_build_rejects_unverified_compatibility(
@@ -309,9 +308,7 @@ def test_prepare_build_rejects_unverified_compatibility(
     fake_git_refs,
     tmp_path,
 ):
-    manifest_path = (
-        build_project / "manifests" / "products" / "test-product-v16.json"
-    )
+    manifest_path = build_project / "manifests" / "products" / "test-product-v16.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["applications"][2]["compatibility_status"] = "pending_validation"
     manifest_path.write_text(
@@ -328,7 +325,6 @@ def test_prepare_build_rejects_unverified_compatibility(
             image_id="test-product-v16",
             output_dir=tmp_path / "prepared",
         )
-
 
 
 def test_prepare_build_rejects_output_inside_obsolete_lock_directory(

@@ -191,32 +191,48 @@
                   "anyOf": [
                     {
                       "type": "object",
-                      "required": ["kind", "authority", "result", "tested_versions", "tested_at"],
+                      "required": [
+                        "kind",
+                        "authority",
+                        "result",
+                        "tested_versions",
+                        "tested_at"
+                      ],
                       "properties": {
-                        "authority": {"const": "ndf"},
-                        "result": {"const": "passed"},
+                        "authority": { "const": "ndf" },
+                        "result": { "const": "passed" },
                         "tested_versions": {
                           "type": "object",
                           "required": ["frappe", "python"],
                           "properties": {
-                            "frappe": {"type": "string", "minLength": 1},
-                            "python": {"type": "string", "minLength": 1}
+                            "frappe": { "type": "string", "minLength": 1 },
+                            "python": { "type": "string", "minLength": 1 }
                           }
                         },
-                        "kind": {"enum": ["automated_test", "manual_test"]},
-                        "tested_at": {"type": "string", "format": "date-time"}
+                        "kind": { "enum": ["automated_test", "manual_test"] },
+                        "tested_at": { "type": "string", "format": "date-time" }
                       }
                     },
                     {
                       "type": "object",
-                      "required": ["kind", "authority", "result", "reference", "attested_at", "attested_by"],
+                      "required": [
+                        "kind",
+                        "authority",
+                        "result",
+                        "reference",
+                        "attested_at",
+                        "attested_by"
+                      ],
                       "properties": {
-                        "kind": {"const": "maintainer_attestation"},
-                        "authority": {"const": "ndf"},
-                        "result": {"const": "passed"},
-                        "reference": {"type": "string", "minLength": 1},
-                        "attested_at": {"type": "string", "format": "date-time"},
-                        "attested_by": {"type": "string", "minLength": 1}
+                        "kind": { "const": "maintainer_attestation" },
+                        "authority": { "const": "ndf" },
+                        "result": { "const": "passed" },
+                        "reference": { "type": "string", "minLength": 1 },
+                        "attested_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "attested_by": { "type": "string", "minLength": 1 }
                       }
                     }
                   ]

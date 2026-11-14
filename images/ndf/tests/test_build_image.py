@@ -70,7 +70,9 @@ def _build_command(tmp_path, **overrides):
     root = tmp_path
     dockerfile = root / "images" / "layered" / "Containerfile"
     apps_json = root / "images" / "ndf" / ".build" / "dalali" / "apps.json"
-    build_lock = root / "images" / "ndf" / ".build" / "dalali" / "dalali-v16.lock-v2.json"
+    build_lock = (
+        root / "images" / "ndf" / ".build" / "dalali" / "dalali-v16.lock-v2.json"
+    )
     dockerfile.parent.mkdir(parents=True, exist_ok=True)
     apps_json.parent.mkdir(parents=True, exist_ok=True)
     dockerfile.touch()
@@ -98,9 +100,9 @@ def _build_command(tmp_path, **overrides):
 
 def test_layered_containerfile_uses_required_independent_digest_inputs():
     repository_root = Path(__file__).resolve().parents[3]
-    containerfile = (repository_root / "images" / "layered" / "Containerfile").read_text(
-        encoding="utf-8"
-    )
+    containerfile = (
+        repository_root / "images" / "layered" / "Containerfile"
+    ).read_text(encoding="utf-8")
 
     assert "ARG FRAPPE_BUILD_IMAGE" in containerfile
     assert "ARG FRAPPE_BASE_IMAGE" in containerfile

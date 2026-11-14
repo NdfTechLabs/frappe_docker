@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
-
 from scripts import capture_build_inventory as capture
 
 
@@ -42,13 +41,15 @@ def bench_fixture(tmp_path, monkeypatch):
         git(["add", "tracked.txt"], app_path)
         git(["commit", "-m", "initial"], app_path)
         git(["remote", "add", "origin", remote], app_path)
-        locked.append({
-            "name": name,
-            "repository": remote,
-            "target_ref": "version-16",
-            "ref": "a" * 40,
-            "installation_order": order,
-        })
+        locked.append(
+            {
+                "name": name,
+                "repository": remote,
+                "target_ref": "version-16",
+                "ref": "a" * 40,
+                "installation_order": order,
+            }
+        )
 
     lock_path = tmp_path / "product.lock-v2.json"
     lock_path.write_text(
@@ -56,25 +57,48 @@ def bench_fixture(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(capture, "capture_runtime", lambda: {
-        "python": {"executable": "/usr/bin/python3", "environment": str(bench / "env"), "version": "3.14.3", "implementation": "CPython"},
-        "node": {"version": "v24.21.0"},
-        "yarn": {"version": "1.22.22"},
-        "bench": {"version": "5.31.1"},
-        "platform": {"system": "Linux", "machine": "x86_64", "oci": "linux/amd64"},
-    })
-    monkeypatch.setattr(capture, "capture_python_packages", lambda: [
-        {"name": "example-python", "version": "1.2.3"}
-    ])
-    monkeypatch.setattr(capture, "capture_node_packages", lambda *_: [
-        {"path": "apps/frappe/node_modules/example", "name": "example", "version": "2.0.0"}
-    ])
-    monkeypatch.setattr(capture, "capture_dpkg_packages", lambda: [
-        {"name": "bash", "version": "5.2", "architecture": "amd64"}
-    ])
-    monkeypatch.setattr(capture, "capture_installers", lambda: {
-        "uv": {"version": "0.13.7"}, "pip": {"version": "25.0"}
-    })
+    monkeypatch.setattr(
+        capture,
+        "capture_runtime",
+        lambda: {
+            "python": {
+                "executable": "/usr/bin/python3",
+                "environment": str(bench / "env"),
+                "version": "3.14.3",
+                "implementation": "CPython",
+            },
+            "node": {"version": "v24.21.0"},
+            "yarn": {"version": "1.22.22"},
+            "bench": {"version": "5.31.1"},
+            "platform": {"system": "Linux", "machine": "x86_64", "oci": "linux/amd64"},
+        },
+    )
+    monkeypatch.setattr(
+        capture,
+        "capture_python_packages",
+        lambda: [{"name": "example-python", "version": "1.2.3"}],
+    )
+    monkeypatch.setattr(
+        capture,
+        "capture_node_packages",
+        lambda *_: [
+            {
+                "path": "apps/frappe/node_modules/example",
+                "name": "example",
+                "version": "2.0.0",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        capture,
+        "capture_dpkg_packages",
+        lambda: [{"name": "bash", "version": "5.2", "architecture": "amd64"}],
+    )
+    monkeypatch.setattr(
+        capture,
+        "capture_installers",
+        lambda: {"uv": {"version": "0.13.7"}, "pip": {"version": "25.0"}},
+    )
     return bench, lock_path, apps
 
 
@@ -95,7 +119,11 @@ def test_capture_records_actual_git_heads_and_lock_refs(bench_fixture, tmp_path)
     assert report["applications"][1]["resolver_commit"] == "a" * 40
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
-    schema_path = Path(__file__).resolve().parents[1] / "schemas" / "build-inventory-v1.schema.json"
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "build-inventory-v1.schema.json"
+    )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     Draft202012Validator(schema).validate(report)
@@ -105,7 +133,9 @@ def test_capture_rejects_unexpected_application_directory(bench_fixture, tmp_pat
     bench, lock, apps = bench_fixture
     (apps / "unlocked_app").mkdir()
 
-    with pytest.raises(capture.InventoryCaptureError, match="composition differs from lock-v2"):
+    with pytest.raises(
+        capture.InventoryCaptureError, match="composition differs from lock-v2"
+    ):
         capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
 
 
@@ -120,9 +150,14 @@ def test_capture_accepts_matching_non_origin_remote(bench_fixture, tmp_path):
 
 def test_capture_rejects_repository_identity_mismatch(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
-    git(["remote", "set-url", "origin", "https://github.com/other/erpnext.git"], apps / "erpnext")
+    git(
+        ["remote", "set-url", "origin", "https://github.com/other/erpnext.git"],
+        apps / "erpnext",
+    )
 
-    with pytest.raises(capture.InventoryCaptureError, match="Repository identity mismatch"):
+    with pytest.raises(
+        capture.InventoryCaptureError, match="Repository identity mismatch"
+    ):
         capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
 
 
@@ -130,7 +165,9 @@ def test_capture_rejects_repository_without_remotes(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     git(["remote", "remove", "origin"], apps / "frappe")
 
-    with pytest.raises(capture.InventoryCaptureError, match="No Git remotes are configured"):
+    with pytest.raises(
+        capture.InventoryCaptureError, match="No Git remotes are configured"
+    ):
         capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
 
 
@@ -144,7 +181,9 @@ def test_capture_rejects_missing_git_metadata(bench_fixture, tmp_path):
 
 def test_capture_rejects_invalid_lock_version(bench_fixture, tmp_path):
     bench, lock, _ = bench_fixture
-    lock.write_text(json.dumps({"lock_version": 1, "applications": []}), encoding="utf-8")
+    lock.write_text(
+        json.dumps({"lock_version": 1, "applications": []}), encoding="utf-8"
+    )
 
     with pytest.raises(capture.InventoryCaptureError, match="lock-v2"):
         capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
@@ -156,7 +195,11 @@ def test_dependency_file_hashes_are_captured(bench_fixture, tmp_path):
     requirements.write_text("sample-package==1.0\n", encoding="utf-8")
 
     report = capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
-    item = next(row for row in report["dependency_files"] if row["path"] == "apps/frappe/requirements.txt")
+    item = next(
+        row
+        for row in report["dependency_files"]
+        if row["path"] == "apps/frappe/requirements.txt"
+    )
 
     assert item["sha256"] == hashlib.sha256(requirements.read_bytes()).hexdigest()
 
@@ -164,7 +207,12 @@ def test_dependency_file_hashes_are_captured(bench_fixture, tmp_path):
 def test_capture_sanitizes_credentials_from_git_remote(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     git(
-        ["remote", "set-url", "origin", "https://user:secret-token@github.com/frappe/frappe.git"],
+        [
+            "remote",
+            "set-url",
+            "origin",
+            "https://user:secret-token@github.com/frappe/frappe.git",
+        ],
         apps / "frappe",
     )
 
