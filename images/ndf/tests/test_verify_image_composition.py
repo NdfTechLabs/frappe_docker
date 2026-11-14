@@ -282,3 +282,54 @@ def test_rejects_duplicate_service_identity_across_categories(composition_case):
     composition_case["lock"]["external_requirements"] = [dict(record)]
     with pytest.raises(CompositionVerificationError, match="Duplicate/cross-category"):
         run_case(composition_case)
+
+
+
+def test_rejects_apps_json_service_or_unlocked_application_leakage(composition_case):
+    lock_bytes = (json.dumps(composition_case["lock"], sort_keys=True, indent=2) + "\\n").encode()
+    with pytest.raises(CompositionVerificationError, match="apps.json"):
+        verify_composition(
+            repository_root=composition_case["root"],
+            manifest_path=composition_case["manifest_path"],
+            lock_data=composition_case["lock"],
+            lock_bytes=lock_bytes,
+            metadata_applications=composition_case["apps"],
+            inventory_applications=composition_case["apps"],
+            runtime_directories=composition_case["directories"],
+            runtime_apps_txt=composition_case["apps_txt"],
+            apps_json=[{"url": "https://example.invalid/unlisted", "branch": "main"}],
+        )
+
+
+def test_accepts_unselected_v2_capability_without_loading_its_manifest(tmp_path):
+    root = tmp_path / "images/ndf/manifests/products"
+    root.mkdir(parents=True)
+    manifest = {
+        "manifest_version": "2.0.0",
+        "id": "p",
+        "applications": [{"name": "frappe", "required": True}],
+        "capabilities": [{"manifest": "capabilities/optional.json", "required": False, "selected": False}],
+    }
+    raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\\n").encode()
+    (root / "p.json").write_bytes(raw)
+    lock = {
+        "lock_version": 2,
+        "manifests": [{"id": "p", "path": "products/p.json", "sha256": hashlib.sha256(raw).hexdigest()}],
+        "applications": [{"name": "frappe", "repository": "https://github.com/frappe/frappe", "target_ref": "version-16", "installation_order": 1}],
+        "capabilities": [{"manifest": "capabilities/optional.json", "required": False, "selected": False}],
+        "services": [],
+        "external_requirements": [],
+    }
+    apps = [{"name": "frappe"}]
+    report = verify_composition(
+        repository_root=tmp_path,
+        manifest_path="products/p.json",
+        lock_data=lock,
+        lock_bytes=json.dumps(lock).encode(),
+        metadata_applications=apps,
+        inventory_applications=apps,
+        runtime_directories=["frappe"],
+        runtime_apps_txt=["frappe"],
+        apps_json=[],
+    )
+    assert report["capabilities"] == lock["capabilities"]
