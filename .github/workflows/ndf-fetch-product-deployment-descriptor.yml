@@ -84,7 +84,7 @@ jobs:
           if str(run.get("id")) != run_id:
               raise SystemExit("Publication run ID mismatch.")
           match = re.fullmatch(r"ndf-pdd-publication-(\d+)-(\d+)", name)
-          if not match or int(match.group(2)) != run.get("run_attempt"):
+          if not match or match.group(1) != run_id or int(match.group(2)) != run.get("run_attempt"):
               raise SystemExit("Receipt artifact name does not match the publication run attempt.")
           artifact = next((item for item in artifacts.get("artifacts", []) if item.get("name") == name), None)
           if not artifact or artifact.get("expired"):
