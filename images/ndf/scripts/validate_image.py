@@ -683,7 +683,7 @@ def validate_from_files(
             raise ImageValidationError("Independent composition verification did not produce a report.")
         composition_output_path.parent.mkdir(parents=True, exist_ok=True)
         composition_output_path.write_text(
-            json.dumps(composition_report, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
+            json.dumps(composition_report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
     for path, key in (
         (source_provenance_output_path, "source_provenance"),
