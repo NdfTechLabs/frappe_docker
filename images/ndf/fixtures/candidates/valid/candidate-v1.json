@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_id": "CAND-2026-00042",
+  "candidate_code": "dalali-v16-2026-11-14",
+  "candidate_type": "product",
+  "product": {
+    "id": "dalali",
+    "release": "16.0.0"
+  },
+  "framework_version": "16",
+  "base_deployment": null,
+  "composition_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "applications": [
+    {
+      "app_id": "frappe",
+      "app_name": "Frappe Framework",
+      "release_version": "16.0.0",
+      "descriptor_ref": "ghcr.io/ndftechlabs/marketplace-app-descriptors@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "descriptor_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "app_source_type": "git",
+      "app_source": "https://github.com/frappe/frappe",
+      "requested_version": "version-16",
+      "immutable_commit": "cccccccccccccccccccccccccccccccccccccccc",
+      "is_required": true,
+      "change_action": "install"
+    }
+  ],
+  "optional_capabilities": [],
+  "runtime_profile": {
+    "python": "3.14",
+    "node": "24"
+  },
+  "runtime_constraints": {
+    "python": {
+      "minimum_version": "3.14"
+    },
+    "node": {
+      "minimum_version": "24"
+    }
+  },
+  "target_platforms": [
+    "linux/amd64"
+  ],
+  "approved_build_parameters": {
+    "build_profile": "production",
+    "build_options": {
+      "assets": true
+    }
+  },
+  "provenance_refs": [
+    "https://github.com/NdfTechLabs/dt_master/actions/runs/123456"
+  ]
+}
