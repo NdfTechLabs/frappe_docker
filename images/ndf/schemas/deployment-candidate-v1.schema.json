@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/deployment-candidate-v1.schema.json",
+  "title": "DT Master Deployment Candidate — NDF Intake Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "candidate_code",
+    "candidate_type",
+    "product",
+    "framework_version",
+    "composition_hash",
+    "applications",
+    "optional_capabilities",
+    "runtime_profile",
+    "runtime_constraints",
+    "target_platforms",
+    "approved_build_parameters",
+    "provenance_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 140,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "candidate_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "release": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "framework_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_deployment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "composition_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "applications": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/application"
+      }
+    },
+    "optional_capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "runtime_profile": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "python": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string"
+        }
+      }
+    },
+    "runtime_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "python": {
+          "type": "object"
+        },
+        "node": {
+          "type": "object"
+        },
+        "framework": {
+          "type": "object"
+        }
+      }
+    },
+    "target_platforms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "linux/amd64",
+          "linux/arm64"
+        ]
+      }
+    },
+    "approved_build_parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "build_profile": {
+          "type": "string"
+        },
+        "build_options": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "integer",
+              "boolean"
+            ]
+          }
+        }
+      }
+    },
+    "provenance_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "app_id",
+        "app_name",
+        "release_version",
+        "descriptor_ref",
+        "descriptor_digest",
+        "app_source_type",
+        "app_source",
+        "requested_version",
+        "immutable_commit",
+        "is_required",
+        "change_action"
+      ],
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "app_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "release_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor_digest": {
+          "$ref": "#/$defs/hash"
+        },
+        "app_source_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "app_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requested_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "immutable_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
+        },
+        "is_required": {
+          "type": "boolean"
+        },
+        "change_action": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
