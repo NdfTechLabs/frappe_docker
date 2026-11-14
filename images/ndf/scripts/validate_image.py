@@ -262,7 +262,7 @@ def validate_inventory(
 
 
 def validate_source_tree_evidence(
-    contents: dict[str, Any], lock_sha256: str
+    contents: dict[str, Any], lock_sha256: str, lock_data: dict[str, Any]
 ) -> dict[str, Any]:
     """Validate post-cleanup and final-runtime comparisons against pre-cleanup provenance."""
     specifications = (
