@@ -225,8 +225,8 @@ def test_capture_recursively_verifies_nested_submodules(bench_fixture, tmp_path)
     git(["remote", "set-url", "origin", nested_url], nested_path)
     nested_commit = git(["rev-parse", "HEAD"], nested_path)
     (frappe_ui_source / ".gitmodules").write_text(
-        '[submodule "nested"]\\n'
-        f"\\tpath = nested\\n\\turl = {nested_url}\\n",
+        '[submodule "nested"]\n'
+        f"\tpath = nested\n\turl = {nested_url}\n",
         encoding="utf-8",
     )
     git(
