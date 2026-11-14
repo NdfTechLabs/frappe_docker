@@ -23,7 +23,8 @@ def candidate(tmp_path):
       "buildx-metadata.json":json.dumps({"containerimage.digest":DIGEST}).encode()+b"\n",
       "build-inventory.json":b'{"schema_version":"1.0"}\n',
       "build-evidence.json":json.dumps({"status":"bound","image_digest":DIGEST,
-        "lock_sha256":hashlib.sha256(lock).hexdigest()}).encode()+b"\n",
+        "lock_sha256":hashlib.sha256(lock).hexdigest(),
+        "inventory_sha256":hashlib.sha256(b'{"schema_version":"1.0"}\n').hexdigest()}).encode()+b"\n",
       "source-provenance.json":b'{"schema_version":"1.0"}\n',
       "source-provenance-verification.json":b'{"status":"passed"}\n',
       "source-tree-verification-post-cleanup.json":b'{"status":"passed"}\n',
@@ -96,3 +97,19 @@ def test_rejects_non_staging_candidate_reference(candidate):
 def test_rejects_missing_required_evidence(candidate):
     (candidate/"image-composition-verification.json").unlink()
     with pytest.raises(PublicationGateError,match="missing"): run_gate(candidate)
+
+
+def test_rejects_build_metadata_framework_major_mismatch(candidate):
+    metadata=json.loads((candidate/"build-metadata.json").read_text())
+    metadata["framework"]["version"]="17.0.0"
+    write_json(candidate/"build-metadata.json",metadata)
+    with pytest.raises(PublicationGateError,match="framework major"):
+        run_gate(candidate)
+
+
+def test_rejects_inventory_digest_mismatch(candidate):
+    evidence=json.loads((candidate/"build-evidence.json").read_text())
+    evidence["inventory_sha256"]="0"*64
+    write_json(candidate/"build-evidence.json",evidence)
+    with pytest.raises(PublicationGateError,match="image, lock and inventory"):
+        run_gate(candidate)
