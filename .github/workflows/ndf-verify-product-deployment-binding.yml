@@ -30,7 +30,7 @@ jobs:
       BUILD_RUN_ID: ${{ inputs.build_run_id }}
       ARTIFACT_NAME: ${{ inputs.artifact_name }}
       GH_TOKEN: ${{ github.token }}
-      EVIDENCE_DIR: ${{ runner.temp }}/ndf-pdd-evidence-${{ inputs.build_run_id }}
+      EVIDENCE_DIR: ${{ github.workspace }}/.ndf-pdd-evidence-${{ inputs.build_run_id }}
     steps:
       - name: Checkout verification code
         uses: actions/checkout@v7
