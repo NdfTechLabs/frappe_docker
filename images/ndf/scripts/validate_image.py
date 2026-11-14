@@ -22,6 +22,14 @@ class ImageValidationError(Exception):
 SCHEMA_PATH = (
     Path(__file__).resolve().parents[1] / "schemas" / "build-inventory-v1.schema.json"
 )
+SOURCE_PROVENANCE_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1] / "schemas" / "source-provenance-v1.schema.json"
+)
+SOURCE_TREE_VERIFICATION_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "schemas"
+    / "source-tree-verification-v1.schema.json"
+)
 DIGEST_PATTERN = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 
@@ -64,47 +72,60 @@ def inspect_image_labels(image_ref: str) -> dict[str, str]:
 
 
 def inspect_image_contents(image_ref: str) -> dict[str, Any]:
-    """Read app composition and the exact inventory bytes from the runtime image."""
+    """Read composition and verify source fingerprints inside the final runtime image."""
     inspection_code = (
-        "import base64,json,pathlib;"
-        "root=pathlib.Path('/home/frappe/frappe-bench/apps');"
-        "apps_file=pathlib.Path('/home/frappe/frappe-bench/sites/apps.txt');"
-        "inventory=pathlib.Path('/home/frappe/frappe-bench/build-evidence/build-inventory.json');"
-        "raw=inventory.read_bytes();"
+        "import base64,json,pathlib,subprocess;"
+        "bench=pathlib.Path('/home/frappe/frappe-bench');"
+        "evidence=bench/'build-evidence';"
+        "provenance=evidence/'source-provenance.json';"
+        "post=evidence/'source-tree-verification-post-cleanup.json';"
+        "runtime=pathlib.Path('/tmp/source-tree-verification-runtime.json');"
+        "subprocess.run(['python','/opt/ndf/verify_source_tree.py','--bench',str(bench),"
+        "'--provenance',str(provenance),'--stage','runtime_image','--output',str(runtime)],check=True);"
+        "inventory=(evidence/'build-inventory.json').read_bytes();"
+        "provenance_raw=provenance.read_bytes();post_raw=post.read_bytes();runtime_raw=runtime.read_bytes();"
+        "apps=bench/'apps';apps_file=bench/'sites/apps.txt';"
         "print(json.dumps({"
-        "'directories':sorted(p.name for p in root.iterdir() if p.is_dir()),"
+        "'directories':sorted(p.name for p in apps.iterdir() if p.is_dir() and not p.name.startswith('.')),"
         "'apps_txt':[line.strip() for line in apps_file.read_text().splitlines() if line.strip()],"
-        "'build_inventory_base64':base64.b64encode(raw).decode('ascii')"
+        "'build_inventory_base64':base64.b64encode(inventory).decode('ascii'),"
+        "'source_provenance_base64':base64.b64encode(provenance_raw).decode('ascii'),"
+        "'post_cleanup_verification_base64':base64.b64encode(post_raw).decode('ascii'),"
+        "'runtime_verification_base64':base64.b64encode(runtime_raw).decode('ascii')"
         "}))"
     )
     output = run_docker(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--entrypoint",
-            "bash",
-            image_ref,
-            "-lc",
-            f"python -c {json.dumps(inspection_code)}",
-        ]
+        ["docker", "run", "--rm", "--entrypoint", "bash", image_ref, "-lc",
+         f"python -c {json.dumps(inspection_code)}"]
     )
     try:
         contents = json.loads(output)
-        raw_inventory = base64.b64decode(
-            contents.pop("build_inventory_base64"), validate=True
-        )
-        inventory = json.loads(raw_inventory)
+        encoded = {
+            key: base64.b64decode(contents.pop(key), validate=True)
+            for key in (
+                "build_inventory_base64",
+                "source_provenance_base64",
+                "post_cleanup_verification_base64",
+                "runtime_verification_base64",
+            )
+        }
+        decoded = {key: json.loads(value) for key, value in encoded.items()}
     except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
         raise ImageValidationError(
-            f"Container returned missing or invalid build inventory evidence: {exc}"
+            f"Container returned missing or invalid source/build evidence: {exc}"
         ) from exc
-    if not isinstance(contents, dict) or not isinstance(inventory, dict):
-        raise ImageValidationError(
-            "Container returned an invalid image content/evidence report."
-        )
-    contents["build_inventory"] = inventory
-    contents["build_inventory_bytes"] = raw_inventory
+    if not isinstance(contents, dict) or not all(isinstance(item, dict) for item in decoded.values()):
+        raise ImageValidationError("Container returned invalid image content/evidence objects.")
+    contents.update({
+        "build_inventory": decoded["build_inventory_base64"],
+        "build_inventory_bytes": encoded["build_inventory_base64"],
+        "source_provenance": decoded["source_provenance_base64"],
+        "source_provenance_bytes": encoded["source_provenance_base64"],
+        "post_cleanup_verification": decoded["post_cleanup_verification_base64"],
+        "post_cleanup_verification_bytes": encoded["post_cleanup_verification_base64"],
+        "runtime_verification": decoded["runtime_verification_base64"],
+        "runtime_verification_bytes": encoded["runtime_verification_base64"],
+    })
     return contents
 
 
@@ -240,6 +261,79 @@ def validate_inventory(
     }
 
 
+def validate_source_tree_evidence(
+    contents: dict[str, Any], lock_sha256: str
+) -> dict[str, Any]:
+    """Validate post-cleanup and final-runtime comparisons against pre-cleanup provenance."""
+    specifications = (
+        ("source_provenance", "source_provenance_bytes", SOURCE_PROVENANCE_SCHEMA_PATH),
+        ("post_cleanup_verification", "post_cleanup_verification_bytes", SOURCE_TREE_VERIFICATION_SCHEMA_PATH),
+        ("runtime_verification", "runtime_verification_bytes", SOURCE_TREE_VERIFICATION_SCHEMA_PATH),
+    )
+    decoded: dict[str, dict[str, Any]] = {}
+    raw_values: dict[str, bytes] = {}
+    for key, raw_key, schema_path in specifications:
+        value, raw = contents.get(key), contents.get(raw_key)
+        if not isinstance(value, dict) or not isinstance(raw, bytes):
+            raise ImageValidationError(f"Runtime image does not contain {key} evidence.")
+        try:
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            Draft202012Validator(schema).validate(value)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ImageValidationError(f"Unable to load {key} schema: {exc}") from exc
+        except ValidationError as exc:
+            location = ".".join(str(part) for part in exc.absolute_path) or "<root>"
+            raise ImageValidationError(
+                f"{key} schema validation failed at {location}: {exc.message}"
+            ) from exc
+        decoded[key], raw_values[key] = value, raw
+
+    provenance = decoded["source_provenance"]
+    if provenance["lock"]["version"] != 2 or provenance["lock"]["sha256"] != lock_sha256:
+        raise ImageValidationError("Source provenance lock identity does not match generated lock-v2.")
+    provenance_sha = hashlib.sha256(raw_values["source_provenance"]).hexdigest()
+    expected = {item["name"]: item for item in provenance["repositories"]}
+    if len(expected) != len(provenance["repositories"]):
+        raise ImageValidationError("Source provenance contains duplicate repositories.")
+
+    def check_submodules(observed: list[dict[str, Any]], expected_items: list[dict[str, Any]], label: str) -> None:
+        by_path = {item["path"]: item for item in observed}
+        if len(by_path) != len(observed) or set(by_path) != {item["path"] for item in expected_items}:
+            raise ImageValidationError(f"Submodule verification composition mismatch for {label}.")
+        for item in expected_items:
+            actual = by_path[item["path"]]
+            if actual["materialized"] != item["materialized"] or actual["expected_commit"] != item["expected_commit"] or actual["matches"] is not True:
+                raise ImageValidationError(f"Submodule verification failed for {label}:{item['path']}.")
+            if actual["expected_source_tree"] != item["source_tree"]:
+                raise ImageValidationError(f"Submodule expected fingerprint mismatch for {label}:{item['path']}.")
+            if item["materialized"]:
+                if actual["observed_source_tree"] != item["source_tree"]:
+                    raise ImageValidationError(f"Submodule observed fingerprint mismatch for {label}:{item['path']}.")
+                check_submodules(actual["submodules"], item["submodules"], f"{label}:{item['path']}")
+
+    for key, stage in (("post_cleanup_verification", "post_cleanup"), ("runtime_verification", "runtime_image")):
+        report = decoded[key]
+        if report["stage"] != stage or report["source_provenance_sha256"] != provenance_sha or report["lock"] != provenance["lock"]:
+            raise ImageValidationError(f"{stage} source verification is not bound to source provenance.")
+        actual = {item["name"]: item for item in report["repositories"]}
+        if set(actual) != set(expected):
+            raise ImageValidationError(f"{stage} source verification repository composition mismatch.")
+        for name, record in expected.items():
+            result = actual[name]
+            if result["matches"] is not True or result["expected_source_tree"] != record["source_tree"] or result["observed_source_tree"] != record["source_tree"]:
+                raise ImageValidationError(f"{stage} source-tree fingerprint mismatch for {name}.")
+            check_submodules(result["submodules"], record["submodules"], name)
+
+    return {
+        "source_provenance_sha256": provenance_sha,
+        "repository_count": len(expected),
+        "post_cleanup_verified": True,
+        "runtime_image_verified": True,
+        "status": "passed",
+    }
+
+
+
 def validate_image(
     image_ref: str,
     metadata: dict[str, Any],
@@ -329,6 +423,7 @@ def validate_image(
     binding = validate_inventory(
         inventory, inventory_bytes, metadata, lock_data, lock_sha256, image_digest
     )
+    source_tree_verification = validate_source_tree_evidence(contents, lock_sha256)
     return {
         "image": image_ref,
         "image_digest": image_digest,
@@ -341,6 +436,8 @@ def validate_image(
         "apps_txt_verified": True,
         "labels_verified": True,
         "inventory_verified": True,
+        "source_tree_verified": True,
+        "source_tree_verification": source_tree_verification,
         "evidence_binding": binding,
         "status": "passed",
     }
@@ -353,6 +450,9 @@ def validate_from_files(
     buildx_metadata_path: Path,
     inventory_output_path: Path,
     evidence_output_path: Path,
+    source_provenance_output_path: Path | None = None,
+    post_cleanup_verification_output_path: Path | None = None,
+    runtime_verification_output_path: Path | None = None,
 ) -> dict[str, Any]:
     metadata, lock_data = load_json(metadata_path), load_json(lock_path)
     buildx_metadata = load_json(buildx_metadata_path)
@@ -375,6 +475,14 @@ def validate_from_files(
         json.dumps(report["evidence_binding"], indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    for path, key in (
+        (source_provenance_output_path, "source_provenance"),
+        (post_cleanup_verification_output_path, "post_cleanup_verification"),
+        (runtime_verification_output_path, "runtime_verification"),
+    ):
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(contents[key + "_bytes"])
     return report
 
 
@@ -407,6 +515,9 @@ def main() -> int:
     parser.add_argument(
         "--report", type=Path, help="Optional JSON validation report path."
     )
+    parser.add_argument("--source-provenance-output", type=Path)
+    parser.add_argument("--post-cleanup-verification-output", type=Path)
+    parser.add_argument("--runtime-verification-output", type=Path)
     args = parser.parse_args()
     try:
         report = validate_from_files(
@@ -416,6 +527,9 @@ def main() -> int:
             args.buildx_metadata,
             args.inventory_output,
             args.evidence_output,
+            args.source_provenance_output,
+            args.post_cleanup_verification_output,
+            args.runtime_verification_output,
         )
         if args.report:
             args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -431,7 +545,7 @@ def main() -> int:
     )
     print(f"Image digest: {report['image_digest']}")
     print(f"Inventory SHA-256: {report['evidence_binding']['inventory_sha256']}")
-    print("Image validation and evidence binding passed.")
+    print("Image validation, source-tree verification and evidence binding passed.")
     return 0
 
 
