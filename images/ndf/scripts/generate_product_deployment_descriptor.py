@@ -439,8 +439,12 @@ def main() -> int:
         raw = (json.dumps(descriptor, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
         args.output.parent.mkdir(parents=True, exist_ok=True)
         temporary = args.output.with_suffix(args.output.suffix + ".tmp")
-        temporary.write_bytes(raw)
-        temporary.replace(args.output)
+        try:
+            temporary.write_bytes(raw)
+            temporary.replace(args.output)
+        finally:
+            # A failed write/replace must not leave a stale temporary artifact.
+            temporary.unlink(missing_ok=True)
     except (DescriptorGenerationError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
