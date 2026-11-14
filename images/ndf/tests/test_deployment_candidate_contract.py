@@ -217,7 +217,7 @@ def test_payload_rejects_mutable_application_commit():
     candidate = load(FIXTURES / "valid" / "candidate-v1.json")
     candidate["applications"][0]["immutable_commit"] = "version-16"
     raw = json.dumps(candidate).encode()
-    with pytest.raises(intake.CandidateIntakeError, match="immutable Git commit"):
+    with pytest.raises(intake.CandidateIntakeError, match="immutable_commit.*does not match"):
         intake.validate_candidate_payload(
             raw,
             expected_candidate_id=CANDIDATE_ID,
