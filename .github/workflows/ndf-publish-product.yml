@@ -110,6 +110,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-test.txt
 
+      - name: Run NDF regression tests before staging
+        run: python -m pytest -q images/ndf/tests/
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -128,6 +131,11 @@ jobs:
             --image "$IMAGE_ID" \
             --sha "$GITHUB_SHA" \
             --github-output "$GITHUB_OUTPUT"
+          IMAGE_REPOSITORY="$(awk -F= '$1 == "repository" { value=$2 } END { print value }' "$GITHUB_OUTPUT")"
+          if [[ -z "$IMAGE_REPOSITORY" ]]; then
+            echo "Unable to resolve configured image repository." >&2
+            exit 1
+          fi
           CANDIDATE_TAG="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "candidate_tag=$CANDIDATE_TAG" >> "$GITHUB_OUTPUT"
           echo "candidate_ref=$IMAGE_REPOSITORY:$CANDIDATE_TAG" >> "$GITHUB_OUTPUT"
