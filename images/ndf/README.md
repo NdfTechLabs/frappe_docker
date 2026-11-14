@@ -160,3 +160,13 @@ The following architecture areas were reviewed and approved as part of M4.1, whi
 - File-level repository migration matrix and implementation sequence.
 
 M4.1 completion records architecture approval, not implementation completion. NDF pipeline implementation and validation are assigned to M4.2; subsequent deployment/runtime responsibilities remain assigned to M4.3–M4.7.
+
+### M4.2.7 — Candidate-Driven CI/CD
+
+**Status:** M4.2.7.1 contract and fixture baseline recorded on `feat/M4.2.6`; candidate intake and workflow implementation not yet started.
+
+- [M4.2.7 readiness audit](M4.2.7-READINESS-AUDIT.md) — A.1–A.4 cross-repository read-only audit and NDF boundary.
+- [M4.2.7 implementation plan](M4.2.7-IMPLEMENTATION-PLAN.md) — work packages, sequence and acceptance criteria.
+- [M4.2.7.1 candidate artifact contract](M4.2.7.1-CONTRACT.md) — private GHCR OCI transport, permissions, digest verification, rejection cases, retention, workflow and result contract.
+
+NDF candidate intake schemas and fixtures are under `schemas/deployment-candidate-v1.schema.json`, `schemas/deployment-build-result-v1.schema.json` and `fixtures/candidates/`. DT Master and DT Tenant remain read-only reference repositories; no records or workflows are implemented there by this milestone.
