@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from scripts.validate_image import (
     ImageValidationError,
+    check_independent_submodules,
     inspect_image_contents,
     validate_image,
 )
@@ -369,3 +370,130 @@ def test_validate_image_reports_both_source_tree_stages(validation_inputs):
     assert report["source_tree_verified"] is True
     assert report["source_tree_verification"]["post_cleanup_verified"] is True
     assert report["source_tree_verification"]["runtime_image_verified"] is True
+
+def test_check_independent_submodules_accepts_normalized_materialized_evidence():
+    source_tree = {
+        "algorithm": "ndf-source-tree-sha256-v1",
+        "sha256": "1" * 64,
+        "entry_count": 2,
+        "file_count": 1,
+        "directory_count": 1,
+        "symlink_count": 0,
+    }
+    tracked = {
+        "matches_head": True,
+        "installation_modified_paths": [],
+        "installation_diff_sha256": None,
+    }
+    generated = {
+        "origin": "post_clone_bench_init",
+        "untracked_paths": [],
+        "ignored_paths": [],
+    }
+    expected = [
+        {
+            "path": "vendor/lib",
+            "repository": "github.com/example/lib",
+            "expected_commit": "a" * 40,
+            "materialized": True,
+            "actual_commit": "a" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": tracked,
+            "generated_content": generated,
+            "source_tree": source_tree,
+            "submodules": [],
+        }
+    ]
+    observed = [
+        {
+            "path": "vendor/lib",
+            "materialized": True,
+            "expected_commit": "a" * 40,
+            "actual_commit": "a" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": tracked,
+            "generated_content": generated,
+            "source_tree": source_tree,
+            "submodules": [],
+            "status": "verified",
+        }
+    ]
+
+    check_independent_submodules(observed, expected, "hrms")
+
+
+def test_check_independent_submodules_rejects_changed_materialized_commit():
+    expected = [
+        {
+            "path": "vendor/lib",
+            "repository": "github.com/example/lib",
+            "expected_commit": "a" * 40,
+            "materialized": True,
+            "actual_commit": "a" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": {
+                "matches_head": True,
+                "installation_modified_paths": [],
+                "installation_diff_sha256": None,
+            },
+            "generated_content": {
+                "origin": "post_clone_bench_init",
+                "untracked_paths": [],
+                "ignored_paths": [],
+            },
+            "source_tree": {
+                "algorithm": "ndf-source-tree-sha256-v1",
+                "sha256": "1" * 64,
+                "entry_count": 2,
+                "file_count": 1,
+                "directory_count": 1,
+                "symlink_count": 0,
+            },
+            "submodules": [],
+        }
+    ]
+    observed = [
+        {
+            "path": "vendor/lib",
+            "materialized": True,
+            "expected_commit": "a" * 40,
+            "actual_commit": "c" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": expected[0]["tracked_content"],
+            "generated_content": expected[0]["generated_content"],
+            "source_tree": expected[0]["source_tree"],
+            "submodules": [],
+            "status": "verified",
+        }
+    ]
+
+    with pytest.raises(ImageValidationError, match="Independent submodule evidence mismatch"):
+        check_independent_submodules(observed, expected, "hrms")
+
+
+def test_check_independent_submodules_accepts_metadata_only_evidence():
+    expected = [
+        {
+            "path": "vendor/lib",
+            "repository": "github.com/example/lib",
+            "expected_commit": "a" * 40,
+            "materialized": False,
+            "actual_commit": None,
+            "head_tree": None,
+            "tracked_content": None,
+            "generated_content": None,
+            "source_tree": None,
+            "submodules": [],
+        }
+    ]
+    observed = [
+        {
+            "path": "vendor/lib",
+            "materialized": False,
+            "expected_commit": "a" * 40,
+            "status": "metadata_only",
+        }
+    ]
+
+    check_independent_submodules(observed, expected, "hrms")
+
