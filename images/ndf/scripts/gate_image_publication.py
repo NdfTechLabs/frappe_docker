@@ -120,7 +120,7 @@ def verify_publication_candidate(*, build_output_dir: Path, image_id: str,
             raw=(build_output_dir/filename).read_bytes()
         except OSError as exc:
             raise PublicationGateError(f"Required evidence file is missing: {filename}") from exc
-        artifacts[name]=(filename,raw)
+        artifacts[name]=('lock-v2.json' if name=='lock_v2' else filename,raw)
     for filename in PASSED_REPORTS:
         if _json(build_output_dir/filename).get("status")!="passed":
             raise PublicationGateError(f"Required verification report did not pass: {filename}")
