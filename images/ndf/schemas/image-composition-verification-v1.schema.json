@@ -73,7 +73,8 @@
         "inventory",
         "runtime_directories",
         "runtime_apps_txt",
-        "count"
+        "count",
+        "apps_json_verified"
       ],
       "properties": {
         "expected": {
@@ -94,6 +95,9 @@
         "count": {
           "type": "integer",
           "minimum": 1
+        },
+        "apps_json_verified": {
+          "const": true
         }
       }
     },
