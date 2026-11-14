@@ -149,6 +149,9 @@ jobs:
             --image "${{ steps.image.outputs.image_ref }}" \
             --metadata "$BUILD_OUTPUT/build-metadata.json" \
             --lock "$LOCK_FILE" \
+            --buildx-metadata "$BUILD_OUTPUT/buildx-metadata.json" \
+            --inventory-output "$BUILD_OUTPUT/build-inventory.json" \
+            --evidence-output "$BUILD_OUTPUT/build-evidence.json" \
             --report "$BUILD_OUTPUT/image-validation.json"
 
       - name: Upload build and validation artifacts
