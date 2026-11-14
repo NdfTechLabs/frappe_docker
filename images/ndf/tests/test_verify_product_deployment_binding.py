@@ -56,9 +56,7 @@ def _refresh_descriptor_integrity(descriptor):
 def _rebind_evidence_record(output_dir, descriptor_path, name):
     descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
     record = next(item for item in descriptor["evidence"] if item["name"] == name)
-    physical_name = (
-        "dalali-v16.lock-v2.json" if name == "lock_v2" else record["path"]
-    )
+    physical_name = "dalali-v16.lock-v2.json" if name == "lock_v2" else record["path"]
     raw = (output_dir / physical_name).read_bytes()
     record["sha256"] = hashlib.sha256(raw).hexdigest()
     record["size_bytes"] = len(raw)
@@ -143,9 +141,7 @@ def test_binds_all_evidence_and_exact_registry_manifest(binding_fixture, monkeyp
     assert report["status"] == "passed"
     assert report["evidence_count"] == 11
     assert report["registry_manifest_digest"] == MANIFEST_DIGEST
-    assert calls[0][0][-1] == (
-        "ghcr.io/ndftechlabs/dalali@" + MANIFEST_DIGEST
-    )
+    assert calls[0][0][-1] == ("ghcr.io/ndftechlabs/dalali@" + MANIFEST_DIGEST)
 
 
 def test_rejects_tampered_evidence_bytes(binding_fixture, monkeypatch):
@@ -153,9 +149,10 @@ def test_rejects_tampered_evidence_bytes(binding_fixture, monkeypatch):
     (output_dir / "source-provenance.json").write_bytes(b'{"tampered":true}\n')
     _mock_registry(monkeypatch)
 
-    with pytest.raises(ProductDeploymentBindingError, match="Evidence SHA-256 mismatch"):
+    with pytest.raises(
+        ProductDeploymentBindingError, match="Evidence SHA-256 mismatch"
+    ):
         verify_product_deployment_binding(descriptor_path, output_dir)
-
 
 
 def test_rejects_evidence_byte_size_mismatch(binding_fixture, monkeypatch):
@@ -163,7 +160,9 @@ def test_rejects_evidence_byte_size_mismatch(binding_fixture, monkeypatch):
     path = output_dir / "apps.json"
     path.write_bytes(path.read_bytes() + b" ")
     descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
-    record = next(item for item in descriptor["evidence"] if item["name"] == "apps_json")
+    record = next(
+        item for item in descriptor["evidence"] if item["name"] == "apps_json"
+    )
     record["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     _refresh_descriptor_integrity(descriptor)
     _write_descriptor(output_dir, descriptor)
@@ -171,6 +170,7 @@ def test_rejects_evidence_byte_size_mismatch(binding_fixture, monkeypatch):
 
     with pytest.raises(ProductDeploymentBindingError, match="byte-size mismatch"):
         verify_product_deployment_binding(descriptor_path, output_dir)
+
 
 def test_rejects_missing_evidence_file(binding_fixture, monkeypatch):
     output_dir, descriptor_path = binding_fixture
@@ -259,7 +259,9 @@ def test_rejects_descriptor_without_immutable_reference(binding_fixture, monkeyp
     _write_descriptor(output_dir, descriptor)
     _mock_registry(monkeypatch)
 
-    with pytest.raises(ProductDeploymentBindingError, match="immutable repository@digest"):
+    with pytest.raises(
+        ProductDeploymentBindingError, match="immutable repository@digest"
+    ):
         verify_product_deployment_binding(descriptor_path, output_dir)
 
 
@@ -269,7 +271,9 @@ def test_rejects_lock_evidence_hash_mismatch(binding_fixture, monkeypatch):
     lock_path.write_bytes(lock_path.read_bytes() + b" ")
     _mock_registry(monkeypatch)
 
-    with pytest.raises(ProductDeploymentBindingError, match="Evidence SHA-256 mismatch"):
+    with pytest.raises(
+        ProductDeploymentBindingError, match="Evidence SHA-256 mismatch"
+    ):
         verify_product_deployment_binding(descriptor_path, output_dir)
 
 
@@ -288,9 +292,7 @@ def test_rejects_failed_verification_report(binding_fixture, monkeypatch):
 def test_rejects_non_digest_pinned_registry_reference(binding_fixture, monkeypatch):
     output_dir, descriptor_path = binding_fixture
     descriptor = json.loads(descriptor_path.read_text())
-    descriptor["artifact"]["immutable_reference"] = (
-        "ghcr.io/ndftechlabs/dalali:latest"
-    )
+    descriptor["artifact"]["immutable_reference"] = "ghcr.io/ndftechlabs/dalali:latest"
     _refresh_descriptor_integrity(descriptor)
     _write_descriptor(output_dir, descriptor)
     _mock_registry(monkeypatch)

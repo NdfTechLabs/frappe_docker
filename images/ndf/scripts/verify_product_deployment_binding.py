@@ -24,7 +24,9 @@ except ImportError:
     )
 
 NDF_DIR = Path(__file__).resolve().parents[1]
-EVIDENCE_SCHEMA_PATH = NDF_DIR / "schemas" / "image-verification-evidence-v1.schema.json"
+EVIDENCE_SCHEMA_PATH = (
+    NDF_DIR / "schemas" / "image-verification-evidence-v1.schema.json"
+)
 SIDECAR_FILES = {
     "build_result": "build-result.json",
     "build_metadata": "build-metadata.json",
@@ -86,9 +88,7 @@ def _resolve_evidence_file(root: Path, relative_path: str) -> Path:
         or any(ord(character) < 32 for character in relative_path)
         or any(part in ("", ".", "..") for part in relative_path.split("/"))
     ):
-        raise ProductDeploymentBindingError(
-            f"Unsafe evidence path: {relative_path!r}."
-        )
+        raise ProductDeploymentBindingError(f"Unsafe evidence path: {relative_path!r}.")
     candidate = root
     for part in relative_path.split("/"):
         candidate = candidate / part
@@ -118,9 +118,7 @@ def _load_and_hash_evidence(
     descriptor: dict[str, Any], evidence_dir: Path, image_id: str
 ) -> tuple[dict[str, tuple[str, bytes]], dict[str, dict[str, Any]]]:
     if evidence_dir.is_symlink():
-        raise ProductDeploymentBindingError(
-            "Evidence directory must not be a symlink."
-        )
+        raise ProductDeploymentBindingError("Evidence directory must not be a symlink.")
     root = evidence_dir.resolve(strict=True)
     if not root.is_dir():
         raise ProductDeploymentBindingError("Evidence directory must be a directory.")
@@ -136,9 +134,7 @@ def _load_and_hash_evidence(
                 f"Duplicate PDD evidence path: {relative_path}."
             )
         seen_paths.add(relative_path)
-        actual_path = (
-            f"{image_id}.lock-v2.json" if name == "lock_v2" else relative_path
-        )
+        actual_path = f"{image_id}.lock-v2.json" if name == "lock_v2" else relative_path
         path = _resolve_evidence_file(root, actual_path)
         try:
             raw = path.read_bytes()
@@ -252,9 +248,10 @@ def _cross_check_sidecars(
         raise ProductDeploymentBindingError(
             "Build result image identity or digest differs from the PDD."
         )
-    if metadata.get("image", {}).get("id") != image_id or metadata.get(
-        "image", {}
-    ).get("repository") != repository:
+    if (
+        metadata.get("image", {}).get("id") != image_id
+        or metadata.get("image", {}).get("repository") != repository
+    ):
         raise ProductDeploymentBindingError(
             "Build metadata image identity differs from build result/PDD."
         )
@@ -389,9 +386,7 @@ def _verify_registry_manifest(
         )
     raw = result.stdout
     if not raw:
-        raise ProductDeploymentBindingError(
-            "Registry returned an empty OCI manifest."
-        )
+        raise ProductDeploymentBindingError("Registry returned an empty OCI manifest.")
     actual_digest = "sha256:" + _sha256(raw)
     if actual_digest != expected_digest:
         raise ProductDeploymentBindingError(
@@ -415,9 +410,7 @@ def verify_product_deployment_binding(
         ) from exc
     descriptor = _read_json(descriptor_path, "PDD descriptor")
     if evidence_dir.is_symlink():
-        raise ProductDeploymentBindingError(
-            "Evidence directory must not be a symlink."
-        )
+        raise ProductDeploymentBindingError("Evidence directory must not be a symlink.")
     try:
         evidence_root = evidence_dir.resolve(strict=True)
     except OSError as exc:
@@ -425,9 +418,7 @@ def verify_product_deployment_binding(
             f"Evidence directory is missing or inaccessible: {exc}"
         ) from exc
     sidecars = {
-        name: _read_json(
-            _resolve_evidence_file(evidence_root, filename), filename
-        )
+        name: _read_json(_resolve_evidence_file(evidence_root, filename), filename)
         for name, filename in SIDECAR_FILES.items()
     }
     image_id = sidecars["build_result"].get("image_id")
