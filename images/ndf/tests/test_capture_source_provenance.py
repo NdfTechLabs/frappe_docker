@@ -32,7 +32,14 @@ def create_repository(path, filename, value):
 
 def add_submodule(parent, source, relative_path, canonical_url):
     git(
-        ["-c", "protocol.file.allow=always", "submodule", "add", str(source), relative_path],
+        [
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            str(source),
+            relative_path,
+        ],
         parent,
     )
     config_path = parent / ".gitmodules"
@@ -152,9 +159,7 @@ def test_capture_rejects_undeclared_gitlink(bench_fixture, tmp_path):
         frappe,
     )
 
-    with pytest.raises(
-        provenance.SourceProvenanceError, match="gitlinks differ"
-    ):
+    with pytest.raises(provenance.SourceProvenanceError, match="gitlinks differ"):
         provenance.capture_source_provenance(
             bench, lock, tmp_path / "source-provenance.json"
         )
@@ -202,7 +207,6 @@ def test_capture_records_initialized_submodule_and_fingerprints_its_files(
     Draft202012Validator(schema).validate(report)
 
 
-
 def test_capture_recursively_verifies_nested_submodules(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     frappe = apps / "frappe"
@@ -225,8 +229,7 @@ def test_capture_recursively_verifies_nested_submodules(bench_fixture, tmp_path)
     git(["remote", "set-url", "origin", nested_url], nested_path)
     nested_commit = git(["rev-parse", "HEAD"], nested_path)
     (frappe_ui_source / ".gitmodules").write_text(
-        '[submodule "nested"]\n'
-        f"\tpath = nested\n\turl = {nested_url}\n",
+        '[submodule "nested"]\n' f"\tpath = nested\n\turl = {nested_url}\n",
         encoding="utf-8",
     )
     git(
@@ -355,21 +358,18 @@ def test_capture_rejects_uninitialized_submodule_with_unexpected_files(
     submodule_path.mkdir(exist_ok=True)
     (submodule_path / "unexpected.txt").write_text("untracked", encoding="utf-8")
 
-    with pytest.raises(
-        provenance.SourceProvenanceError, match="unexpected files"
-    ):
+    with pytest.raises(provenance.SourceProvenanceError, match="unexpected files"):
         provenance.capture_source_provenance(
             bench, lock, tmp_path / "source-provenance.json"
         )
+
 
 def test_capture_rejects_nested_git_metadata(bench_fixture, tmp_path):
     bench, lock, apps = bench_fixture
     nested = apps / "frappe" / "vendor" / "nested"
     (nested / ".git").mkdir(parents=True)
 
-    with pytest.raises(
-        provenance.SourceProvenanceError, match="Nested Git metadata"
-    ):
+    with pytest.raises(provenance.SourceProvenanceError, match="Nested Git metadata"):
         provenance.capture_source_provenance(
             bench, lock, tmp_path / "source-provenance.json"
         )
