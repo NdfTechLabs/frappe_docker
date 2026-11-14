@@ -745,7 +745,7 @@
           "$ref": "#/$defs/sha256"
         },
         "canonicalization": {
-          "const": "RFC8785"
+          "const": "NDF-JSON-CANONICAL-V1"
         },
         "excluded_fields": {
           "type": "array",
