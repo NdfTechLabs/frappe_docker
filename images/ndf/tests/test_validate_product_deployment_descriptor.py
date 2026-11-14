@@ -10,6 +10,14 @@ from scripts.validate_product_deployment_descriptor import (
     main,
     validate_descriptor,
 )
+
+# Pytest's default import mode adds the NDF scripts directory, not this tests
+# directory, to sys.path. Add the sibling test directory explicitly so the
+# shared end-to-end generator fixture can be imported reliably.
+TESTS_DIR = str(Path(__file__).resolve().parent)
+if TESTS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_DIR)
+
 from test_generate_product_deployment_descriptor import (
     _generate,
     complete_build_output,
