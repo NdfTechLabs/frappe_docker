@@ -253,7 +253,7 @@ def test_rejects_manifest_application_missing_from_lock(composition_case):
     path = composition_case["root"] / "images/ndf/manifests/products/sample.json"
     manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest["applications"].append({"name": "undeclared_in_lock", "required": True})
-    raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\\n").encode()
+    raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
     path.write_bytes(raw)
     composition_case["lock"]["manifests"][0]["sha256"] = hashlib.sha256(raw).hexdigest()
     with pytest.raises(CompositionVerificationError, match="absent from lock-v2"):
@@ -287,7 +287,7 @@ def test_rejects_duplicate_service_identity_across_categories(composition_case):
 
 
 def test_rejects_apps_json_service_or_unlocked_application_leakage(composition_case):
-    lock_bytes = (json.dumps(composition_case["lock"], sort_keys=True, indent=2) + "\\n").encode()
+    lock_bytes = (json.dumps(composition_case["lock"], sort_keys=True, indent=2) + "\n").encode()
     with pytest.raises(CompositionVerificationError, match="apps.json"):
         verify_composition(
             repository_root=composition_case["root"],
@@ -311,7 +311,7 @@ def test_accepts_unselected_v2_capability_without_loading_its_manifest(tmp_path)
         "applications": [{"name": "frappe", "required": True}],
         "capabilities": [{"manifest": "capabilities/optional.json", "required": False, "selected": False}],
     }
-    raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\\n").encode()
+    raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
     (root / "p.json").write_bytes(raw)
     lock = {
         "lock_version": 2,
