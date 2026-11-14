@@ -12,7 +12,9 @@ from scripts.source_tree_fingerprint import (
 )
 
 
-def test_fingerprint_is_deterministic_and_independent_of_creation_order(tmp_path: Path) -> None:
+def test_fingerprint_is_deterministic_and_independent_of_creation_order(
+    tmp_path: Path,
+) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
     (first / "nested").mkdir(parents=True)
@@ -132,4 +134,6 @@ def test_records_use_global_path_order_not_depth_first_order(tmp_path: Path) -> 
     (tmp_path / "a" / "child.txt").write_text("child", encoding="utf-8")
     (tmp_path / "a!").write_text("sibling", encoding="utf-8")
     result = fingerprint_tree(tmp_path)
-    assert result["sha256"] == "4b171d7dd9907ba3ed4b5149ad689d1c43c1854e9d77d6c96b0d087d9801b415"
+    assert result["sha256"] == (
+        "4b171d7dd9907ba3ed4b5149ad689d1c43c1854e9d77d6c96b0d087d9801b415"
+    )
