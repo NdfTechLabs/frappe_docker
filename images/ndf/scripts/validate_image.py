@@ -25,6 +25,9 @@ SCHEMA_PATH = (
 SOURCE_PROVENANCE_SCHEMA_PATH = (
     Path(__file__).resolve().parents[1] / "schemas" / "source-provenance-v1.schema.json"
 )
+SOURCE_PROVENANCE_VERIFICATION_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1] / "schemas" / "source-provenance-verification-v1.schema.json"
+)
 SOURCE_TREE_VERIFICATION_SCHEMA_PATH = (
     Path(__file__).resolve().parents[1]
     / "schemas"
@@ -79,11 +82,12 @@ def inspect_image_contents(image_ref: str) -> dict[str, Any]:
         "evidence=bench/'build-evidence';"
         "provenance=evidence/'source-provenance.json';"
         "post=evidence/'source-tree-verification-post-cleanup.json';"
+        "independent=evidence/'source-provenance-verification.json';"
         "runtime=pathlib.Path('/tmp/source-tree-verification-runtime.json');"
         "subprocess.run(['python','/opt/ndf/verify_source_tree.py','--bench',str(bench),"
         "'--provenance',str(provenance),'--stage','runtime_image','--output',str(runtime)],"
         "check=True,capture_output=True,text=True);"
-        "inventory=(evidence/'build-inventory.json').read_bytes();"
+        "inventory=(evidence/'build-inventory.json').read_bytes();independent_raw=independent.read_bytes();"
         "provenance_raw=provenance.read_bytes();post_raw=post.read_bytes();runtime_raw=runtime.read_bytes();"
         "apps=bench/'apps';apps_file=bench/'sites/apps.txt';"
         "print(json.dumps({"
@@ -91,6 +95,7 @@ def inspect_image_contents(image_ref: str) -> dict[str, Any]:
         "'apps_txt':[line.strip() for line in apps_file.read_text().splitlines() if line.strip()],"
         "'build_inventory_base64':base64.b64encode(inventory).decode('ascii'),"
         "'source_provenance_base64':base64.b64encode(provenance_raw).decode('ascii'),"
+        "'source_provenance_verification_base64':base64.b64encode(independent_raw).decode('ascii'),"
         "'post_cleanup_verification_base64':base64.b64encode(post_raw).decode('ascii'),"
         "'runtime_verification_base64':base64.b64encode(runtime_raw).decode('ascii')"
         "}))"
@@ -114,6 +119,7 @@ def inspect_image_contents(image_ref: str) -> dict[str, Any]:
             for key in (
                 "build_inventory_base64",
                 "source_provenance_base64",
+                "source_provenance_verification_base64",
                 "post_cleanup_verification_base64",
                 "runtime_verification_base64",
             )
@@ -135,6 +141,8 @@ def inspect_image_contents(image_ref: str) -> dict[str, Any]:
             "build_inventory_bytes": encoded["build_inventory_base64"],
             "source_provenance": decoded["source_provenance_base64"],
             "source_provenance_bytes": encoded["source_provenance_base64"],
+            "source_provenance_verification": decoded["source_provenance_verification_base64"],
+            "source_provenance_verification_bytes": encoded["source_provenance_verification_base64"],
             "post_cleanup_verification": decoded["post_cleanup_verification_base64"],
             "post_cleanup_verification_bytes": encoded[
                 "post_cleanup_verification_base64"
@@ -278,12 +286,63 @@ def validate_inventory(
     }
 
 
+def check_independent_submodules(
+    observed: list[dict[str, Any]],
+    expected_items: list[dict[str, Any]],
+    label: str,
+) -> None:
+    by_path = {item["path"]: item for item in observed}
+    expected_by_path = {item["path"]: item for item in expected_items}
+    if len(by_path) != len(observed) or len(expected_by_path) != len(expected_items):
+        raise ImageValidationError(
+            f"Independent submodule verification contains duplicate paths for {label}."
+        )
+    if set(by_path) != set(expected_by_path):
+        raise ImageValidationError(
+            f"Independent submodule verification composition mismatch for {label}."
+        )
+    for path, expected_item in expected_by_path.items():
+        result = by_path[path]
+        materialized = expected_item["materialized"]
+        if (
+            result["materialized"] is not materialized
+            or result["expected_commit"] != expected_item["expected_commit"]
+        ):
+            raise ImageValidationError(
+                f"Independent submodule identity mismatch for {label}:{path}."
+            )
+        if not materialized:
+            if result["status"] != "metadata_only":
+                raise ImageValidationError(
+                    f"Independent uninitialized submodule status mismatch for {label}:{path}."
+                )
+            continue
+        if (
+            result["status"] != "verified"
+            or result["actual_commit"] != expected_item["actual_commit"]
+            or result["head_tree"] != expected_item["head_tree"]
+            or result["tracked_content"] != expected_item["tracked_content"]
+            or result["generated_content"] != expected_item["generated_content"]
+            or result["source_tree"] != expected_item["source_tree"]
+        ):
+            raise ImageValidationError(
+                f"Independent submodule evidence mismatch for {label}:{path}."
+            )
+        check_independent_submodules(
+            result["submodules"], expected_item["submodules"], f"{label}:{path}"
+        )
+
 def validate_source_tree_evidence(
     contents: dict[str, Any], lock_sha256: str, lock_data: dict[str, Any]
 ) -> dict[str, Any]:
     """Validate post-cleanup and final-runtime comparisons against pre-cleanup provenance."""
     specifications = (
         ("source_provenance", "source_provenance_bytes", SOURCE_PROVENANCE_SCHEMA_PATH),
+        (
+            "source_provenance_verification",
+            "source_provenance_verification_bytes",
+            SOURCE_PROVENANCE_VERIFICATION_SCHEMA_PATH,
+        ),
         (
             "post_cleanup_verification",
             "post_cleanup_verification_bytes",
@@ -369,6 +428,41 @@ def validate_source_tree_evidence(
                 check_submodules(
                     actual["submodules"], item["submodules"], f"{label}:{item['path']}"
                 )
+
+    independent = decoded["source_provenance_verification"]
+    if (
+        independent["status"] != "passed"
+        or independent["algorithm"] != "ndf-source-provenance-verification-v1"
+        or independent["lock"] != provenance["lock"]
+        or independent["source_provenance_sha256"] != provenance_sha
+    ):
+        raise ImageValidationError(
+            "Independent source provenance verification is not bound to source provenance."
+        )
+    independent_records = {item["name"]: item for item in independent["repositories"]}
+    if len(independent_records) != len(independent["repositories"]) or set(independent_records) != set(expected):
+        raise ImageValidationError(
+            "Independent source provenance verification repository composition mismatch."
+        )
+    for name, record in expected.items():
+        result = independent_records[name]
+        if any((
+            result["status"] != "verified",
+            result["repository"] != record["repository"],
+            result["requested_ref"] != record["requested_ref"],
+            result["resolver_commit"] != record["resolver_commit"],
+            result["actual_commit"] != record["actual_commit"],
+            result["head_tree"] != record["head_tree"],
+            result["tracked_content"] != record["tracked_content"],
+            result["generated_content"] != record["generated_content"],
+            result["source_tree"] != record["source_tree"],
+        )):
+            raise ImageValidationError(
+                f"Independent source provenance verification mismatch for {name}."
+            )
+        check_independent_submodules(
+            result["submodules"], record["submodules"], name
+        )
 
     for key, stage in (
         ("post_cleanup_verification", "post_cleanup"),
@@ -530,6 +624,7 @@ def validate_from_files(
     source_provenance_output_path: Path | None = None,
     post_cleanup_verification_output_path: Path | None = None,
     runtime_verification_output_path: Path | None = None,
+    source_provenance_verification_output_path: Path | None = None,
 ) -> dict[str, Any]:
     metadata, lock_data = load_json(metadata_path), load_json(lock_path)
     buildx_metadata = load_json(buildx_metadata_path)
@@ -554,6 +649,7 @@ def validate_from_files(
     )
     for path, key in (
         (source_provenance_output_path, "source_provenance"),
+        (source_provenance_verification_output_path, "source_provenance_verification"),
         (post_cleanup_verification_output_path, "post_cleanup_verification"),
         (runtime_verification_output_path, "runtime_verification"),
     ):
@@ -595,6 +691,7 @@ def main() -> int:
     parser.add_argument("--source-provenance-output", type=Path)
     parser.add_argument("--post-cleanup-verification-output", type=Path)
     parser.add_argument("--runtime-verification-output", type=Path)
+    parser.add_argument("--source-provenance-verification-output", type=Path)
     args = parser.parse_args()
     try:
         report = validate_from_files(
@@ -607,6 +704,7 @@ def main() -> int:
             args.source_provenance_output,
             args.post_cleanup_verification_output,
             args.runtime_verification_output,
+            args.source_provenance_verification_output,
         )
         if args.report:
             args.report.parent.mkdir(parents=True, exist_ok=True)

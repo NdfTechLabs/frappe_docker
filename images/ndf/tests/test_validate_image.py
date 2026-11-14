@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from scripts.validate_image import (
     ImageValidationError,
+    check_independent_submodules,
     inspect_image_contents,
     validate_image,
 )
@@ -176,6 +177,16 @@ def validation_inputs():
     runtime_raw = (
         json.dumps(runtime_verification, indent=2, sort_keys=True) + "\n"
     ).encode()
+    independent = {
+        "schema_version": "1.0",
+        "algorithm": "ndf-source-provenance-verification-v1",
+        "verifier": {"name": "verify_source_provenance.py", "version": "1.0"},
+        "lock": {"version": 2, "sha256": lock_sha},
+        "source_provenance_sha256": provenance_sha,
+        "repositories": [{**json.loads(json.dumps(record)), "status": "verified"} for record in provenance["repositories"]],
+        "status": "passed",
+    }
+    independent_raw = (json.dumps(independent, indent=2, sort_keys=True) + "\n").encode()
     contents = {
         "directories": ["frappe", "erpnext"],
         "apps_txt": ["frappe", "erpnext"],
@@ -183,6 +194,8 @@ def validation_inputs():
         "build_inventory_bytes": raw,
         "source_provenance": provenance,
         "source_provenance_bytes": provenance_raw,
+        "source_provenance_verification": independent,
+        "source_provenance_verification_bytes": independent_raw,
         "post_cleanup_verification": post_cleanup,
         "post_cleanup_verification_bytes": post_raw,
         "runtime_verification": runtime_verification,
@@ -283,6 +296,7 @@ def test_inspect_image_contents_extracts_exact_inventory_bytes():
             "apps_txt": ["frappe", "erpnext"],
             "build_inventory_base64": base64.b64encode(raw).decode(),
             "source_provenance_base64": base64.b64encode(raw).decode(),
+            "source_provenance_verification_base64": base64.b64encode(raw).decode(),
             "post_cleanup_verification_base64": base64.b64encode(raw).decode(),
             "runtime_verification_base64": base64.b64encode(raw).decode(),
         }
@@ -299,6 +313,7 @@ def test_inspect_image_contents_extracts_exact_inventory_bytes():
     assert result["build_inventory"] == {"schema_version": "1.0"}
     assert result["build_inventory_bytes"] == raw
     assert result["source_provenance_bytes"] == raw
+    assert result["source_provenance_verification_bytes"] == raw
     assert result["post_cleanup_verification_bytes"] == raw
     assert result["runtime_verification_bytes"] == raw
     command = run.call_args.args[0]
@@ -332,8 +347,153 @@ def test_validate_image_rejects_source_provenance_lock_mismatch(validation_input
         run_validation(validation_inputs)
 
 
+def test_validate_image_rejects_missing_independent_provenance_report(validation_inputs):
+    validation_inputs[3].pop("source_provenance_verification_bytes")
+    with pytest.raises(ImageValidationError, match="source_provenance_verification"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_rejects_independent_report_provenance_binding_mismatch(validation_inputs):
+    validation_inputs[3]["source_provenance_verification"]["source_provenance_sha256"] = "0" * 64
+    with pytest.raises(ImageValidationError, match="not bound to source provenance"):
+        run_validation(validation_inputs)
+
+
+def test_validate_image_rejects_independent_report_repository_mismatch(validation_inputs):
+    validation_inputs[3]["source_provenance_verification"]["repositories"].pop()
+    with pytest.raises(ImageValidationError, match="repository composition mismatch"):
+        run_validation(validation_inputs)
+
+
 def test_validate_image_reports_both_source_tree_stages(validation_inputs):
     report = run_validation(validation_inputs)
     assert report["source_tree_verified"] is True
     assert report["source_tree_verification"]["post_cleanup_verified"] is True
     assert report["source_tree_verification"]["runtime_image_verified"] is True
+
+def test_check_independent_submodules_accepts_normalized_materialized_evidence():
+    source_tree = {
+        "algorithm": "ndf-source-tree-sha256-v1",
+        "sha256": "1" * 64,
+        "entry_count": 2,
+        "file_count": 1,
+        "directory_count": 1,
+        "symlink_count": 0,
+    }
+    tracked = {
+        "matches_head": True,
+        "installation_modified_paths": [],
+        "installation_diff_sha256": None,
+    }
+    generated = {
+        "origin": "post_clone_bench_init",
+        "untracked_paths": [],
+        "ignored_paths": [],
+    }
+    expected = [
+        {
+            "path": "vendor/lib",
+            "repository": "github.com/example/lib",
+            "expected_commit": "a" * 40,
+            "materialized": True,
+            "actual_commit": "a" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": tracked,
+            "generated_content": generated,
+            "source_tree": source_tree,
+            "submodules": [],
+        }
+    ]
+    observed = [
+        {
+            "path": "vendor/lib",
+            "materialized": True,
+            "expected_commit": "a" * 40,
+            "actual_commit": "a" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": tracked,
+            "generated_content": generated,
+            "source_tree": source_tree,
+            "submodules": [],
+            "status": "verified",
+        }
+    ]
+
+    check_independent_submodules(observed, expected, "hrms")
+
+
+def test_check_independent_submodules_rejects_changed_materialized_commit():
+    expected = [
+        {
+            "path": "vendor/lib",
+            "repository": "github.com/example/lib",
+            "expected_commit": "a" * 40,
+            "materialized": True,
+            "actual_commit": "a" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": {
+                "matches_head": True,
+                "installation_modified_paths": [],
+                "installation_diff_sha256": None,
+            },
+            "generated_content": {
+                "origin": "post_clone_bench_init",
+                "untracked_paths": [],
+                "ignored_paths": [],
+            },
+            "source_tree": {
+                "algorithm": "ndf-source-tree-sha256-v1",
+                "sha256": "1" * 64,
+                "entry_count": 2,
+                "file_count": 1,
+                "directory_count": 1,
+                "symlink_count": 0,
+            },
+            "submodules": [],
+        }
+    ]
+    observed = [
+        {
+            "path": "vendor/lib",
+            "materialized": True,
+            "expected_commit": "a" * 40,
+            "actual_commit": "c" * 40,
+            "head_tree": "b" * 40,
+            "tracked_content": expected[0]["tracked_content"],
+            "generated_content": expected[0]["generated_content"],
+            "source_tree": expected[0]["source_tree"],
+            "submodules": [],
+            "status": "verified",
+        }
+    ]
+
+    with pytest.raises(ImageValidationError, match="Independent submodule evidence mismatch"):
+        check_independent_submodules(observed, expected, "hrms")
+
+
+def test_check_independent_submodules_accepts_metadata_only_evidence():
+    expected = [
+        {
+            "path": "vendor/lib",
+            "repository": "github.com/example/lib",
+            "expected_commit": "a" * 40,
+            "materialized": False,
+            "actual_commit": None,
+            "head_tree": None,
+            "tracked_content": None,
+            "generated_content": None,
+            "source_tree": None,
+            "submodules": [],
+        }
+    ]
+    observed = [
+        {
+            "path": "vendor/lib",
+            "materialized": False,
+            "expected_commit": "a" * 40,
+            "status": "metadata_only",
+        }
+    ]
+
+    check_independent_submodules(observed, expected, "hrms")
+
