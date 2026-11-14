@@ -27,6 +27,8 @@ EXPECTED_EVIDENCE = {
     "source_tree_runtime",
     "image_composition_verification",
 }
+
+
 class DescriptorValidationError(Exception):
     """Raised when a PDD fails independent validation."""
 
@@ -48,7 +50,9 @@ def _read_descriptor(path: Path) -> dict[str, Any]:
     try:
         raw = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        raise DescriptorValidationError(f"Unable to read descriptor as UTF-8: {exc}") from exc
+        raise DescriptorValidationError(
+            f"Unable to read descriptor as UTF-8: {exc}"
+        ) from exc
     try:
         value = json.loads(
             raw,
@@ -56,7 +60,9 @@ def _read_descriptor(path: Path) -> dict[str, Any]:
             parse_constant=_reject_constant,
         )
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise DescriptorValidationError(f"Descriptor is not valid UTF-8 JSON: {exc}") from exc
+        raise DescriptorValidationError(
+            f"Descriptor is not valid UTF-8 JSON: {exc}"
+        ) from exc
     if not isinstance(value, dict):
         raise DescriptorValidationError("Descriptor root must be a JSON object.")
     return value
@@ -89,7 +95,9 @@ def _canonical_json(value: Any) -> bytes:
             allow_nan=False,
         ).encode("utf-8")
     except (TypeError, ValueError, UnicodeEncodeError) as exc:
-        raise DescriptorValidationError(f"Unable to canonicalize descriptor: {exc}") from exc
+        raise DescriptorValidationError(
+            f"Unable to canonicalize descriptor: {exc}"
+        ) from exc
 
 
 def _sha256(raw: bytes) -> str:
@@ -108,7 +116,9 @@ def _schema_validate(descriptor: dict[str, Any], schema_path: Path) -> None:
             key=lambda error: (list(map(str, error.absolute_path)), error.message),
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise DescriptorValidationError(f"Unable to load authoritative PDD schema: {exc}") from exc
+        raise DescriptorValidationError(
+            f"Unable to load authoritative PDD schema: {exc}"
+        ) from exc
     except SchemaError as exc:
         raise DescriptorValidationError(
             f"Authoritative PDD schema is invalid: {exc.message}"
@@ -171,7 +181,9 @@ def _safe_evidence_path(value: str) -> bool:
     return all(part not in ("", ".", "..") for part in value.split("/"))
 
 
-def _validate_evidence_references(descriptor: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _validate_evidence_references(
+    descriptor: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
     records = descriptor["evidence"]
     by_name: dict[str, dict[str, Any]] = {}
     paths: set[str] = set()
@@ -200,7 +212,10 @@ def _validate_evidence_references(descriptor: dict[str, Any]) -> dict[str, dict[
             "Build metadata SHA-256 does not match its evidence record."
         )
     composition_evidence = by_name["image_composition_verification"]["sha256"]
-    if descriptor["composition"]["verification"]["evidence_sha256"] != composition_evidence:
+    if (
+        descriptor["composition"]["verification"]["evidence_sha256"]
+        != composition_evidence
+    ):
         raise DescriptorValidationError(
             "Composition verification SHA-256 does not match its evidence record."
         )
@@ -233,7 +248,9 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
     for app in applications:
         name = app["app_name"]
         if name in app_by_name:
-            raise DescriptorValidationError(f"Duplicate Bench application identity: {name}.")
+            raise DescriptorValidationError(
+                f"Duplicate Bench application identity: {name}."
+            )
         app_by_name[name] = app
         if ("descriptor_path" in app) != ("descriptor_sha256" in app):
             raise DescriptorValidationError(
@@ -274,7 +291,9 @@ def _validate_composition(descriptor: dict[str, Any]) -> None:
                 f"Service identity {service_id} collides with a Bench application identity."
             )
         if service_id in service_ids:
-            raise DescriptorValidationError(f"Duplicate service identity: {service_id}.")
+            raise DescriptorValidationError(
+                f"Duplicate service identity: {service_id}."
+            )
         service_ids.add(service_id)
         graph[service_id] = service["depends_on"]
         expected_service_declarations.add(

@@ -85,7 +85,9 @@ def test_rejects_descriptor_content_tampering(valid_descriptor):
 def test_rejects_descriptor_identity_mismatch(valid_descriptor):
     _mutate(
         valid_descriptor,
-        lambda descriptor: descriptor.update({"descriptor_id": "pdd:other:linux-amd64:sha256:" + "a" * 64}),
+        lambda descriptor: descriptor.update(
+            {"descriptor_id": "pdd:other:linux-amd64:sha256:" + "a" * 64}
+        ),
     )
 
     with pytest.raises(DescriptorValidationError, match="Descriptor ID does not match"):
@@ -113,7 +115,9 @@ def test_rejects_duplicate_evidence_names(valid_descriptor):
         validate_descriptor(valid_descriptor)
 
 
-@pytest.mark.parametrize("unsafe_path", ["../outside.json", "/absolute.json", "a\\\\b.json", "a/../b.json"])
+@pytest.mark.parametrize(
+    "unsafe_path", ["../outside.json", "/absolute.json", "a\\\\b.json", "a/../b.json"]
+)
 def test_rejects_unsafe_evidence_paths(valid_descriptor, unsafe_path):
     _mutate(
         valid_descriptor,
@@ -127,7 +131,9 @@ def test_rejects_unsafe_evidence_paths(valid_descriptor, unsafe_path):
 def test_rejects_build_metadata_hash_reference_mismatch(valid_descriptor):
     _mutate(
         valid_descriptor,
-        lambda descriptor: descriptor["build"].update({"build_metadata_sha256": "f" * 64}),
+        lambda descriptor: descriptor["build"].update(
+            {"build_metadata_sha256": "f" * 64}
+        ),
     )
 
     with pytest.raises(DescriptorValidationError, match="Build metadata SHA-256"):
@@ -146,7 +152,9 @@ def test_rejects_framework_application_identity_mismatch(valid_descriptor):
         validate_descriptor(valid_descriptor)
 
 
-def test_rejects_service_requirement_state_without_composition_service(valid_descriptor):
+def test_rejects_service_requirement_state_without_composition_service(
+    valid_descriptor,
+):
     def set_inconsistent_state(descriptor):
         descriptor["requirements"]["services"]["state"] = "declared"
         descriptor["requirements"]["services"]["declarations"] = [
@@ -159,7 +167,9 @@ def test_rejects_service_requirement_state_without_composition_service(valid_des
         ]
 
     _mutate(valid_descriptor, set_inconsistent_state)
-    with pytest.raises(DescriptorValidationError, match="Services requirement declarations"):
+    with pytest.raises(
+        DescriptorValidationError, match="Services requirement declarations"
+    ):
         validate_descriptor(valid_descriptor)
 
 
@@ -267,7 +277,9 @@ def test_rejects_floating_point_values_under_canonicalization_profile(valid_desc
 
 def test_rejects_duplicate_json_object_keys(tmp_path):
     path = tmp_path / "duplicate.json"
-    path.write_text('{"schema_version":"1.0.0","schema_version":"1.0.0"}', encoding="utf-8")
+    path.write_text(
+        '{"schema_version":"1.0.0","schema_version":"1.0.0"}', encoding="utf-8"
+    )
 
     with pytest.raises(DescriptorValidationError, match="Duplicate JSON object key"):
         validate_descriptor(path)
@@ -276,7 +288,9 @@ def test_rejects_duplicate_json_object_keys(tmp_path):
 def test_rejects_composition_lock_hash_reference_mismatch(valid_descriptor):
     _mutate(
         valid_descriptor,
-        lambda descriptor: descriptor["composition"]["lock"].update({"sha256": "f" * 64}),
+        lambda descriptor: descriptor["composition"]["lock"].update(
+            {"sha256": "f" * 64}
+        ),
     )
 
     with pytest.raises(DescriptorValidationError, match="Composition lock SHA-256"):
@@ -329,7 +343,9 @@ def test_validator_has_no_generator_or_evidence_binder_dependency():
     assert "bind_verification_evidence" not in source
 
 
-def test_allows_requirement_evidence_references_outside_fixed_m425_bundle(valid_descriptor):
+def test_allows_requirement_evidence_references_outside_fixed_m425_bundle(
+    valid_descriptor,
+):
     def add_external_evidence_reference(descriptor):
         descriptor["requirements"]["storage"] = {
             "state": "verified",
@@ -382,15 +398,23 @@ def test_rejects_service_identity_collision_with_bench_application(valid_descrip
         }
 
     _mutate(valid_descriptor, add_collision)
-    with pytest.raises(DescriptorValidationError, match="collides with a Bench application"):
+    with pytest.raises(
+        DescriptorValidationError, match="collides with a Bench application"
+    ):
         validate_descriptor(valid_descriptor)
 
 
-def test_cli_emits_machine_readable_success_report(valid_descriptor, monkeypatch, capsys):
+def test_cli_emits_machine_readable_success_report(
+    valid_descriptor, monkeypatch, capsys
+):
     monkeypatch.setattr(
         sys,
         "argv",
-        ["validate_product_deployment_descriptor.py", "--descriptor", str(valid_descriptor)],
+        [
+            "validate_product_deployment_descriptor.py",
+            "--descriptor",
+            str(valid_descriptor),
+        ],
     )
 
     assert main() == 0
@@ -410,7 +434,11 @@ def test_cli_emits_machine_readable_failure_and_nonzero_status(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["validate_product_deployment_descriptor.py", "--descriptor", str(valid_descriptor)],
+        [
+            "validate_product_deployment_descriptor.py",
+            "--descriptor",
+            str(valid_descriptor),
+        ],
     )
 
     assert main() == 1
