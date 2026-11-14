@@ -273,11 +273,11 @@ def test_rejects_container_external_category_substitution(composition_case):
 def test_rejects_duplicate_service_identity_across_categories(composition_case):
     descriptor = {
         "descriptor_version":"1.0.0","service_id":"shared","name":"Shared",
-        "service_kind":"external","provider":{"name":"Provider","requirement":"Shared"},
+        "service_kind":"container","artifact":{"image":"ghcr.io/example/shared@sha256:"+"c"*64},
     }
     record = write_service(composition_case, "shared", descriptor)
     record["resolution_order"] = 1
-    composition_case["lock"]["external_requirements"] = [record]
-    composition_case["lock"]["services"] = [dict(record)]
+    composition_case["lock"]["services"] = [record]
+    composition_case["lock"]["external_requirements"] = [dict(record)]
     with pytest.raises(CompositionVerificationError, match="Duplicate/cross-category"):
         run_case(composition_case)
