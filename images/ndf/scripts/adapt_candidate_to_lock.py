@@ -205,7 +205,7 @@ def _select_image(
 
 
 def _map_candidate_applications(
-    candidate: dict, applications: list[dict]
+    candidate: dict, applications: list[dict], loader: ManifestLoader
 ) -> list[dict]:
     expected_by_id = {}
     for app in applications:
@@ -256,11 +256,33 @@ def _map_candidate_applications(
                 f"{app_id}: lock-v2 requires a full 40-character Git commit SHA."
             )
 
+        descriptor = expected.get("_descriptor") or {}
+        expected_app_name = descriptor.get("name", expected["name"])
+        if requested["app_name"] != expected_app_name:
+            raise CandidateCompositionError(
+                f"{app_id}: candidate app_name differs from the registered NDF application identity."
+            )
+
         descriptor_release = expected.get("_release_version")
         if descriptor_release and requested["release_version"] != descriptor_release:
             raise CandidateCompositionError(
                 f"{app_id}: candidate release_version differs from the registered "
                 "NDF Marketplace App Descriptor."
+            )
+
+        try:
+            resolved_commit = loader.resolve_git_ref(expected["repository"], commit)
+        except ManifestError as exc:
+            raise CandidateCompositionError(
+                f"{app_id}: immutable commit cannot be verified in its declared repository: {exc}"
+            ) from exc
+        if (
+            resolved_commit.get("kind") != "commit"
+            or resolved_commit.get("sha", "").lower() != commit
+            or resolved_commit.get("name", "").lower() != commit
+        ):
+            raise CandidateCompositionError(
+                f"{app_id}: repository did not confirm the exact candidate commit."
             )
 
         expected = dict(expected)
@@ -354,7 +376,7 @@ def adapt_candidate_to_lock(
     applications = loader.compose_applications(manifest)
     loader.validate_dependencies(applications)
     ordered = loader.resolve_install_order(applications)
-    pinned = _map_candidate_applications(candidate, ordered)
+    pinned = _map_candidate_applications(candidate, ordered, loader)
 
     lock_data = loader.build_lock_data(manifest, pinned, package_resolution=None)
     frappe = next(app for app in lock_data["applications"] if app["name"] == "frappe")
