@@ -217,6 +217,10 @@ def validate_candidate_payload(
         raise CandidateIntakeError("Candidate ID differs from the authenticated dispatch envelope.")
 
     _validate_supported_product(candidate)
+    if any(platform != "linux/amd64" for platform in candidate["target_platforms"]):
+        raise CandidateIntakeError(
+            "Candidate target platform is not yet verified; only linux/amd64 is currently supported."
+        )
 
     applications = candidate["applications"]
     app_ids = [app["app_id"] for app in applications]
