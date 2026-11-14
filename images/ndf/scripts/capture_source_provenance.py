@@ -77,6 +77,7 @@ def reject_nested_git_metadata(root: Path, app_name: str) -> None:
 
     for current, directories, files in os.walk(root, followlinks=False):
         if Path(current) == root:
+            directories[:] = [name for name in directories if name != ".git"]
             continue
         if ".git" in directories or ".git" in files:
             raise SourceProvenanceError(
