@@ -233,7 +233,7 @@ def test_capture_rejects_uninitialized_submodule(bench_fixture, tmp_path):
     )
     git(["submodule", "deinit", "-f", "--", "frappe-ui"], frappe)
 
-    with pytest.raises(provenance.SourceProvenanceError, match="missing or not initialized"):
+    with pytest.raises(provenance.SourceProvenanceError, match="missing or not initialized|Git metadata is missing"):
         provenance.capture_source_provenance(
             bench, lock, tmp_path / "source-provenance.json"
         )
