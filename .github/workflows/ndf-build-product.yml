@@ -1,26 +1,8 @@
 name: NDF / Build and Validate Product Images
 
+# Product image builds are intentionally manual. Run them only when a
+# work-package acceptance check requires a real Buildx image.
 on:
-  push:
-    branches:
-      - main
-      - feat/m4.2.4-immutable-image-construction
-      - feat/m4.2.5.4-independent-source-verification
-    paths:
-      - "images/ndf/**"
-      - "images/layered/Containerfile"
-      - "images/custom/**"
-      - "images/production/**"
-      - ".github/workflows/ndf-build-product.yml"
-      - "requirements-test.txt"
-  pull_request:
-    paths:
-      - "images/ndf/**"
-      - "images/layered/Containerfile"
-      - "images/custom/**"
-      - "images/production/**"
-      - ".github/workflows/ndf-build-product.yml"
-      - "requirements-test.txt"
   workflow_dispatch:
     inputs:
       product:
