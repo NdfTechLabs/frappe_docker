@@ -133,3 +133,36 @@ def test_candidate_build_exports_pdd_provenance_outputs():
     assert "built_at: ${{ steps.build.outputs.built_at }}" in build
     assert "composition_hash: ${{ steps.handoff.outputs.composition_hash }}" in build
     assert "date -u +'%Y-%m-%dT%H:%M:%SZ'" in build
+
+def test_candidate_terminal_result_job_is_always_run_and_least_privileged():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    result_job = workflow.split("  publish-candidate-result:", 1)[1]
+    assert "if: always()" in result_job
+    assert "dispatch-gate" in result_job
+    assert "prepare-candidate" in result_job
+    assert "build-candidate" in result_job
+    assert "publish-candidate-pdd" in result_job
+    assert "actions: read" in result_job
+    assert "contents: read" in result_job
+    assert "packages: write" not in result_job
+    assert "write_deployment_build_result.py" in result_job
+    assert "deployment-build-result-v1.schema.json" in result_job
+    assert "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}" in result_job
+    assert "retention-days: 90" in result_job
+
+
+def test_candidate_result_job_preserves_attempt_and_pdd_correlation():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    result_job = workflow.split("  publish-candidate-result:", 1)[1]
+    for binding in (
+        "CANDIDATE_ID: ${{ inputs.candidate_id }}",
+        "CANDIDATE_ARTIFACT_REF: ${{ inputs.candidate_artifact_ref }}",
+        "CANDIDATE_PAYLOAD_SHA256: ${{ inputs.candidate_payload_sha256 }}",
+        "CORRELATION_ID: ${{ inputs.correlation_id }}",
+        "IMAGE_DIGEST: ${{ needs.build-candidate.outputs.image_digest }}",
+        "PDD_REFERENCE: ${{ needs.publish-candidate-pdd.outputs.pdd_artifact_reference }}",
+        "PDD_DIGEST: ${{ needs.publish-candidate-pdd.outputs.pdd_artifact_digest }}",
+        "PDD_CONTENT_SHA256: ${{ needs.publish-candidate-pdd.outputs.pdd_content_sha256 }}",
+    ):
+        assert binding in result_job
+
