@@ -166,7 +166,7 @@ M4.1 completion records architecture approval, not implementation completion. ND
 
 ### M4.2.7 — Candidate-Driven CI/CD
 
-**Status:** M4.2.7.1 contract baseline verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter complete and locally verified (472 full-suite tests passed); M4.2.7.4 initial workflow orchestration increment implemented; reusable build/PDD stages and result production remain next.
+**Status:** M4.2.7.1 contract baseline verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter complete and locally verified (472 full-suite tests passed); M4.2.7.4 candidate entry and reusable prepared-input image build/verification implemented; PDD publication and correlated result production remain next.
 
 - [M4.2.7 readiness audit](M4.2.7-READINESS-AUDIT.md) — A.1–A.4 cross-repository read-only audit and NDF boundary.
 - [M4.2.7 implementation plan](M4.2.7-IMPLEMENTATION-PLAN.md) — work packages, sequence and acceptance criteria.
