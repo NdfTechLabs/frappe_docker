@@ -241,7 +241,7 @@ def test_cosign_v01_compatibility_schema_requires_complete_ndf_profile():
     statement["_type"] = "https://in-toto.io/Statement/v0.1"
     del statement["predicate"]["ndf_build"]
     with pytest.raises(trust.CosignTrustError, match="Image provenance statement is invalid"):
-        trust._validate_statement(
+        trust._validate_cosign_statement(
             statement,
             repository="ghcr.io/ndftechlabs/dalali",
             digest="sha256:" + "a" * 64,
