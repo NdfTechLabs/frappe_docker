@@ -1,7 +1,12 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
+
+TESTS_DIR = str(Path(__file__).resolve().parent)
+if TESTS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_DIR)
 
 from scripts import generate_image_provenance as provenance
 
