@@ -141,8 +141,8 @@ jobs:
           metadata = json.loads((root / "build-metadata.json").read_text(encoding="utf-8"))
           lock_hash = hashlib.sha256(locks[0].read_bytes()).hexdigest()
           with output.open("a", encoding="utf-8") as stream:
-              stream.write(f"image_id={metadata['image']['id']}\\n")
-              stream.write(f"lock_sha256={lock_hash}\\n")
+              stream.write(f"image_id={metadata['image']['id']}\n")
+              stream.write(f"lock_sha256={lock_hash}\n")
           PY
 
       - name: Record candidate handoff metadata
@@ -166,7 +166,7 @@ jobs:
               "workflow_run_attempt": int(sys.argv[7]),
           }
           (root / "handoff.json").write_text(
-              json.dumps(handoff, indent=2, sort_keys=True) + "\\n",
+              json.dumps(handoff, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
           PY
