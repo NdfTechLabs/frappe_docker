@@ -16,7 +16,6 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import quote
 
 try:
     from . import artifact_trust
@@ -35,7 +34,6 @@ COSIGN_VERSION = "v3.1.4"
 IDENTITY_ID = "product-image-publication"
 PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
 PREDICATE_ALIAS = "slsaprovenance1"
-DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 IMAGE_REF_RE = re.compile(
     r"^(?P<repository>[a-z0-9.-]+(?::[0-9]+)?(?:/[a-z0-9._-]+)+)"
     r"@(?P<digest>sha256:[a-f0-9]{64})$"
@@ -336,8 +334,6 @@ def verify_image(
     """Verify image signature, Rekor-backed attestation and NDF provenance semantics."""
     repository, digest = parse_image_reference(image_ref)
     policy, identity = _load_product_identity(policy_path)
-    statement_workflow_path = ".github/workflows/ndf-publish-product.yml"
-
     _require_cosign_version(runner=runner, cosign_binary=cosign_binary)
     # The source SHA is obtained from the verified Statement, not from the verifier's
     # own checkout or caller-supplied arguments. First verify the statement's signature
