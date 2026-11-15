@@ -20,7 +20,8 @@
       "minItems": 1,
       "items": {
         "$ref": "#/$defs/imageSubject"
-      }
+      },
+      "maxItems": 1
     },
     "predicateType": {
       "const": "https://slsa.dev/provenance/v1"
