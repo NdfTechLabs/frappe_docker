@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/artifact-trust-verification-result-v1.schema.json",
+  "title": "NDF Artifact Trust Verification Result",
+  "description": "Machine-readable result of independent signature, signer identity, transparency evidence, attestation and subject-digest verification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verification_id",
+    "artifact",
+    "signature",
+    "signer",
+    "transparency",
+    "attestations",
+    "decision",
+    "verified_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "verification_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "repository",
+        "digest",
+        "immutable_reference"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "product_image",
+            "candidate_image",
+            "pdd"
+          ]
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "signature": {
+      "type": "object",
+      "required": [
+        "verified",
+        "verification_method"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "verification_method": {
+          "const": "cosign-keyless"
+        },
+        "signature_reference": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "signer": {
+      "type": "object",
+      "required": [
+        "verified",
+        "oidc_issuer",
+        "certificate_identity"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "oidc_issuer": {
+          "type": "string",
+          "format": "uri"
+        },
+        "certificate_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workflow_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "transparency": {
+      "type": "object",
+      "required": [
+        "verified",
+        "log_entry_verified"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "log_entry_verified": {
+          "type": "boolean"
+        },
+        "log_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "integrated_time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entry_uuid": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "attestations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "predicate_type",
+          "verified",
+          "subject_digest"
+        ],
+        "properties": {
+          "predicate_type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "subject_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "predicate_sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "status",
+        "reason_codes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "trusted",
+            "rejected"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_]+$"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "status": {
+                "const": "trusted"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "signature": {
+            "properties": {
+              "verified": {
+                "const": true
+              }
+            }
+          },
+          "signer": {
+            "properties": {
+              "verified": {
+                "const": true
+              }
+            }
+          },
+          "transparency": {
+            "properties": {
+              "verified": {
+                "const": true
+              },
+              "log_entry_verified": {
+                "const": true
+              }
+            }
+          },
+          "attestations": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "verified": {
+                  "const": true
+                }
+              }
+            }
+          },
+          "decision": {
+            "properties": {
+              "reason_codes": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
