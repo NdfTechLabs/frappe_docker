@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 
 CANDIDATE_REF = re.compile(
-    r"^ghcr\\.io/ndftechlabs/dt-master-deployment-candidates@sha256:([a-f0-9]{64})$"
+    r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:([a-f0-9]{64})$"
 )
 HASH = re.compile(r"^[a-f0-9]{64}$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
