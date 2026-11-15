@@ -60,3 +60,30 @@ def test_pdd_source_ownership_checks_remain_intact():
     assert "Build staging image (not the official product tag)" in binding
     assert ".github/workflows/ndf-publish-product.yml" in publication
     assert ".github/workflows/ndf-verify-product-deployment-binding.yml" in publication
+
+ 
+def test_candidate_build_consumes_prepared_inputs_and_never_promotes_official_tag():
+    entry = read_workflow("ndf-build-candidate.yml")
+    reusable = read_workflow("ndf-reusable-build-candidate.yml")
+    assert "uses: ./.github/workflows/ndf-reusable-build-candidate.yml" in entry
+    assert "packages: write" in entry
+    assert "workflow_call:" in reusable
+    assert "--prepared-inputs-dir" in reusable
+    assert "prepare_build.py" not in reusable
+    assert "--output-dir" not in reusable
+    assert "gate_image_publication.py" in reusable
+    assert "docker pull" in reusable
+    assert "imagetools inspect" in reusable
+    assert "Promote verified digest" not in reusable
+    assert "imagetools create" not in reusable
+    assert "publish: true" not in reusable
+
+
+def test_candidate_build_handoff_is_attempt_bound_and_digest_verified():
+    reusable = read_workflow("ndf-reusable-build-candidate.yml")
+    assert "workflow_run_id" in reusable
+    assert "workflow_run_attempt" in reusable
+    assert "EXPECTED_LOCK_SHA256" in reusable
+    assert "ndf-candidate-build-${{ github.run_id }}-${{ github.run_attempt }}" in reusable
+    assert "containerimage.digest" in reusable
+    assert "packages: write" in reusable
