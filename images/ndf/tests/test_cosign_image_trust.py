@@ -251,16 +251,19 @@ def test_verify_uses_exact_identity_and_rejects_provisional_policy(tmp_path):
     policy_path = _write_policy(tmp_path)
     runner = FakeRunner()
     output = tmp_path / "trust-result.json"
+    attestation_output = tmp_path / "verified-attestation-output.json"
 
     with pytest.raises(trust.CosignTrustError, match="policy is provisional"):
         trust.verify_image(
             image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
             result_output=output,
+            attestation_output=attestation_output,
             policy_path=policy_path,
             runner=runner,
             verified_at=datetime(2026, 11, 15, tzinfo=timezone.utc),
         )
 
+    assert attestation_output.read_text(encoding="utf-8") == runner.attestation_output
     result = json.loads(output.read_text(encoding="utf-8"))
     assert result["decision"] == {
         "status": "rejected",
