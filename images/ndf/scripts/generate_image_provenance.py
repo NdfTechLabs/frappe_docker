@@ -32,8 +32,11 @@ NDF_DIR = Path(__file__).resolve().parents[1]
 PROVENANCE_SCHEMA = NDF_DIR / "schemas" / "ndf-image-provenance-v1.schema.json"
 DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 COMMIT_RE = re.compile(r"^[a-f0-9]{40,64}$")
+PRODUCT_IMAGE_WORKFLOW_PATH = ".github/workflows/ndf-publish-product.yml"
 WORKFLOW_REF_RE = re.compile(
-    r"^(?P<repository>NdfTechLabs/frappe_docker)/(?P<path>\.github/workflows/[a-z0-9._-]+\.yml)@(?P<ref>refs/heads/main)$"
+    r"^(?P<repository>NdfTechLabs/frappe_docker)/"
+    + re.escape(PRODUCT_IMAGE_WORKFLOW_PATH)
+    + r"@(?P<ref>refs/heads/main)$"
 )
 
 
