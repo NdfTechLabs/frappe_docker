@@ -460,7 +460,7 @@ def verify_image(
         raise CosignTrustError(
             "Verified Cosign predicate differs from the original NDF provenance predicate."
         )
-    _validate_statement(statement, repository=repository, digest=digest)
+    _validate_cosign_statement(statement, repository=repository, digest=digest)
     workflow = statement["predicate"]["ndf_build"]["workflow"]
     source_commit = workflow["source_commit"]
 
