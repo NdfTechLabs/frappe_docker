@@ -129,6 +129,11 @@ def test_candidate_adapter_generates_deterministic_lock_v2(ndf_dir, tmp_path):
     assert first_lock == second_lock
     assert first["lock_sha256"] == hashlib.sha256(first_lock).hexdigest()
 
+    composition = json.loads(first["mapping_path"].read_text(encoding="utf-8"))
+    assert [item["repository"] for item in composition["applications"]] == [
+        item["app_source"] for item in candidate["applications"]
+    ]
+
     lock = json.loads(first_lock)
     assert lock["lock_version"] == 2
     assert lock["candidate"]["candidate_id"] == candidate["candidate_id"]
