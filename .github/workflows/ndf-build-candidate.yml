@@ -216,3 +216,25 @@ jobs:
       candidate_artifact_ref: ${{ inputs.candidate_artifact_ref }}
       candidate_payload_sha256: ${{ inputs.candidate_payload_sha256 }}
       lock_sha256: ${{ needs.prepare-candidate.outputs.lock_sha256 }}
+
+  publish-candidate-pdd:
+    name: Verify and publish candidate PDD
+    needs: [prepare-candidate, build-candidate]
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    uses: ./.github/workflows/ndf-reusable-pdd-candidate.yml
+    with:
+      evidence_artifact_name: ${{ needs.build-candidate.outputs.evidence_artifact_name }}
+      image_id: ${{ needs.prepare-candidate.outputs.image_id }}
+      image_digest: ${{ needs.build-candidate.outputs.image_digest }}
+      candidate_id: ${{ inputs.candidate_id }}
+      candidate_artifact_ref: ${{ inputs.candidate_artifact_ref }}
+      candidate_payload_sha256: ${{ inputs.candidate_payload_sha256 }}
+      lock_sha256: ${{ needs.prepare-candidate.outputs.lock_sha256 }}
+      composition_hash: ${{ needs.build-candidate.outputs.composition_hash }}
+      built_at: ${{ needs.build-candidate.outputs.built_at }}
+      source_commit: ${{ github.sha }}
+      workflow_run_id: ${{ github.run_id }}
+      workflow_run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
