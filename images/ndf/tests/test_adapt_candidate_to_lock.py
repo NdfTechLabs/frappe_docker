@@ -196,6 +196,12 @@ def test_candidate_adapter_never_resolves_rolling_git_refs(
             lambda candidate: candidate["applications"][0].update(
                 immutable_commit="a" * 39
             ),
+            "Candidate schema validation failed",
+        ),
+        (
+            lambda candidate: candidate["applications"][0].update(
+                immutable_commit="a" * 64
+            ),
             "full 40-character Git commit",
         ),
         (
