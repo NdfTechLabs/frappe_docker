@@ -1,10 +1,15 @@
 import base64
 import json
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+
+TESTS_DIR = str(Path(__file__).resolve().parent)
+if TESTS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_DIR)
 
 from scripts import cosign_image_trust as trust
 
