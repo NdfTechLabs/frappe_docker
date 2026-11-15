@@ -1,0 +1,49 @@
+name: NDF / Cosign Toolchain Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cosign-toolchain:
+    name: Verify pinned Cosign toolchain
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Install pinned Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
+        with:
+          cosign-release: v3.1.4
+
+      - name: Verify exact Cosign version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_OUTPUT="$(cosign version)"
+          printf '%s\n' "$VERSION_OUTPUT"
+          if ! grep -Eq 'GitVersion: v3\.1\.4|v3\.1\.4' <<< "$VERSION_OUTPUT"; then
+            echo "Expected Cosign v3.1.4; installed version did not match." >&2
+            exit 1
+          fi
+
+      - name: Verify required CLI surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign attest --help > attest-help.txt
+          cosign verify --help > verify-help.txt
+          cosign verify-attestation --help > verify-attestation-help.txt
+
+          grep -F -- '--predicate' attest-help.txt
+          grep -F -- '--type' attest-help.txt
+          grep -F -- '--certificate-identity' verify-help.txt
+          grep -F -- '--certificate-oidc-issuer' verify-help.txt
+          grep -F -- '--type' verify-attestation-help.txt
+          grep -F -- '--certificate-identity' verify-attestation-help.txt
+          grep -F -- '--certificate-oidc-issuer' verify-attestation-help.txt
+
+          echo "Pinned Cosign version and required CLI options are available."
