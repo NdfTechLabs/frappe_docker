@@ -127,7 +127,11 @@ class FakeRunner:
         if args[1] == "version":
             stdout = "GitVersion: v3.1.4\n"
         elif args[1] == "verify":
-            stdout = '[{"Critical":{"Image":{"DockerManifestDigest":"sha256:' + "a" * 64 + '"}}}]'
+            stdout = (
+                '[{"Critical":{"Image":{"DockerManifestDigest":"sha256:'
+                + "a" * 64
+                + '"}}}]'
+            )
         elif args[1] == "verify-attestation":
             stdout = self.attestation_output
         else:
@@ -229,7 +233,9 @@ def test_extract_verified_statement_decodes_dsse_envelope():
         "payloadType": "application/vnd.in-toto+json",
         "payload": base64.b64encode(json.dumps(statement).encode()).decode(),
     }
-    assert trust.extract_verified_statement("header\n" + json.dumps(envelope)) == statement
+    assert (
+        trust.extract_verified_statement("header\n" + json.dumps(envelope)) == statement
+    )
 
 
 @pytest.mark.parametrize(
@@ -260,7 +266,11 @@ def test_verify_uses_exact_identity_and_rejects_provisional_policy(tmp_path):
         "status": "rejected",
         "reason_codes": ["IDENTITY_POLICY_PROVISIONAL"],
     }
-    commands = [call for call in runner.calls if len(call) > 1 and call[1] in ("verify", "verify-attestation")]
+    commands = [
+        call
+        for call in runner.calls
+        if len(call) > 1 and call[1] in ("verify", "verify-attestation")
+    ]
     assert len(commands) == 4
     for command in commands:
         assert "--certificate-identity" in command
@@ -270,7 +280,10 @@ def test_verify_uses_exact_identity_and_rejects_provisional_policy(tmp_path):
         assert "--certificate-github-workflow-ref" in command
         assert "--insecure-ignore-tlog" not in command
         assert "--check-claims=false" not in command
-    assert commands[-1][commands[-1].index("--certificate-github-workflow-sha") + 1] == "c" * 40
+    assert (
+        commands[-1][commands[-1].index("--certificate-github-workflow-sha") + 1]
+        == "c" * 40
+    )
 
 
 def test_verify_trusts_only_confirmed_policy(tmp_path):
