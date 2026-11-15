@@ -21,8 +21,7 @@ def test_cosign_toolchain_is_pinned_to_approved_versions():
         encoding="utf-8"
     )
     assert (
-        "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
-        in workflow
+        "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in workflow
     )
     assert "cosign-release: v3.1.4" in workflow
     assert "cosign version" in workflow

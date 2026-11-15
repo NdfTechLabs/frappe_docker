@@ -89,8 +89,16 @@ def _source_inputs():
     }
     provenance_report = {
         "repositories": [
-            {"name": "frappe", "repository": "frappe/frappe", "actual_commit": "1" * 40},
-            {"name": "erpnext", "repository": "frappe/erpnext", "actual_commit": "2" * 40},
+            {
+                "name": "frappe",
+                "repository": "frappe/frappe",
+                "actual_commit": "1" * 40,
+            },
+            {
+                "name": "erpnext",
+                "repository": "frappe/erpnext",
+                "actual_commit": "2" * 40,
+            },
         ]
     }
     verification = {
@@ -130,7 +138,9 @@ def test_source_revisions_reject_inventory_and_provenance_commit_disagreement():
 def test_source_revisions_reject_unverified_repository():
     inventory, source, verification = _source_inputs()
     verification["repositories"][1]["status"] = "failed"
-    with pytest.raises(provenance.ImageProvenanceError, match="Independent source verification"):
+    with pytest.raises(
+        provenance.ImageProvenanceError, match="Independent source verification"
+    ):
         provenance._source_revisions(inventory, source, verification)
 
 
@@ -161,7 +171,9 @@ def test_atomic_write_creates_exact_bytes_and_refuses_symlink(tmp_path):
 def test_schema_accepts_profile_statement_shape():
     statement = {
         "_type": "https://in-toto.io/Statement/v1",
-        "subject": [{"name": "ghcr.io/ndftechlabs/dalali", "digest": {"sha256": "a" * 64}}],
+        "subject": [
+            {"name": "ghcr.io/ndftechlabs/dalali", "digest": {"sha256": "a" * 64}}
+        ],
         "predicateType": "https://slsa.dev/provenance/v1",
         "predicate": {
             "buildDefinition": {
@@ -175,7 +187,11 @@ def test_schema_accepts_profile_statement_shape():
                     }
                 ],
             },
-            "runDetails": {"builder": {"id": "https://github.com/NdfTechLabs/frappe_docker/actions"}},
+            "runDetails": {
+                "builder": {
+                    "id": "https://github.com/NdfTechLabs/frappe_docker/actions"
+                }
+            },
             "ndf_build": {
                 "schema_version": "1.0.0",
                 "product_id": "dalali-v16",
@@ -190,11 +206,19 @@ def test_schema_accepts_profile_statement_shape():
                 },
                 "lock_sha256": "d" * 64,
                 "composition_sha256": "e" * 64,
-                "source_revisions": [{"repository": "frappe/frappe", "commit": "b" * 40}],
+                "source_revisions": [
+                    {"repository": "frappe/frappe", "commit": "b" * 40}
+                ],
                 "validation": {
                     "image_validation": {"status": "passed", "report_sha256": "1" * 64},
-                    "source_provenance": {"status": "passed", "report_sha256": "2" * 64},
-                    "composition_verification": {"status": "passed", "report_sha256": "3" * 64},
+                    "source_provenance": {
+                        "status": "passed",
+                        "report_sha256": "2" * 64,
+                    },
+                    "composition_verification": {
+                        "status": "passed",
+                        "report_sha256": "3" * 64,
+                    },
                     "evidence_binding": {"status": "passed", "report_sha256": "4" * 64},
                 },
             },
@@ -247,8 +271,16 @@ def synthetic_build(tmp_path, monkeypatch):
         "algorithm": "ndf-source-provenance-v1",
         "lock": {"sha256": lock_sha},
         "repositories": [
-            {"name": "frappe", "repository": "frappe/frappe", "actual_commit": "1" * 40},
-            {"name": "erpnext", "repository": "frappe/erpnext", "actual_commit": "2" * 40},
+            {
+                "name": "frappe",
+                "repository": "frappe/frappe",
+                "actual_commit": "1" * 40,
+            },
+            {
+                "name": "erpnext",
+                "repository": "frappe/erpnext",
+                "actual_commit": "2" * 40,
+            },
         ],
     }
     source_verification = {
@@ -274,7 +306,11 @@ def synthetic_build(tmp_path, monkeypatch):
     source_verification["source_provenance_sha256"] = provenance.sha256(provenance_raw)
     write("source-provenance-verification.json", source_verification)
     write("build-inventory.json", inventory)
-    composition = {"status": "passed", "lock": {"sha256": lock_sha}, "composition": ["frappe", "erpnext"]}
+    composition = {
+        "status": "passed",
+        "lock": {"sha256": lock_sha},
+        "composition": ["frappe", "erpnext"],
+    }
     write("image-composition-verification.json", composition)
     write("image-validation.json", {"status": "passed", "image_digest": digest})
     evidence = {
@@ -283,11 +319,14 @@ def synthetic_build(tmp_path, monkeypatch):
         "lock": {"sha256": lock_sha},
     }
     write("image-verification-evidence.json", evidence)
-    write("build-metadata.json", {
-        "image": {"id": "dalali-v16", "repository": "ghcr.io/ndftechlabs/dalali"},
-        "framework": {"version": "16.35.0"},
-        "lock": {"sha256": lock_sha},
-    })
+    write(
+        "build-metadata.json",
+        {
+            "image": {"id": "dalali-v16", "repository": "ghcr.io/ndftechlabs/dalali"},
+            "framework": {"version": "16.35.0"},
+            "lock": {"sha256": lock_sha},
+        },
+    )
     write("buildx-metadata.json", {"containerimage.digest": digest})
     write("build-result.json", {"digest": digest})
     gate = {
@@ -357,7 +396,9 @@ def test_generate_provenance_emits_deterministic_predicate_and_statement(
 
     statement = json.loads(first_statement.read_text(encoding="utf-8"))
     assert statement["subject"][0]["digest"]["sha256"] == "a" * 64
-    assert statement["predicate"]["ndf_build"]["composition_sha256"] == provenance.sha256(
+    assert statement["predicate"]["ndf_build"][
+        "composition_sha256"
+    ] == provenance.sha256(
         (build["build"] / "image-composition-verification.json").read_bytes()
     )
     assert statement["predicate"]["ndf_build"]["source_revisions"] == [
@@ -372,7 +413,9 @@ def test_generate_provenance_rejects_publication_gate_source_mismatch(
     build = synthetic_build
     gate = dict(build["gate"])
     gate["source"] = {"sha": "d" * 40}
-    monkeypatch.setattr(provenance, "verify_publication_candidate", lambda **kwargs: gate)
+    monkeypatch.setattr(
+        provenance, "verify_publication_candidate", lambda **kwargs: gate
+    )
     (build["build"] / "publication-gate.json").write_text(
         json.dumps(gate), encoding="utf-8"
     )

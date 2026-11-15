@@ -65,9 +65,7 @@ def _image_statement():
                 },
                 "lock_sha256": "c" * 64,
                 "composition_sha256": "d" * 64,
-                "source_revisions": [
-                    {"repository": "frappe", "commit": "e" * 40}
-                ],
+                "source_revisions": [{"repository": "frappe", "commit": "e" * 40}],
                 "validation": {
                     "image_validation": {
                         "status": "passed",
@@ -139,7 +137,9 @@ def test_rejects_duplicate_json_keys(tmp_path):
 
 
 def test_accepts_exact_product_image_signer_claims(policy):
-    entry = next(x for x in policy["identities"] if x["id"] == "product-image-publication")
+    entry = next(
+        x for x in policy["identities"] if x["id"] == "product-image-publication"
+    )
     result = trust.validate_signer_claims(
         _claims(entry), identity_id=entry["id"], policy=policy
     )
@@ -155,12 +155,22 @@ def test_accepts_exact_product_image_signer_claims(policy):
         ("repository", "attacker/repo", "claim repository mismatch"),
         ("ref", "refs/heads/feature", "claim ref mismatch"),
         ("event_name", "pull_request", "claim event_name mismatch"),
-        ("certificate_identity", "https://github.com/attacker/workflow", "certificate identity"),
-        ("workflow_ref", "attacker/repo/.github/workflows/x.yml@refs/heads/main", "claim workflow_ref mismatch"),
+        (
+            "certificate_identity",
+            "https://github.com/attacker/workflow",
+            "certificate identity",
+        ),
+        (
+            "workflow_ref",
+            "attacker/repo/.github/workflows/x.yml@refs/heads/main",
+            "claim workflow_ref mismatch",
+        ),
     ],
 )
 def test_rejects_mismatched_signer_claims(policy, claim, value, message):
-    entry = next(x for x in policy["identities"] if x["id"] == "product-image-publication")
+    entry = next(
+        x for x in policy["identities"] if x["id"] == "product-image-publication"
+    )
     claims = _claims(entry)
     claims[claim] = value
     with pytest.raises(ArtifactTrustError, match=message):
@@ -168,7 +178,9 @@ def test_rejects_mismatched_signer_claims(policy, claim, value, message):
 
 
 def test_rejects_missing_signer_claim(policy):
-    entry = next(x for x in policy["identities"] if x["id"] == "product-image-publication")
+    entry = next(
+        x for x in policy["identities"] if x["id"] == "product-image-publication"
+    )
     claims = _claims(entry)
     del claims["run_attempt"]
     with pytest.raises(ArtifactTrustError, match="missing required values"):
@@ -190,7 +202,9 @@ def test_accepts_candidate_reusable_workflow_claims(policy):
 def test_rejects_candidate_reusable_workflow_mismatch(policy):
     entry = next(x for x in policy["identities"] if x["id"] == "candidate-image-build")
     claims = _claims(entry, reusable=True)
-    claims["job_workflow_ref"] = "NdfTechLabs/frappe_docker/.github/workflows/unapproved.yml@refs/heads/main"
+    claims["job_workflow_ref"] = (
+        "NdfTechLabs/frappe_docker/.github/workflows/unapproved.yml@refs/heads/main"
+    )
     with pytest.raises(ArtifactTrustError, match="Reusable workflow identity mismatch"):
         trust.validate_signer_claims(claims, identity_id=entry["id"], policy=policy)
 
@@ -328,7 +342,9 @@ def test_allows_shared_candidate_caller_identity_for_distinct_artifact_kinds(
     policy,
 ):
     image = next(x for x in policy["identities"] if x["id"] == "candidate-image-build")
-    pdd = next(x for x in policy["identities"] if x["id"] == "candidate-pdd-publication")
+    pdd = next(
+        x for x in policy["identities"] if x["id"] == "candidate-pdd-publication"
+    )
     assert image["certificate_identity"] == pdd["certificate_identity"]
     assert set(image["artifact_kinds"]).isdisjoint(pdd["artifact_kinds"])
 
@@ -343,7 +359,9 @@ def test_allows_shared_candidate_caller_identity_for_distinct_artifact_kinds(
     ],
 )
 def test_rejects_invalid_signer_claim_values(policy, field, value, message):
-    entry = next(x for x in policy["identities"] if x["id"] == "product-image-publication")
+    entry = next(
+        x for x in policy["identities"] if x["id"] == "product-image-publication"
+    )
     claims = _claims(entry)
     claims[field] = value
     if field == "iss" and value == "https://token.actions.githubusercontent.com":
@@ -356,15 +374,23 @@ def test_rejects_malformed_reusable_workflow_sha(policy):
     entry = next(x for x in policy["identities"] if x["id"] == "candidate-image-build")
     claims = _claims(entry, reusable=True)
     claims["job_workflow_sha"] = "not-a-commit"
-    with pytest.raises(ArtifactTrustError, match="job_workflow_sha is missing or invalid"):
+    with pytest.raises(
+        ArtifactTrustError, match="job_workflow_sha is missing or invalid"
+    ):
         trust.validate_signer_claims(claims, identity_id=entry["id"], policy=policy)
 
 
 def test_rejects_unexpected_reusable_workflow_claim_for_direct_workflow(policy):
-    entry = next(x for x in policy["identities"] if x["id"] == "product-image-publication")
+    entry = next(
+        x for x in policy["identities"] if x["id"] == "product-image-publication"
+    )
     claims = _claims(entry)
-    claims["job_workflow_ref"] = "NdfTechLabs/frappe_docker/.github/workflows/other.yml@refs/heads/main"
-    with pytest.raises(ArtifactTrustError, match="must not be verified as a reusable workflow"):
+    claims["job_workflow_ref"] = (
+        "NdfTechLabs/frappe_docker/.github/workflows/other.yml@refs/heads/main"
+    )
+    with pytest.raises(
+        ArtifactTrustError, match="must not be verified as a reusable workflow"
+    ):
         trust.validate_signer_claims(claims, identity_id=entry["id"], policy=policy)
 
 
@@ -413,12 +439,32 @@ def test_accepts_consistent_trusted_verification_result():
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda result: result["signature"].update(verified=False), "schema validation failed"),
-        (lambda result: result["signer"].update(verified=False), "schema validation failed"),
-        (lambda result: result["transparency"].update(verified=False), "schema validation failed"),
-        (lambda result: result["transparency"].update(log_entry_verified=False), "schema validation failed"),
-        (lambda result: result["attestations"][0].update(verified=False), "schema validation failed"),
-        (lambda result: result["decision"].update(reason_codes=["SIGNATURE_INVALID"]), "schema validation failed"),
+        (
+            lambda result: result["signature"].update(verified=False),
+            "schema validation failed",
+        ),
+        (
+            lambda result: result["signer"].update(verified=False),
+            "schema validation failed",
+        ),
+        (
+            lambda result: result["transparency"].update(verified=False),
+            "schema validation failed",
+        ),
+        (
+            lambda result: result["transparency"].update(log_entry_verified=False),
+            "schema validation failed",
+        ),
+        (
+            lambda result: result["attestations"][0].update(verified=False),
+            "schema validation failed",
+        ),
+        (
+            lambda result: result["decision"].update(
+                reason_codes=["SIGNATURE_INVALID"]
+            ),
+            "schema validation failed",
+        ),
     ],
 )
 def test_rejects_trusted_result_with_failed_trust_component(mutate, message):

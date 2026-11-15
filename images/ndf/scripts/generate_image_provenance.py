@@ -63,7 +63,9 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 def load_json(path: Path) -> tuple[dict[str, Any], bytes]:
     if path.is_symlink() or not path.is_file():
-        raise ImageProvenanceError(f"Required evidence is missing or unsafe: {path.name}")
+        raise ImageProvenanceError(
+            f"Required evidence is missing or unsafe: {path.name}"
+        )
     try:
         raw = path.read_bytes()
         value = json.loads(
@@ -99,13 +101,18 @@ def _workflow_context(env: dict[str, str]) -> dict[str, Any]:
         env["GITHUB_REPOSITORY"] == "NdfTechLabs/frappe_docker",
         "Workflow repository is not the approved NDF repository.",
     )
-    _require(env["GITHUB_REF"] == "refs/heads/main", "Only refs/heads/main is accepted.")
+    _require(
+        env["GITHUB_REF"] == "refs/heads/main", "Only refs/heads/main is accepted."
+    )
     _require(
         env["GITHUB_EVENT_NAME"] == "workflow_dispatch",
         "Only workflow_dispatch provenance is accepted by this publication contract.",
     )
     match = WORKFLOW_REF_RE.fullmatch(env["GITHUB_WORKFLOW_REF"])
-    _require(match is not None, "GITHUB_WORKFLOW_REF is not an approved main-branch workflow ref.")
+    _require(
+        match is not None,
+        "GITHUB_WORKFLOW_REF is not an approved main-branch workflow ref.",
+    )
     _require(
         re.fullmatch(r"[0-9]+", env["GITHUB_RUN_ID"]) is not None,
         "GITHUB_RUN_ID must contain decimal digits only.",
@@ -115,7 +122,10 @@ def _workflow_context(env: dict[str, str]) -> dict[str, Any]:
         "GITHUB_RUN_ATTEMPT must be a positive integer.",
     )
     source_commit = env["GITHUB_SHA"].lower()
-    _require(COMMIT_RE.fullmatch(source_commit) is not None, "GITHUB_SHA is not a valid commit SHA.")
+    _require(
+        COMMIT_RE.fullmatch(source_commit) is not None,
+        "GITHUB_SHA is not a valid commit SHA.",
+    )
     return {
         "repository": env["GITHUB_REPOSITORY"],
         "path": PRODUCT_IMAGE_WORKFLOW_PATH,
@@ -131,20 +141,41 @@ def _source_revisions(
 ) -> list[dict[str, str]]:
     inventory_apps = inventory.get("applications")
     framework = inventory.get("framework")
-    _require(isinstance(inventory_apps, list) and all(isinstance(item, dict) for item in inventory_apps), "Build inventory has malformed application records.")
-    _require(isinstance(framework, dict), "Build inventory framework record is missing.")
+    _require(
+        isinstance(inventory_apps, list)
+        and all(isinstance(item, dict) for item in inventory_apps),
+        "Build inventory has malformed application records.",
+    )
+    _require(
+        isinstance(framework, dict), "Build inventory framework record is missing."
+    )
     inventory_by_name: dict[str, dict[str, Any]] = {}
     for item in inventory_apps:
         name = item.get("name")
-        _require(isinstance(name, str) and name not in inventory_by_name, "Build inventory has missing or duplicate repository names.")
+        _require(
+            isinstance(name, str) and name not in inventory_by_name,
+            "Build inventory has missing or duplicate repository names.",
+        )
         inventory_by_name[name] = item
-    _require(inventory_by_name.get("frappe") == framework, "Build inventory framework record differs from the Frappe application record.")
+    _require(
+        inventory_by_name.get("frappe") == framework,
+        "Build inventory framework record differs from the Frappe application record.",
+    )
 
     provenance_records = provenance.get("repositories")
     verification_records = verification.get("repositories")
-    _require(isinstance(provenance_records, list) and isinstance(verification_records, list), "Source provenance repository records are malformed.")
-    provenance_by_name = {item.get("name"): item for item in provenance_records if isinstance(item, dict)}
-    verification_by_name = {item.get("name"): item for item in verification_records if isinstance(item, dict)}
+    _require(
+        isinstance(provenance_records, list) and isinstance(verification_records, list),
+        "Source provenance repository records are malformed.",
+    )
+    provenance_by_name = {
+        item.get("name"): item for item in provenance_records if isinstance(item, dict)
+    }
+    verification_by_name = {
+        item.get("name"): item
+        for item in verification_records
+        if isinstance(item, dict)
+    }
     _require(
         len(provenance_by_name) == len(provenance_records)
         and len(verification_by_name) == len(verification_records),
@@ -162,11 +193,16 @@ def _source_revisions(
         verified = verification_by_name[name]
         repository = inv.get("repository")
         commit = inv.get("actual_commit")
-        _require(isinstance(repository, str) and repository, f"Missing repository identity for {name}.")
-        _require(isinstance(commit, str) and COMMIT_RE.fullmatch(commit), f"Invalid acquired commit for {name}.")
         _require(
-            src.get("repository") == repository
-            and src.get("actual_commit") == commit,
+            isinstance(repository, str) and repository,
+            f"Missing repository identity for {name}.",
+        )
+        _require(
+            isinstance(commit, str) and COMMIT_RE.fullmatch(commit),
+            f"Invalid acquired commit for {name}.",
+        )
+        _require(
+            src.get("repository") == repository and src.get("actual_commit") == commit,
             f"Source provenance identity/commit mismatch for {name}.",
         )
         _require(
@@ -186,7 +222,11 @@ def _atomic_write(path: Path, raw: bytes) -> None:
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
         ) as stream:
             temporary = Path(stream.name)
             stream.write(raw)
@@ -196,7 +236,9 @@ def _atomic_write(path: Path, raw: bytes) -> None:
     except OSError as exc:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-        raise ImageProvenanceError(f"Unable to write provenance output {path}: {exc}") from exc
+        raise ImageProvenanceError(
+            f"Unable to write provenance output {path}: {exc}"
+        ) from exc
 
 
 def generate_image_provenance(
@@ -229,48 +271,135 @@ def generate_image_provenance(
     image_validation, image_validation_raw = load_json(
         build_output_dir / "image-validation.json"
     )
-    evidence, evidence_raw = load_json(build_output_dir / "image-verification-evidence.json")
+    evidence, evidence_raw = load_json(
+        build_output_dir / "image-verification-evidence.json"
+    )
     gate_report, _ = load_json(build_output_dir / "publication-gate.json")
 
-    _require(gate_report.get("status") == "ready", "Publication gate report is not ready.")
-    _require(composition.get("status") == "passed", "Image composition verification did not pass.")
-    _require(source_verification.get("status") == "passed", "Independent source provenance verification did not pass.")
-    _require(image_validation.get("status") == "passed", "Image validation did not pass.")
-    _require(inventory.get("stage") == "builder", "Build inventory is not from the builder stage.")
-    _require(inventory.get("schema_version") == "1.0", "Unsupported build inventory schema version.")
-    _require(provenance.get("algorithm") == "ndf-source-provenance-v1", "Unsupported source provenance algorithm.")
-    _require(source_verification.get("source_provenance_sha256") == sha256(provenance_raw), "Independent verification does not bind the exact source provenance bytes.")
+    _require(
+        gate_report.get("status") == "ready", "Publication gate report is not ready."
+    )
+    _require(
+        composition.get("status") == "passed",
+        "Image composition verification did not pass.",
+    )
+    _require(
+        source_verification.get("status") == "passed",
+        "Independent source provenance verification did not pass.",
+    )
+    _require(
+        image_validation.get("status") == "passed", "Image validation did not pass."
+    )
+    _require(
+        inventory.get("stage") == "builder",
+        "Build inventory is not from the builder stage.",
+    )
+    _require(
+        inventory.get("schema_version") == "1.0",
+        "Unsupported build inventory schema version.",
+    )
+    _require(
+        provenance.get("algorithm") == "ndf-source-provenance-v1",
+        "Unsupported source provenance algorithm.",
+    )
+    _require(
+        source_verification.get("source_provenance_sha256") == sha256(provenance_raw),
+        "Independent verification does not bind the exact source provenance bytes.",
+    )
 
     image = metadata.get("image")
     framework = metadata.get("framework")
     lock = metadata.get("lock")
-    _require(isinstance(image, dict) and image.get("id") == image_id, "Build metadata product identity mismatch.")
-    _require(isinstance(framework, dict) and isinstance(lock, dict), "Build metadata framework/lock fields are missing.")
-    _require(str(framework.get("version", "")).split(".", 1)[0] == framework_major, "Framework major version mismatch.")
+    _require(
+        isinstance(image, dict) and image.get("id") == image_id,
+        "Build metadata product identity mismatch.",
+    )
+    _require(
+        isinstance(framework, dict) and isinstance(lock, dict),
+        "Build metadata framework/lock fields are missing.",
+    )
+    _require(
+        str(framework.get("version", "")).split(".", 1)[0] == framework_major,
+        "Framework major version mismatch.",
+    )
     repository = image.get("repository")
     digest = result.get("digest")
-    _require(isinstance(repository, str) and repository, "Build metadata image repository is missing.")
-    _require(isinstance(digest, str) and DIGEST_RE.fullmatch(digest), "Build result has no valid immutable image digest.")
-    _require(buildx.get("containerimage.digest") == digest, "Buildx and registry build-result digests differ.")
-    _require(gate_report.get("image", {}).get("digest") == digest, "Publication gate report identifies a different image digest.")
-    _require(gate_report.get("image", {}).get("id") == image_id, "Publication gate report identifies a different image.")
-    _require(gate_report.get("image", {}).get("repository") == repository, "Publication gate report identifies a different repository.")
-    _require(gate_report.get("source", {}).get("sha") == workflow["source_commit"], "Publication gate source SHA differs from GitHub Actions GITHUB_SHA.")
-    _require(gate_report.get("image", {}).get("candidate_reference") == candidate_image_ref, "Publication gate candidate reference mismatch.")
-    _require(gate_report.get("image", {}).get("publication_reference") == publication_image_ref, "Publication gate publication reference mismatch.")
-    _require(inventory.get("lock", {}).get("sha256") == lock.get("sha256"), "Build inventory lock hash differs from build metadata.")
-    _require(provenance.get("lock", {}).get("sha256") == lock.get("sha256"), "Source provenance lock hash differs from build metadata.")
-    _require(source_verification.get("lock", {}).get("sha256") == lock.get("sha256"), "Independent source verification lock hash differs from build metadata.")
-    _require(composition.get("lock", {}).get("sha256") == lock.get("sha256"), "Composition verification lock hash differs from build metadata.")
+    _require(
+        isinstance(repository, str) and repository,
+        "Build metadata image repository is missing.",
+    )
+    _require(
+        isinstance(digest, str) and DIGEST_RE.fullmatch(digest),
+        "Build result has no valid immutable image digest.",
+    )
+    _require(
+        buildx.get("containerimage.digest") == digest,
+        "Buildx and registry build-result digests differ.",
+    )
+    _require(
+        gate_report.get("image", {}).get("digest") == digest,
+        "Publication gate report identifies a different image digest.",
+    )
+    _require(
+        gate_report.get("image", {}).get("id") == image_id,
+        "Publication gate report identifies a different image.",
+    )
+    _require(
+        gate_report.get("image", {}).get("repository") == repository,
+        "Publication gate report identifies a different repository.",
+    )
+    _require(
+        gate_report.get("source", {}).get("sha") == workflow["source_commit"],
+        "Publication gate source SHA differs from GitHub Actions GITHUB_SHA.",
+    )
+    _require(
+        gate_report.get("image", {}).get("candidate_reference") == candidate_image_ref,
+        "Publication gate candidate reference mismatch.",
+    )
+    _require(
+        gate_report.get("image", {}).get("publication_reference")
+        == publication_image_ref,
+        "Publication gate publication reference mismatch.",
+    )
+    _require(
+        inventory.get("lock", {}).get("sha256") == lock.get("sha256"),
+        "Build inventory lock hash differs from build metadata.",
+    )
+    _require(
+        provenance.get("lock", {}).get("sha256") == lock.get("sha256"),
+        "Source provenance lock hash differs from build metadata.",
+    )
+    _require(
+        source_verification.get("lock", {}).get("sha256") == lock.get("sha256"),
+        "Independent source verification lock hash differs from build metadata.",
+    )
+    _require(
+        composition.get("lock", {}).get("sha256") == lock.get("sha256"),
+        "Composition verification lock hash differs from build metadata.",
+    )
 
     lock_path = build_output_dir / f"{image_id}.lock-v2.json"
     _, lock_raw = load_json(lock_path)
     lock_sha = sha256(lock_raw)
-    _require(lock_sha == lock.get("sha256"), "Exact lock-v2 bytes differ from build metadata.")
-    _require(lock_sha == gate_report.get("lock", {}).get("sha256"), "Exact lock-v2 bytes differ from publication gate.")
-    _require(evidence.get("status") == "bound", "Image verification evidence is not bound.")
-    _require(evidence.get("image", {}).get("digest") == digest, "Image verification evidence is bound to another digest.")
-    _require(evidence.get("lock", {}).get("sha256") == lock_sha, "Image verification evidence is bound to another lock.")
+    _require(
+        lock_sha == lock.get("sha256"),
+        "Exact lock-v2 bytes differ from build metadata.",
+    )
+    _require(
+        lock_sha == gate_report.get("lock", {}).get("sha256"),
+        "Exact lock-v2 bytes differ from publication gate.",
+    )
+    _require(
+        evidence.get("status") == "bound", "Image verification evidence is not bound."
+    )
+    _require(
+        evidence.get("image", {}).get("digest") == digest,
+        "Image verification evidence is bound to another digest.",
+    )
+    _require(
+        evidence.get("lock", {}).get("sha256") == lock_sha,
+        "Image verification evidence is bound to another lock.",
+    )
 
     # Re-run the existing publication gate against exact evidence bytes; compare its result.
     try:
@@ -283,19 +412,36 @@ def generate_image_provenance(
             publication_image_ref=publication_image_ref,
         )
     except PublicationGateError as exc:
-        raise ImageProvenanceError(f"Existing publication evidence gate failed: {exc}") from exc
-    _require(independently_gated == gate_report, "Stored publication gate report differs from independently recomputed result.")
+        raise ImageProvenanceError(
+            f"Existing publication evidence gate failed: {exc}"
+        ) from exc
+    _require(
+        independently_gated == gate_report,
+        "Stored publication gate report differs from independently recomputed result.",
+    )
 
     platform = inventory.get("runtime", {}).get("platform", {}).get("oci")
-    _require(platform in ("linux/amd64", "linux/arm64"), "Build inventory contains an unsupported OCI platform.")
+    _require(
+        platform in ("linux/amd64", "linux/arm64"),
+        "Build inventory contains an unsupported OCI platform.",
+    )
     revisions = _source_revisions(inventory, provenance, source_verification)
 
     # composition_sha256 is defined as the hash of the exact passed report bytes.
     composition_sha = sha256(composition_raw)
     evidence_checks = {
-        "image_validation": {"status": "passed", "report_sha256": sha256(image_validation_raw)},
-        "source_provenance": {"status": "passed", "report_sha256": sha256(provenance_raw)},
-        "composition_verification": {"status": "passed", "report_sha256": composition_sha},
+        "image_validation": {
+            "status": "passed",
+            "report_sha256": sha256(image_validation_raw),
+        },
+        "source_provenance": {
+            "status": "passed",
+            "report_sha256": sha256(provenance_raw),
+        },
+        "composition_verification": {
+            "status": "passed",
+            "report_sha256": composition_sha,
+        },
         "evidence_binding": {"status": "passed", "report_sha256": sha256(evidence_raw)},
     }
     predicate = {
@@ -334,7 +480,9 @@ def generate_image_provenance(
     }
     statement = {
         "_type": "https://in-toto.io/Statement/v1",
-        "subject": [{"name": repository, "digest": {"sha256": digest.removeprefix("sha256:")}}],
+        "subject": [
+            {"name": repository, "digest": {"sha256": digest.removeprefix("sha256:")}}
+        ],
         "predicateType": "https://slsa.dev/provenance/v1",
         "predicate": predicate,
     }
@@ -343,10 +491,16 @@ def generate_image_provenance(
         Draft202012Validator(schema).validate(statement)
     except ValidationError as exc:
         location = ".".join(str(part) for part in exc.absolute_path) or "<root>"
-        raise ImageProvenanceError(f"NDF image provenance schema failed at {location}: {exc.message}") from exc
+        raise ImageProvenanceError(
+            f"NDF image provenance schema failed at {location}: {exc.message}"
+        ) from exc
 
-    predicate_raw = (json.dumps(predicate, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
-    statement_raw = (json.dumps(statement, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+    predicate_raw = (
+        json.dumps(predicate, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
+    statement_raw = (
+        json.dumps(statement, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
     _atomic_write(predicate_output, predicate_raw)
     try:
         _atomic_write(statement_output, statement_raw)

@@ -5,12 +5,7 @@
   "description": "NDF in-toto Statement v1 predicate authenticating the relationship between a published PDD OCI artifact and its exact subject image digest.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "_type",
-    "subject",
-    "predicateType",
-    "predicate"
-  ],
+  "required": ["_type", "subject", "predicateType", "predicate"],
   "properties": {
     "_type": {
       "const": "https://in-toto.io/Statement/v1"
@@ -21,10 +16,7 @@
       "maxItems": 1,
       "items": {
         "type": "object",
-        "required": [
-          "name",
-          "digest"
-        ],
+        "required": ["name", "digest"],
         "properties": {
           "name": {
             "type": "string",
@@ -32,9 +24,7 @@
           },
           "digest": {
             "type": "object",
-            "required": [
-              "sha256"
-            ],
+            "required": ["sha256"],
             "properties": {
               "sha256": {
                 "$ref": "#/$defs/sha256"
@@ -83,10 +73,7 @@
         },
         "descriptor": {
           "type": "object",
-          "required": [
-            "id",
-            "content_sha256"
-          ],
+          "required": ["id", "content_sha256"],
           "properties": {
             "id": {
               "type": "string",
@@ -100,11 +87,7 @@
         },
         "subject_image": {
           "type": "object",
-          "required": [
-            "repository",
-            "digest",
-            "platform"
-          ],
+          "required": ["repository", "digest", "platform"],
           "properties": {
             "repository": {
               "type": "string",
@@ -125,10 +108,7 @@
         },
         "source_provenance": {
           "type": "object",
-          "required": [
-            "predicate_type",
-            "attestation_sha256"
-          ],
+          "required": ["predicate_type", "attestation_sha256"],
           "properties": {
             "predicate_type": {
               "const": "https://slsa.dev/provenance/v1"

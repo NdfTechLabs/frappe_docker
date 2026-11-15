@@ -26,19 +26,10 @@
     },
     "artifact": {
       "type": "object",
-      "required": [
-        "kind",
-        "repository",
-        "digest",
-        "immutable_reference"
-      ],
+      "required": ["kind", "repository", "digest", "immutable_reference"],
       "properties": {
         "kind": {
-          "enum": [
-            "product_image",
-            "candidate_image",
-            "pdd"
-          ]
+          "enum": ["product_image", "candidate_image", "pdd"]
         },
         "repository": {
           "type": "string",
@@ -56,10 +47,7 @@
     },
     "signature": {
       "type": "object",
-      "required": [
-        "verified",
-        "verification_method"
-      ],
+      "required": ["verified", "verification_method"],
       "properties": {
         "verified": {
           "type": "boolean"
@@ -76,11 +64,7 @@
     },
     "signer": {
       "type": "object",
-      "required": [
-        "verified",
-        "oidc_issuer",
-        "certificate_identity"
-      ],
+      "required": ["verified", "oidc_issuer", "certificate_identity"],
       "properties": {
         "verified": {
           "type": "boolean"
@@ -102,10 +86,7 @@
     },
     "transparency": {
       "type": "object",
-      "required": [
-        "verified",
-        "log_entry_verified"
-      ],
+      "required": ["verified", "log_entry_verified"],
       "properties": {
         "verified": {
           "type": "boolean"
@@ -132,11 +113,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "predicate_type",
-          "verified",
-          "subject_digest"
-        ],
+        "required": ["predicate_type", "verified", "subject_digest"],
         "properties": {
           "predicate_type": {
             "type": "string",
@@ -157,16 +134,10 @@
     },
     "decision": {
       "type": "object",
-      "required": [
-        "status",
-        "reason_codes"
-      ],
+      "required": ["status", "reason_codes"],
       "properties": {
         "status": {
-          "enum": [
-            "trusted",
-            "rejected"
-          ]
+          "enum": ["trusted", "rejected"]
         },
         "reason_codes": {
           "type": "array",
@@ -204,14 +175,10 @@
                 "const": "trusted"
               }
             },
-            "required": [
-              "status"
-            ]
+            "required": ["status"]
           }
         },
-        "required": [
-          "decision"
-        ]
+        "required": ["decision"]
       },
       "then": {
         "properties": {

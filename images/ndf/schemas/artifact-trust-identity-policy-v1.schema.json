@@ -23,10 +23,7 @@
       "const": "ndf-artifact-trust-identity-policy-v1"
     },
     "status": {
-      "enum": [
-        "provisional_until_live_certificate_observation",
-        "confirmed"
-      ]
+      "enum": ["provisional_until_live_certificate_observation", "confirmed"]
     },
     "issuer": {
       "const": "https://token.actions.githubusercontent.com"
@@ -108,10 +105,7 @@
       ],
       "properties": {
         "required_when_configured": {
-          "const": [
-            "job_workflow_ref",
-            "job_workflow_sha"
-          ]
+          "const": ["job_workflow_ref", "job_workflow_sha"]
         },
         "must_match_exactly": {
           "const": true
@@ -155,11 +149,7 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "enum": [
-              "product_image",
-              "candidate_image",
-              "pdd"
-            ]
+            "enum": ["product_image", "candidate_image", "pdd"]
           }
         },
         "certificate_identity": {
