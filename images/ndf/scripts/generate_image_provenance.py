@@ -18,7 +18,6 @@ from jsonschema import Draft202012Validator, ValidationError
 
 try:
     from .gate_image_publication import (
-        EVIDENCE_FILES,
         PublicationGateError,
         verify_publication_candidate,
     )
@@ -128,13 +127,16 @@ def _workflow_context(env: dict[str, str]) -> dict[str, Any]:
 def _source_revisions(
     inventory: dict[str, Any], provenance: dict[str, Any], verification: dict[str, Any]
 ) -> list[dict[str, str]]:
-    inventory_apps = [inventory.get("framework"), *inventory.get("applications", [])]
-    _require(all(isinstance(item, dict) for item in inventory_apps), "Build inventory has malformed application records.")
+    inventory_apps = inventory.get("applications")
+    framework = inventory.get("framework")
+    _require(isinstance(inventory_apps, list) and all(isinstance(item, dict) for item in inventory_apps), "Build inventory has malformed application records.")
+    _require(isinstance(framework, dict), "Build inventory framework record is missing.")
     inventory_by_name: dict[str, dict[str, Any]] = {}
     for item in inventory_apps:
         name = item.get("name")
         _require(isinstance(name, str) and name not in inventory_by_name, "Build inventory has missing or duplicate repository names.")
         inventory_by_name[name] = item
+    _require(inventory_by_name.get("frappe") == framework, "Build inventory framework record differs from the Frappe application record.")
 
     provenance_records = provenance.get("repositories")
     verification_records = verification.get("repositories")
@@ -264,7 +266,6 @@ def generate_image_provenance(
     lock_sha = sha256(lock_raw)
     _require(lock_sha == lock.get("sha256"), "Exact lock-v2 bytes differ from build metadata.")
     _require(lock_sha == gate_report.get("lock", {}).get("sha256"), "Exact lock-v2 bytes differ from publication gate.")
-    _require(sha256(inventory_raw) == evidence.get("evidence", [{}])[0].get("sha256") or True, "Unreachable")
     _require(evidence.get("status") == "bound", "Image verification evidence is not bound.")
     _require(evidence.get("image", {}).get("digest") == digest, "Image verification evidence is bound to another digest.")
     _require(evidence.get("lock", {}).get("sha256") == lock_sha, "Image verification evidence is bound to another lock.")
