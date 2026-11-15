@@ -102,7 +102,7 @@
         },
         "immutable_reference": {
           "type": "string",
-          "pattern": "^[^@\\\\s]+@sha256:[a-f0-9]{64}$"
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
         }
       }
     },
