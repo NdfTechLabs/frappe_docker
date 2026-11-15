@@ -208,14 +208,14 @@ def test_schema_accepts_profile_statement_shape():
 def synthetic_build(tmp_path, monkeypatch):
     build = tmp_path / "build"
     build.mkdir()
-    lock_bytes = b'{"lock_version":2,"product":{"id":"dalali-v16"}}\\n'
+    lock_bytes = b'{"lock_version":2,"product":{"id":"dalali-v16"}}\n'
     lock_sha = provenance.sha256(lock_bytes)
     digest = "sha256:" + "a" * 64
     candidate_ref = "ghcr.io/ndftechlabs/dalali:candidate-123-1"
     publication_ref = "ghcr.io/ndftechlabs/dalali:v16-" + "b" * 40
 
     def write(name, value):
-        raw = (json.dumps(value, indent=2, sort_keys=True) + "\\n").encode()
+        raw = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
         (build / name).write_bytes(raw)
         return raw
 
