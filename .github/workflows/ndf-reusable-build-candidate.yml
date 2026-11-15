@@ -89,7 +89,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - "$PREPARED_ROOT" "$CANDIDATE_ID" "$CANDIDATE_ARTIFACT_REF" "$CANDIDATE_PAYLOAD_SHA256" "$EXPECTED_LOCK_SHA256" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" <<'PY'
+          python - "$PREPARED_ROOT" "$CANDIDATE_ID" "$CANDIDATE_ARTIFACT_REF" "$CANDIDATE_PAYLOAD_SHA256" "$EXPECTED_LOCK_SHA256" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$IMAGE_ID" <<'PY'
           import hashlib
           import json
           import sys
@@ -124,7 +124,7 @@ jobs:
               if not path.is_file() or path.is_symlink():
                   raise SystemExit(f"Prepared artifact is missing a safe {name}.")
           metadata = json.loads((prepared / "build-metadata.json").read_text(encoding="utf-8"))
-          if metadata.get("image", {}).get("id") != "${{ inputs.image_id }}":
+          if metadata.get("image", {}).get("id") != sys.argv[8]:
               raise SystemExit("Prepared build metadata image ID mismatch.")
           if metadata.get("candidate") is None:
               raise SystemExit("Prepared build metadata has no candidate identity.")
@@ -222,15 +222,14 @@ jobs:
           with Path(sys.argv[2]).open("a", encoding="utf-8") as stream:
               stream.write(f"digest={digest}\n")
           PY
+          EXPECTED_DIGEST="$(python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["digest"])' "$BUILD_OUTPUT/build-result.json")"
           INSPECT_OUTPUT="$(docker buildx imagetools inspect "$STAGING_REF")"
           ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
           [[ "$ACTUAL_DIGEST" == "$EXPECTED_DIGEST" ]] || {
             echo "Staging tag digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
             exit 1
           }
-        env:
-          EXPECTED_DIGEST: ${{ steps.digest.outputs.digest }}
-
+ 
       - name: Pull exact candidate staging image
         env:
           STAGING_REF: ${{ steps.image.outputs.staging_ref }}
