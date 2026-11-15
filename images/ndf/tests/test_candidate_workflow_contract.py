@@ -87,3 +87,13 @@ def test_candidate_build_handoff_is_attempt_bound_and_digest_verified():
     assert "ndf-candidate-build-${{ github.run_id }}-${{ github.run_attempt }}" in reusable
     assert "containerimage.digest" in reusable
     assert "packages: write" in reusable
+
+
+def test_candidate_registry_inspection_is_authenticated_and_no_official_promotion_occurs():
+    reusable = read_workflow("ndf-reusable-build-candidate.yml")
+    login = reusable.index("Log in to GitHub Container Registry")
+    buildx = reusable.index("Set up Docker Buildx")
+    inspect = reusable.index("Ensure candidate staging tag is unused")
+    assert login < inspect
+    assert buildx < inspect
+    assert "docker buildx imagetools create" not in reusable
