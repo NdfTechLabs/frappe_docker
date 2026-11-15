@@ -77,7 +77,10 @@ def _strict_json(path: Path, label: str) -> dict[str, Any]:
 
 
 def _canonical_json(value: Any) -> bytes:
-    return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
+    return (
+        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        + "\n"
+    ).encode("utf-8")
 
 
 def _atomic_write(path: Path, raw: bytes) -> None:
@@ -87,7 +90,11 @@ def _atomic_write(path: Path, raw: bytes) -> None:
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
         ) as stream:
             temporary = Path(stream.name)
             stream.write(raw)
@@ -109,26 +116,33 @@ def parse_image_reference(image_ref: str) -> tuple[str, str]:
     return match.group("repository"), match.group("digest")
 
 
-def _load_product_identity(policy_path: Path = POLICY_PATH) -> tuple[dict[str, Any], dict[str, Any]]:
+def _load_product_identity(
+    policy_path: Path = POLICY_PATH,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     try:
         policy = artifact_trust.load_identity_policy(policy_path)
     except Exception as exc:
         raise CosignTrustError(f"Unable to load signer identity policy: {exc}") from exc
     matches = [
-        entry for entry in policy["identities"]
+        entry
+        for entry in policy["identities"]
         if entry["id"] == IDENTITY_ID and "product_image" in entry["artifact_kinds"]
     ]
     if len(matches) != 1:
         raise CosignTrustError("Product-image signer identity is missing or ambiguous.")
     entry = matches[0]
     if entry["reusable_workflow_ref"] is not None:
-        raise CosignTrustError("Product-image signer must be a direct workflow identity.")
+        raise CosignTrustError(
+            "Product-image signer must be a direct workflow identity."
+        )
     return policy, entry
 
 
 def _require_product_workflow(env: dict[str, str]) -> dict[str, Any]:
     if env.get("GITHUB_ACTIONS", "").lower() != "true":
-        raise CosignTrustError("Keyless signing is permitted only inside GitHub Actions.")
+        raise CosignTrustError(
+            "Keyless signing is permitted only inside GitHub Actions."
+        )
     try:
         return _workflow_context(env)
     except ImageProvenanceError as exc:
@@ -166,9 +180,7 @@ def _require_cosign_version(
     match = VERSION_RE.search(result.stdout + "\n" + result.stderr)
     if match is None or match.group(1) != COSIGN_VERSION:
         actual = match.group(1) if match else "unrecognized"
-        raise CosignTrustError(
-            f"Cosign {COSIGN_VERSION} is required; found {actual}."
-        )
+        raise CosignTrustError(f"Cosign {COSIGN_VERSION} is required; found {actual}.")
 
 
 def _workflow_identity_args(
@@ -176,12 +188,18 @@ def _workflow_identity_args(
 ) -> list[str]:
     verification = policy["verification"]
     return [
-        "--certificate-identity", identity["certificate_identity"],
-        "--certificate-oidc-issuer", policy["issuer"],
-        "--certificate-github-workflow-trigger", verification["required_event_name"],
-        "--certificate-github-workflow-repository", verification["required_repository"],
-        "--certificate-github-workflow-ref", verification["required_ref"],
-        "--certificate-github-workflow-sha", source_commit,
+        "--certificate-identity",
+        identity["certificate_identity"],
+        "--certificate-oidc-issuer",
+        policy["issuer"],
+        "--certificate-github-workflow-trigger",
+        verification["required_event_name"],
+        "--certificate-github-workflow-repository",
+        verification["required_repository"],
+        "--certificate-github-workflow-ref",
+        verification["required_ref"],
+        "--certificate-github-workflow-sha",
+        source_commit,
     ]
 
 
@@ -196,14 +214,18 @@ def _validate_statement(
         raise CosignTrustError("Provenance predicate type is not SLSA Provenance v1.")
     subject = statement["subject"]
     if len(subject) != 1 or subject[0]["name"] != repository:
-        raise CosignTrustError("Provenance subject repository does not match image reference.")
+        raise CosignTrustError(
+            "Provenance subject repository does not match image reference."
+        )
     workflow = statement["predicate"]["ndf_build"]["workflow"]
     if (
         workflow["repository"] != "NdfTechLabs/frappe_docker"
         or workflow["path"] != ".github/workflows/ndf-publish-product.yml"
         or workflow["ref"] != "refs/heads/main"
     ):
-        raise CosignTrustError("Provenance workflow identity is outside the product-image policy.")
+        raise CosignTrustError(
+            "Provenance workflow identity is outside the product-image policy."
+        )
     return report
 
 
@@ -226,23 +248,35 @@ def sign_image(
     predicate = _strict_json(predicate_path, "SLSA provenance predicate")
     _validate_statement(statement, repository=repository, digest=digest)
     if predicate != statement["predicate"]:
-        raise CosignTrustError("Predicate file does not exactly match the Statement predicate.")
+        raise CosignTrustError(
+            "Predicate file does not exactly match the Statement predicate."
+        )
     statement_workflow = statement["predicate"]["ndf_build"]["workflow"]
     if statement_workflow != workflow:
-        raise CosignTrustError("Provenance workflow metadata differs from runtime context.")
+        raise CosignTrustError(
+            "Provenance workflow metadata differs from runtime context."
+        )
     if policy["issuer"] != "https://token.actions.githubusercontent.com":
         raise CosignTrustError("Signer policy uses an unapproved OIDC issuer.")
     if identity["workflow_ref"] != (
         "NdfTechLabs/frappe_docker/.github/workflows/ndf-publish-product.yml@refs/heads/main"
     ):
-        raise CosignTrustError("Product-image workflow identity policy has changed unexpectedly.")
+        raise CosignTrustError(
+            "Product-image workflow identity policy has changed unexpectedly."
+        )
 
     _require_cosign_version(runner=runner, cosign_binary=cosign_binary)
     _run([cosign_binary, "sign", "--yes", image_ref], runner=runner, env=runtime_env)
     _run(
         [
-            cosign_binary, "attest", "--yes", "--type", PREDICATE_ALIAS,
-            "--predicate", str(predicate_path), image_ref,
+            cosign_binary,
+            "attest",
+            "--yes",
+            "--type",
+            PREDICATE_ALIAS,
+            "--predicate",
+            str(predicate_path),
+            image_ref,
         ],
         runner=runner,
         env=runtime_env,
@@ -319,7 +353,9 @@ def _parse_signature_output(stdout: str) -> None:
     values = _collect_json_values(stdout)
     signature_lists = [value for value in values if isinstance(value, list)]
     if not signature_lists or not any(signature_lists):
-        raise CosignTrustError("Cosign signature verification returned no verified signatures.")
+        raise CosignTrustError(
+            "Cosign signature verification returned no verified signatures."
+        )
 
 
 def verify_image(
@@ -338,9 +374,7 @@ def verify_image(
     # The source SHA is obtained from the verified Statement, not from the verifier's
     # own checkout or caller-supplied arguments. First verify the statement's signature
     # and then repeat the signature/attestation checks with its exact SHA claim.
-    initial_args = _workflow_identity_args(
-        policy, identity, "0" * 40
-    )
+    initial_args = _workflow_identity_args(policy, identity, "0" * 40)
     # The source SHA is not known before reading the attestation. Verify the signer
     # identity, issuer, trigger, repository and ref first; then enforce the SHA below
     # against the actual certificate claims exposed by the verified certificate.
@@ -351,13 +385,15 @@ def verify_image(
     )
     _parse_signature_output(signature_result.stdout)
 
-    attestation_args = _workflow_identity_args(
-        policy, identity, "0" * 40
-    )[:-2]
+    attestation_args = _workflow_identity_args(policy, identity, "0" * 40)[:-2]
     attestation_result = _run(
         [
-            cosign_binary, "verify-attestation", "--type", PREDICATE_ALIAS,
-            *attestation_args, image_ref,
+            cosign_binary,
+            "verify-attestation",
+            "--type",
+            PREDICATE_ALIAS,
+            *attestation_args,
+            image_ref,
         ],
         runner=runner,
     )
@@ -377,8 +413,12 @@ def verify_image(
     _parse_signature_output(signature_result.stdout)
     attestation_result = _run(
         [
-            cosign_binary, "verify-attestation", "--type", PREDICATE_ALIAS,
-            *exact_args, image_ref,
+            cosign_binary,
+            "verify-attestation",
+            "--type",
+            PREDICATE_ALIAS,
+            *exact_args,
+            image_ref,
         ],
         runner=runner,
     )
@@ -429,13 +469,20 @@ def verify_image(
             "status": "trusted" if trusted else "rejected",
             "reason_codes": [] if trusted else ["IDENTITY_POLICY_PROVISIONAL"],
         },
-        "verified_at": now.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "verified_at": now.astimezone(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
     }
     try:
         artifact_trust.validate_trust_verification_result(result)
     except Exception as exc:
-        raise CosignTrustError(f"Normalized trust result failed schema validation: {exc}") from exc
-    _atomic_write(result_output, (json.dumps(result, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+        raise CosignTrustError(
+            f"Normalized trust result failed schema validation: {exc}"
+        ) from exc
+    _atomic_write(
+        result_output,
+        (json.dumps(result, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
     if not trusted:
         raise CosignTrustError(
             "Cryptographic verification passed, but signer identity policy is provisional; "
