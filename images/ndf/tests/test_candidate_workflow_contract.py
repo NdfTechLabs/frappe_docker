@@ -84,7 +84,9 @@ def test_candidate_build_handoff_is_attempt_bound_and_digest_verified():
     assert "workflow_run_id" in reusable
     assert "workflow_run_attempt" in reusable
     assert "EXPECTED_LOCK_SHA256" in reusable
-    assert "ndf-candidate-build-${{ github.run_id }}-${{ github.run_attempt }}" in reusable
+    assert (
+        "ndf-candidate-build-${{ github.run_id }}-${{ github.run_attempt }}" in reusable
+    )
     assert '"$BUILD_OUTPUT/build-result.json"' in reusable
     assert 'result.get("pushed") is not True' in reusable
     assert 'result.get("output") != "registry"' in reusable

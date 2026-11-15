@@ -229,7 +229,7 @@ jobs:
             echo "Staging tag digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
             exit 1
           }
- 
+
       - name: Pull exact candidate staging image
         env:
           STAGING_REF: ${{ steps.image.outputs.staging_ref }}
