@@ -1,0 +1,334 @@
+name: NDF / Build Deployment Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_id:
+        description: DT Master deployment candidate ID
+        required: true
+        type: string
+      candidate_artifact_ref:
+        description: Immutable digest-pinned candidate OCI reference
+        required: true
+        type: string
+      candidate_payload_sha256:
+        description: SHA-256 of the exact candidate JSON layer bytes
+        required: true
+        type: string
+      correlation_id:
+        description: Optional DT Master correlation identifier
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ndf-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-gate:
+    name: Authorize candidate dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      EXPECTED_DISPATCH_ACTOR: ${{ vars.NDF_MASTER_DISPATCH_ACTOR }}
+      DISPATCH_ACTOR: ${{ github.actor }}
+      DISPATCH_REF: ${{ github.ref }}
+    steps:
+      - name: Enforce main ref and configured DT Master actor
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
+            echo "Candidate dispatch is restricted to refs/heads/main." >&2
+            exit 1
+          fi
+          if [[ -z "$EXPECTED_DISPATCH_ACTOR" ]]; then
+            echo "Repository variable NDF_MASTER_DISPATCH_ACTOR is not configured." >&2
+            exit 1
+          fi
+          if [[ "$DISPATCH_ACTOR" != "$EXPECTED_DISPATCH_ACTOR" ]]; then
+            echo "Candidate dispatch actor is not the configured DT Master GitHub App." >&2
+            exit 1
+          fi
+
+  prepare-candidate:
+    name: Intake and prepare candidate inputs
+    needs: dispatch-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    env:
+      CANDIDATE_ID: ${{ inputs.candidate_id }}
+      CANDIDATE_ARTIFACT_REF: ${{ inputs.candidate_artifact_ref }}
+      CANDIDATE_PAYLOAD_SHA256: ${{ inputs.candidate_payload_sha256 }}
+      CANDIDATE_ROOT: ${{ github.workspace }}/.ndf-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+      PREPARED_ARTIFACT_NAME: ndf-candidate-prepared-${{ github.run_id }}-${{ github.run_attempt }}
+    outputs:
+      prepared_artifact_name: ${{ steps.artifact-name.outputs.name }}
+      image_id: ${{ steps.adapter.outputs.image_id }}
+      lock_sha256: ${{ steps.adapter.outputs.lock_sha256 }}
+    steps:
+      - name: Checkout NDF validation code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@v2.0.3
+        with:
+          version: 1.3.6
+
+      - name: Create isolated attempt directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CANDIDATE_ROOT/intake" "$CANDIDATE_ROOT/prepared"
+
+      - name: Fetch and validate immutable candidate artifact
+        id: intake
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/intake_deployment_candidate.py \
+            --candidate-id "$CANDIDATE_ID" \
+            --artifact-reference "$CANDIDATE_ARTIFACT_REF" \
+            --payload-sha256 "$CANDIDATE_PAYLOAD_SHA256" \
+            --output "$CANDIDATE_ROOT/intake/deployment-candidate.json" \
+            | tee "$CANDIDATE_ROOT/intake/intake-report.json"
+
+      - name: Adapt candidate into existing lock-v2 build inputs
+        id: adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/adapt_candidate_to_lock.py \
+            --candidate "$CANDIDATE_ROOT/intake/deployment-candidate.json" \
+            --candidate-artifact-ref "$CANDIDATE_ARTIFACT_REF" \
+            --payload-sha256 "$CANDIDATE_PAYLOAD_SHA256" \
+            --output-dir "$CANDIDATE_ROOT/prepared" \
+            | tee "$CANDIDATE_ROOT/prepared/adapter-report.txt"
+
+          python - "$CANDIDATE_ROOT/prepared" "$GITHUB_OUTPUT" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          output = Path(sys.argv[2])
+          locks = sorted(root.glob("*.lock-v2.json"))
+          if len(locks) != 1:
+              raise SystemExit("Adapter must produce exactly one candidate lock-v2 file.")
+          metadata = json.loads((root / "build-metadata.json").read_text(encoding="utf-8"))
+          lock_hash = hashlib.sha256(locks[0].read_bytes()).hexdigest()
+          with output.open("a", encoding="utf-8") as stream:
+              stream.write(f"image_id={metadata['image']['id']}\n")
+              stream.write(f"lock_sha256={lock_hash}\n")
+          PY
+
+      - name: Record candidate handoff metadata
+        shell: bash
+        env:
+          CORRELATION_ID: ${{ inputs.correlation_id }}
+        run: |
+          set -euo pipefail
+          python - "$CANDIDATE_ROOT" "$CANDIDATE_ID" "$CANDIDATE_ARTIFACT_REF" "$CANDIDATE_PAYLOAD_SHA256" "$CORRELATION_ID" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          handoff = {
+              "candidate_id": sys.argv[2],
+              "candidate_artifact_ref": sys.argv[3],
+              "candidate_payload_sha256": sys.argv[4],
+              "correlation_id": sys.argv[5] or None,
+              "workflow_run_id": sys.argv[6],
+              "workflow_run_attempt": int(sys.argv[7]),
+          }
+          (root / "handoff.json").write_text(
+              json.dumps(handoff, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Export prepared artifact identity
+        id: artifact-name
+        shell: bash
+        run: echo "name=$PREPARED_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload prepared candidate build inputs
+        id: artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PREPARED_ARTIFACT_NAME }}
+          path: ${{ env.CANDIDATE_ROOT }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Write candidate preparation summary
+        if: success()
+        env:
+          IMAGE_ID: ${{ steps.adapter.outputs.image_id }}
+          LOCK_SHA256: ${{ steps.adapter.outputs.lock_sha256 }}
+        run: |
+          {
+            echo "## Candidate Intake and Preparation"
+            echo
+            echo "- Candidate: `$CANDIDATE_ID`"
+            echo "- Product image: `$IMAGE_ID`"
+            echo "- Candidate artifact: `$CANDIDATE_ARTIFACT_REF`"
+            echo "- Lock SHA-256: `$LOCK_SHA256`"
+            echo "- Prepared artifact: `$PREPARED_ARTIFACT_NAME`"
+            echo "- Workflow attempt: `$GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-candidate:
+    name: Build and verify candidate image
+    needs: prepare-candidate
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/ndf-reusable-build-candidate.yml
+    with:
+      prepared_artifact_name: ${{ needs.prepare-candidate.outputs.prepared_artifact_name }}
+      image_id: ${{ needs.prepare-candidate.outputs.image_id }}
+      candidate_id: ${{ inputs.candidate_id }}
+      candidate_artifact_ref: ${{ inputs.candidate_artifact_ref }}
+      candidate_payload_sha256: ${{ inputs.candidate_payload_sha256 }}
+      lock_sha256: ${{ needs.prepare-candidate.outputs.lock_sha256 }}
+
+  publish-candidate-pdd:
+    name: Verify and publish candidate PDD
+    needs: [prepare-candidate, build-candidate]
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    uses: ./.github/workflows/ndf-reusable-pdd-candidate.yml
+    with:
+      evidence_artifact_name: ${{ needs.build-candidate.outputs.evidence_artifact_name }}
+      image_id: ${{ needs.prepare-candidate.outputs.image_id }}
+      image_digest: ${{ needs.build-candidate.outputs.image_digest }}
+      candidate_id: ${{ inputs.candidate_id }}
+      candidate_artifact_ref: ${{ inputs.candidate_artifact_ref }}
+      candidate_payload_sha256: ${{ inputs.candidate_payload_sha256 }}
+      lock_sha256: ${{ needs.prepare-candidate.outputs.lock_sha256 }}
+      composition_hash: ${{ needs.build-candidate.outputs.composition_hash }}
+      built_at: ${{ needs.build-candidate.outputs.built_at }}
+      source_commit: ${{ github.sha }}
+      workflow_run_id: ${{ github.run_id }}
+      workflow_run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  publish-candidate-result:
+    name: Publish correlated candidate result
+    if: always()
+    needs:
+      - dispatch-gate
+      - prepare-candidate
+      - build-candidate
+      - publish-candidate-pdd
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    env:
+      CANDIDATE_ID: ${{ inputs.candidate_id }}
+      CANDIDATE_ARTIFACT_REF: ${{ inputs.candidate_artifact_ref }}
+      CANDIDATE_PAYLOAD_SHA256: ${{ inputs.candidate_payload_sha256 }}
+      CORRELATION_ID: ${{ inputs.correlation_id }}
+      DISPATCH_GATE_RESULT: ${{ needs.dispatch-gate.result }}
+      PREPARE_RESULT: ${{ needs.prepare-candidate.result }}
+      BUILD_RESULT: ${{ needs.build-candidate.result }}
+      PDD_RESULT: ${{ needs.publish-candidate-pdd.result }}
+      IMAGE_ID: ${{ needs.prepare-candidate.outputs.image_id }}
+      LOCK_SHA256: ${{ needs.prepare-candidate.outputs.lock_sha256 }}
+      IMAGE_DIGEST: ${{ needs.build-candidate.outputs.image_digest }}
+      COMPOSITION_HASH: ${{ needs.build-candidate.outputs.composition_hash }}
+      PDD_REFERENCE: ${{ needs.publish-candidate-pdd.outputs.pdd_artifact_reference }}
+      PDD_DIGEST: ${{ needs.publish-candidate-pdd.outputs.pdd_artifact_digest }}
+      PDD_CONTENT_SHA256: ${{ needs.publish-candidate-pdd.outputs.pdd_content_sha256 }}
+      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Checkout result contract and writer
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install result schema dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Resolve workflow start time
+        id: run-metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --jq '.run_started_at')"
+          test -n "$started_at"
+          echo "started_at=$started_at" >> "$GITHUB_OUTPUT"
+
+      - name: Generate and validate terminal result
+        id: result
+        env:
+          WORKFLOW_STARTED_AT: ${{ steps.run-metadata.outputs.started_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ndf-candidate-result"
+          python images/ndf/scripts/write_deployment_build_result.py \
+            --schema images/ndf/schemas/deployment-build-result-v1.schema.json \
+            --output "$RUNNER_TEMP/ndf-candidate-result/deployment-build-result.json"
+          python - "$RUNNER_TEMP/ndf-candidate-result/deployment-build-result.json" "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as summary:
+              summary.write("## Candidate Build Result\n\n")
+              summary.write(f"- Result: \x60{result['result_id']}\x60\n")
+              summary.write(f"- Candidate: \x60{result['candidate_id']}\x60\n")
+              summary.write(f"- Status: **{result['status']}**\n")
+              summary.write(f"- Attempt: \x60{result['workflow']['run_id']}/{result['workflow']['run_attempt']}\x60\n")
+              if result.get("failure"):
+                  summary.write(f"- Failure: \x60{result['failure']['code']}\x60 — {result['failure']['summary']}\n")
+          PY
+
+      - name: Upload immutable attempt result
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ndf-candidate-result/deployment-build-result.json
+          if-no-files-found: error
+          retention-days: 90

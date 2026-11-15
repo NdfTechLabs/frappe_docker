@@ -8,6 +8,7 @@ Local loading is the safe default. Registry publishing requires the explicit
 import argparse
 import hashlib
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -15,10 +16,20 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .prepare_build import BuildPreparationError, prepare_build
+    from .prepare_build import (
+        BuildPreparationError,
+        build_apps_json,
+        load_image_definition,
+        prepare_build,
+    )
     from .validate_base_inventory import InventoryError, validate_inventory_directory
 except ImportError:
-    from prepare_build import BuildPreparationError, prepare_build
+    from prepare_build import (
+        BuildPreparationError,
+        build_apps_json,
+        load_image_definition,
+        prepare_build,
+    )
     from validate_base_inventory import InventoryError, validate_inventory_directory
 
 
@@ -335,6 +346,130 @@ def execute_build(
     return metadata
 
 
+def load_prepared_candidate_inputs(
+    *,
+    ndf_dir: Path,
+    image_id: str,
+    definitions_relative_path: str,
+    prepared_inputs_dir: Path,
+    platforms: list[str],
+) -> dict[str, Any]:
+    """Load and cross-check candidate adapter outputs without regenerating a product lock."""
+    prepared_inputs_dir = prepared_inputs_dir.resolve()
+    if not prepared_inputs_dir.is_dir():
+        raise BuildPreparationError(
+            f"Prepared candidate input directory does not exist: {prepared_inputs_dir}"
+        )
+
+    _, image = load_image_definition(ndf_dir, definitions_relative_path, image_id)
+    lock_files = sorted(prepared_inputs_dir.glob("candidate-*.lock-v2.json"))
+    if len(lock_files) != 1 or lock_files[0].is_symlink():
+        raise BuildPreparationError(
+            "Prepared candidate inputs must contain exactly one regular candidate lock-v2 file."
+        )
+
+    lock_path = lock_files[0]
+    apps_path = prepared_inputs_dir / "apps.json"
+    metadata_path = prepared_inputs_dir / "build-metadata.json"
+    for path in (apps_path, metadata_path):
+        if not path.is_file() or path.is_symlink():
+            raise BuildPreparationError(
+                f"Prepared candidate input is missing or unsafe: {path.name}"
+            )
+
+    lock_bytes = lock_path.read_bytes()
+    lock_data = load_json(lock_path)
+    try:
+        apps_json = json.loads(apps_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BuildPreparationError(
+            f"Unable to read candidate apps.json: {exc}"
+        ) from exc
+    if not isinstance(apps_json, list):
+        raise BuildPreparationError("Candidate apps.json must contain a JSON array.")
+    metadata = load_json(metadata_path)
+    candidate = lock_data.get("candidate")
+
+    if not isinstance(candidate, dict) or not candidate.get("candidate_id"):
+        raise BuildPreparationError(
+            "Prepared lock does not contain candidate identity."
+        )
+    if not re.fullmatch(
+        r"ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}",
+        candidate.get("artifact_reference", ""),
+    ):
+        raise BuildPreparationError(
+            "Prepared lock has an invalid candidate artifact reference."
+        )
+    if not re.fullmatch(r"[a-f0-9]{64}", candidate.get("payload_sha256", "")):
+        raise BuildPreparationError(
+            "Prepared lock has an invalid candidate payload hash."
+        )
+    if lock_data.get("lock_version") != 2:
+        raise BuildPreparationError("Prepared candidate lock is not lock-v2.")
+    if lock_data.get("product", {}).get("id") != image_id:
+        raise BuildPreparationError(
+            "Candidate lock product does not match requested image."
+        )
+    if metadata.get("image", {}).get("id") != image_id:
+        raise BuildPreparationError("Candidate build metadata image ID mismatch.")
+    if metadata.get("image", {}).get("repository") != image["repository"]:
+        raise BuildPreparationError("Candidate build metadata repository mismatch.")
+    if metadata.get("image", {}).get("manifest") != image["manifest"]:
+        raise BuildPreparationError("Candidate build metadata manifest mismatch.")
+    if metadata.get("lock", {}).get("version") != 2:
+        raise BuildPreparationError(
+            "Candidate build metadata does not identify lock-v2."
+        )
+    if metadata.get("lock", {}).get("path") != lock_path.name:
+        raise BuildPreparationError("Candidate build metadata lock path mismatch.")
+
+    lock_sha256 = hashlib.sha256(lock_bytes).hexdigest()
+    if metadata.get("lock", {}).get("sha256") != lock_sha256:
+        raise BuildPreparationError(
+            "Candidate lock SHA-256 does not match build metadata."
+        )
+    if metadata.get("candidate") != candidate:
+        raise BuildPreparationError(
+            "Candidate identity differs between lock and metadata."
+        )
+    if metadata.get("framework") != lock_data.get("framework"):
+        raise BuildPreparationError(
+            "Candidate framework differs between lock and metadata."
+        )
+    if candidate.get("target_platforms") != platforms:
+        raise BuildPreparationError(
+            "Candidate target platforms do not match the requested Buildx platform."
+        )
+    for app in lock_data.get("applications", []):
+        commit = app.get("ref")
+        if (
+            not isinstance(commit, str)
+            or not re.fullmatch(r"[a-f0-9]{40}", commit)
+            or app.get("target_ref") != commit
+            or app.get("reference_kind") != "commit"
+            or app.get("resolved_ref") != commit
+        ):
+            raise BuildPreparationError(
+                f"Candidate lock application is not pinned to one immutable commit: {app.get('name')}"
+            )
+
+    if apps_json != build_apps_json(lock_data):
+        raise BuildPreparationError(
+            "Candidate apps.json does not match immutable lock-v2 application pins."
+        )
+
+    return {
+        "image": image,
+        "framework": lock_data["framework"],
+        "lock_path": lock_path,
+        "apps_json_path": apps_path,
+        "metadata_path": metadata_path,
+        "applications_count": len(lock_data.get("applications", [])),
+        "bench_apps_count": len(apps_json),
+    }
+
+
 def build_image(
     *,
     repository_root: Path,
@@ -344,6 +479,7 @@ def build_image(
     push: bool = False,
     definitions_relative_path: str = "image-definitions/images-v1.json",
     output_dir: Path | None = None,
+    prepared_inputs_dir: Path | None = None,
     platform: str | None = None,
     no_cache: bool = False,
     builder: str | None = None,
@@ -369,12 +505,29 @@ def build_image(
 
     base_images = resolve_base_images(ndf_dir, platforms)
 
-    prepared = prepare_build(
-        ndf_dir=ndf_dir,
-        image_id=image_id,
-        definitions_relative_path=definitions_relative_path,
-        output_dir=output_dir,
-    )
+    if prepared_inputs_dir is not None:
+        if output_dir is not None:
+            raise BuildExecutionError(
+                "Use either --output-dir for normal preparation or "
+                "--prepared-inputs-dir for candidate inputs, not both."
+            )
+        try:
+            prepared = load_prepared_candidate_inputs(
+                ndf_dir=ndf_dir,
+                image_id=image_id,
+                definitions_relative_path=definitions_relative_path,
+                prepared_inputs_dir=prepared_inputs_dir,
+                platforms=platforms,
+            )
+        except BuildPreparationError as exc:
+            raise BuildExecutionError(str(exc)) from exc
+    else:
+        prepared = prepare_build(
+            ndf_dir=ndf_dir,
+            image_id=image_id,
+            definitions_relative_path=definitions_relative_path,
+            output_dir=output_dir,
+        )
 
     metadata = load_json(prepared["metadata_path"])
     lock_data = load_json(prepared["lock_path"])
@@ -492,6 +645,11 @@ def main() -> int:
         help="Image definitions path relative to images/ndf.",
     )
     parser.add_argument(
+        "--prepared-inputs-dir",
+        type=Path,
+        help="Use validated candidate lock-v2/apps.json/build-metadata inputs from this directory.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         help="Build-input output directory (defaults to images/ndf/.build/<image-id>).",
@@ -547,6 +705,7 @@ def main() -> int:
             push=args.push,
             definitions_relative_path=args.definitions,
             output_dir=args.output_dir,
+            prepared_inputs_dir=args.prepared_inputs_dir,
             platform=args.platform,
             no_cache=args.no_cache,
             builder=args.builder,

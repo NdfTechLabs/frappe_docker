@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/deployment-build-result-v1.schema.json",
+  "title": "NDF Deployment Build Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "result_id",
+    "candidate_id",
+    "candidate_artifact_ref",
+    "candidate_artifact_digest",
+    "workflow",
+    "status",
+    "started_at",
+    "candidate_payload_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "result_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_artifact_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_artifact_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "workflow_name",
+        "run_id",
+        "source_commit",
+        "run_attempt"
+      ],
+      "properties": {
+        "repository": {
+          "const": "NdfTechLabs/frappe_docker"
+        },
+        "workflow_name": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "run_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "status": {
+      "enum": ["queued", "in_progress", "succeeded", "failed", "cancelled"]
+    },
+    "composition_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "resolved_lock_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "digest"],
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "digest", "content_hash"],
+      "properties": {
+        "reference": {
+          "type": "string"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "content_hash": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "provenance_ref": {
+      "type": "string"
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "summary"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]+$"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "candidate_payload_sha256": {
+      "$ref": "#/$defs/hash"
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "succeeded"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "required": [
+          "composition_hash",
+          "resolved_lock_hash",
+          "image",
+          "descriptor",
+          "provenance_ref",
+          "completed_at"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["failed", "cancelled"]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["failure", "completed_at"]
+      }
+    }
+  ]
+}

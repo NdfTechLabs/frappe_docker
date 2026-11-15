@@ -1,0 +1,275 @@
+name: NDF / Reusable Candidate PDD Verification and Publication
+
+on:
+  workflow_call:
+    inputs:
+      evidence_artifact_name:
+        description: Exact attempt-scoped candidate image evidence artifact
+        required: true
+        type: string
+      image_id:
+        description: Product image identity from the validated adapter
+        required: true
+        type: string
+      image_digest:
+        description: Verified immutable staging image digest
+        required: true
+        type: string
+      candidate_id:
+        description: Candidate identity from the dispatch envelope
+        required: true
+        type: string
+      candidate_artifact_ref:
+        description: Digest-pinned candidate OCI reference
+        required: true
+        type: string
+      candidate_payload_sha256:
+        description: Exact candidate JSON payload SHA-256
+        required: true
+        type: string
+      lock_sha256:
+        description: Exact adapter-generated lock-v2 SHA-256
+        required: true
+        type: string
+      composition_hash:
+        description: Candidate composition hash carried by the adapter
+        required: true
+        type: string
+      built_at:
+        description: UTC timestamp captured immediately after image build
+        required: true
+        type: string
+      source_commit:
+        description: Full Git commit SHA used by the candidate workflow
+        required: true
+        type: string
+      workflow_run_id:
+        description: Parent candidate workflow run ID
+        required: true
+        type: string
+      workflow_run_url:
+        description: Parent candidate workflow URL
+        required: true
+        type: string
+    outputs:
+      pdd_artifact_reference:
+        description: Immutable OCI reference of the published PDD artifact
+        value: ${{ jobs.publish.outputs.pdd_artifact_reference }}
+      pdd_artifact_digest:
+        description: OCI manifest digest of the published PDD artifact
+        value: ${{ jobs.publish.outputs.pdd_artifact_digest }}
+      pdd_content_sha256:
+        description: Canonical PDD content SHA-256
+        value: ${{ jobs.publish.outputs.pdd_content_sha256 }}
+      publication_receipt_artifact_name:
+        description: Attempt-scoped publication receipt artifact
+        value: ${{ jobs.publish.outputs.receipt_artifact_name }}
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Verify and publish candidate PDD
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    outputs:
+      pdd_artifact_reference: ${{ steps.publish.outputs.immutable_reference }}
+      pdd_artifact_digest: ${{ steps.publish.outputs.artifact_digest }}
+      pdd_content_sha256: ${{ steps.publish.outputs.content_sha256 }}
+      receipt_artifact_name: ${{ steps.receipt-name.outputs.name }}
+    env:
+      EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
+      IMAGE_ID: ${{ inputs.image_id }}
+      EXPECTED_IMAGE_DIGEST: ${{ inputs.image_digest }}
+      CANDIDATE_ID: ${{ inputs.candidate_id }}
+      CANDIDATE_ARTIFACT_REF: ${{ inputs.candidate_artifact_ref }}
+      CANDIDATE_PAYLOAD_SHA256: ${{ inputs.candidate_payload_sha256 }}
+      EXPECTED_LOCK_SHA256: ${{ inputs.lock_sha256 }}
+      EXPECTED_COMPOSITION_HASH: ${{ inputs.composition_hash }}
+      BUILT_AT: ${{ inputs.built_at }}
+      SOURCE_COMMIT: ${{ inputs.source_commit }}
+      SOURCE_RUN_ID: ${{ inputs.workflow_run_id }}
+      SOURCE_RUN_URL: ${{ inputs.workflow_run_url }}
+      EVIDENCE_DIR: ${{ github.workspace }}/.ndf-candidate-pdd-evidence
+      PUBLICATION_RECORD: ${{ github.workspace }}/.ndf-candidate-pdd-publication-record.json
+    steps:
+      - name: Checkout NDF PDD verification and publication code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install PDD validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@v2.0.3
+        with:
+          version: 1.3.6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Download exact candidate image evidence
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.evidence_artifact_name }}
+          path: ${{ env.EVIDENCE_DIR }}
+
+      - name: Validate candidate identity, image digest and composition handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$EVIDENCE_DIR" "$IMAGE_ID" "$EXPECTED_IMAGE_DIGEST" "$CANDIDATE_ID" "$CANDIDATE_ARTIFACT_REF" "$CANDIDATE_PAYLOAD_SHA256" "$EXPECTED_LOCK_SHA256" "$EXPECTED_COMPOSITION_HASH" "$SOURCE_RUN_ID" <<'PY'
+          import hashlib
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve()
+          image_id, image_digest = sys.argv[2:4]
+          candidate_id, candidate_ref, payload_sha = sys.argv[4:7]
+          expected_lock, expected_composition, run_id = sys.argv[7:10]
+          if not re.fullmatch(r"sha256:[a-f0-9]{64}", image_digest):
+              raise SystemExit("Expected image digest is invalid.")
+          result = json.loads((root / "build-result.json").read_text(encoding="utf-8"))
+          metadata = json.loads((root / "build-metadata.json").read_text(encoding="utf-8"))
+          composition = json.loads((root / "candidate-composition.json").read_text(encoding="utf-8"))
+          locks = list(root.glob(f"{image_id}.lock-v2.json"))
+          if len(locks) != 1 or locks[0].is_symlink():
+              raise SystemExit("Candidate evidence must contain exactly one safe image lock-v2.")
+          lock_sha = hashlib.sha256(locks[0].read_bytes()).hexdigest()
+          candidate = metadata.get("candidate") or {}
+          checks = {
+              "build result image ID": result.get("image_id") == image_id,
+              "build result digest": result.get("digest") == image_digest,
+              "build result pushed": result.get("pushed") is True,
+              "build result output": result.get("output") == "registry",
+              "metadata image ID": metadata.get("image", {}).get("id") == image_id,
+              "candidate ID": candidate.get("candidate_id") == candidate_id,
+              "candidate artifact reference": candidate.get("artifact_reference") == candidate_ref,
+              "candidate payload SHA-256": candidate.get("payload_sha256") == payload_sha,
+              "composition candidate ID": composition.get("candidate_id") == candidate_id,
+              "composition artifact reference": composition.get("candidate_artifact_ref") == candidate_ref,
+              "composition payload SHA-256": composition.get("candidate_payload_sha256") == payload_sha,
+              "composition hash": composition.get("composition_hash") == expected_composition,
+              "composition lock hash": composition.get("lock_sha256") == expected_lock,
+              "lock bytes SHA-256": lock_sha == expected_lock,
+          }
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit("Candidate PDD handoff validation failed: " + ", ".join(failed))
+          print(f"Candidate evidence validated for {candidate_id} / {run_id}")
+          PY
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate ORAS to GHCR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Generate candidate Product Deployment Descriptor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/generate_product_deployment_descriptor.py \
+            --build-output-dir "$EVIDENCE_DIR" \
+            --source-commit "$SOURCE_COMMIT" \
+            --workflow-run-id "$SOURCE_RUN_ID" \
+            --built-at "$BUILT_AT" \
+            --workflow-run-url "$SOURCE_RUN_URL" \
+            --output "$EVIDENCE_DIR/product-deployment.json"
+
+      - name: Independently validate candidate Product Deployment Descriptor
+        run: |
+          python images/ndf/scripts/validate_product_deployment_descriptor.py \
+            --descriptor "$EVIDENCE_DIR/product-deployment.json"
+
+      - name: Verify exact evidence bytes and OCI image binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/verify_product_deployment_binding.py \
+            --descriptor "$EVIDENCE_DIR/product-deployment.json" \
+            --evidence-dir "$EVIDENCE_DIR" \
+            | tee "$EVIDENCE_DIR/binding-verification.json"
+
+      - name: Publish verified PDD and complete evidence bundle
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/publish_product_deployment_descriptor.py \
+            --descriptor "$EVIDENCE_DIR/product-deployment.json" \
+            --evidence-dir "$EVIDENCE_DIR" \
+            --publication-record "$PUBLICATION_RECORD"
+          python - "$PUBLICATION_RECORD" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          receipt = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          artifact = receipt["artifact"]
+          descriptor = receipt["descriptor"]
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as output:
+              output.write(f"immutable_reference={artifact['immutable_reference']}\n")
+              output.write(f"artifact_digest={artifact['digest']}\n")
+              output.write(f"content_sha256={descriptor['content_sha256']}\n")
+          PY
+
+      - name: Export publication receipt artifact identity
+        id: receipt-name
+        run: echo "name=ndf-candidate-pdd-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload candidate PDD and publication receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-candidate-pdd-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.EVIDENCE_DIR }}/product-deployment.json
+            ${{ env.EVIDENCE_DIR }}/binding-verification.json
+            ${{ env.PUBLICATION_RECORD }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Write candidate PDD publication summary
+        if: success()
+        env:
+          PDD_REFERENCE: ${{ steps.publish.outputs.immutable_reference }}
+          PDD_DIGEST: ${{ steps.publish.outputs.artifact_digest }}
+          PDD_CONTENT_SHA256: ${{ steps.publish.outputs.content_sha256 }}
+        run: |
+          {
+            echo "## Candidate PDD Verification and Publication"
+            echo
+            echo "- Candidate: `$CANDIDATE_ID`"
+            echo "- Image: `$IMAGE_ID`"
+            echo "- Image digest: `$EXPECTED_IMAGE_DIGEST`"
+            echo "- PDD artifact: `$PDD_REFERENCE`"
+            echo "- PDD OCI digest: `$PDD_DIGEST`"
+            echo "- PDD content SHA-256: `$PDD_CONTENT_SHA256`"
+            echo "- Official product tag promotion: **not performed**"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,328 @@
+name: NDF / Reusable Candidate Image Build and Verification
+
+on:
+  workflow_call:
+    inputs:
+      prepared_artifact_name:
+        description: Attempt-scoped prepared candidate artifact
+        required: true
+        type: string
+      image_id:
+        description: NDF image ID produced by the validated adapter
+        required: true
+        type: string
+      candidate_id:
+        description: Candidate identity from the authenticated dispatch envelope
+        required: true
+        type: string
+      candidate_artifact_ref:
+        description: Digest-pinned candidate OCI artifact reference
+        required: true
+        type: string
+      candidate_payload_sha256:
+        description: Exact candidate JSON layer SHA-256
+        required: true
+        type: string
+      lock_sha256:
+        description: Adapter-generated lock-v2 SHA-256
+        required: true
+        type: string
+    outputs:
+      image_digest:
+        description: Verified immutable staging image digest
+        value: ${{ jobs.build-verify.outputs.image_digest }}
+      evidence_artifact_name:
+        description: Attempt-scoped image verification evidence artifact
+        value: ${{ jobs.build-verify.outputs.evidence_artifact_name }}
+      built_at:
+        description: UTC timestamp recorded immediately after the candidate image build
+        value: ${{ jobs.build-verify.outputs.built_at }}
+      composition_hash:
+        description: Candidate composition hash carried by the prepared adapter output
+        value: ${{ jobs.build-verify.outputs.composition_hash }}
+
+permissions:
+  contents: read
+
+jobs:
+  build-verify:
+    name: Build and verify candidate image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_digest: ${{ steps.digest.outputs.digest }}
+      evidence_artifact_name: ${{ steps.artifact-name.outputs.name }}
+      built_at: ${{ steps.build.outputs.built_at }}
+      composition_hash: ${{ steps.handoff.outputs.composition_hash }}
+    env:
+      IMAGE_ID: ${{ inputs.image_id }}
+      CANDIDATE_ID: ${{ inputs.candidate_id }}
+      CANDIDATE_ARTIFACT_REF: ${{ inputs.candidate_artifact_ref }}
+      CANDIDATE_PAYLOAD_SHA256: ${{ inputs.candidate_payload_sha256 }}
+      EXPECTED_LOCK_SHA256: ${{ inputs.lock_sha256 }}
+      PREPARED_ARTIFACT_NAME: ${{ inputs.prepared_artifact_name }}
+      PREPARED_ROOT: ${{ github.workspace }}/.ndf-candidate-prepared
+      BUILD_OUTPUT: ${{ github.workspace }}/.ndf-candidate-build
+    steps:
+      - name: Checkout NDF build and verification code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install build and validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Run NDF regression tests before candidate build
+        run: python -m pytest -q images/ndf/tests/
+
+      - name: Download attempt-scoped prepared candidate inputs
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.prepared_artifact_name }}
+          path: ${{ env.PREPARED_ROOT }}
+
+      - name: Validate prepared handoff identity and contents
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$PREPARED_ROOT" "$CANDIDATE_ID" "$CANDIDATE_ARTIFACT_REF" "$CANDIDATE_PAYLOAD_SHA256" "$EXPECTED_LOCK_SHA256" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$IMAGE_ID" "$GITHUB_OUTPUT" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve()
+          expected = {
+              "candidate_id": sys.argv[2],
+              "candidate_artifact_ref": sys.argv[3],
+              "candidate_payload_sha256": sys.argv[4],
+              "workflow_run_id": sys.argv[6],
+              "workflow_run_attempt": int(sys.argv[7]),
+          }
+          for path in root.rglob("*"):
+              if path.is_symlink():
+                  raise SystemExit(f"Prepared artifact contains symlink: {path.relative_to(root)}")
+          handoff_path = root / "handoff.json"
+          if not handoff_path.is_file():
+              raise SystemExit("Prepared artifact is missing handoff.json.")
+          handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+          if any(handoff.get(key) != value for key, value in expected.items()):
+              raise SystemExit("Prepared handoff identity differs from the current workflow attempt.")
+          prepared = root / "prepared"
+          locks = list(prepared.glob("candidate-*.lock-v2.json"))
+          if len(locks) != 1 or not locks[0].is_file():
+              raise SystemExit("Prepared artifact must contain exactly one candidate lock-v2.")
+          lock_sha = hashlib.sha256(locks[0].read_bytes()).hexdigest()
+          if lock_sha != sys.argv[5]:
+              raise SystemExit("Prepared lock-v2 SHA-256 differs from the adapter handoff.")
+          for name in ("apps.json", "build-metadata.json", "candidate-composition.json"):
+              path = prepared / name
+              if not path.is_file() or path.is_symlink():
+                  raise SystemExit(f"Prepared artifact is missing a safe {name}.")
+          metadata = json.loads((prepared / "build-metadata.json").read_text(encoding="utf-8"))
+          if metadata.get("image", {}).get("id") != sys.argv[8]:
+              raise SystemExit("Prepared build metadata image ID mismatch.")
+          if metadata.get("candidate") is None:
+              raise SystemExit("Prepared build metadata has no candidate identity.")
+          composition = json.loads((prepared / "candidate-composition.json").read_text(encoding="utf-8"))
+          candidate = metadata["candidate"]
+          if candidate.get("candidate_id") != expected["candidate_id"]:
+              raise SystemExit("Prepared build metadata candidate ID mismatch.")
+          if candidate.get("artifact_reference") != expected["candidate_artifact_ref"]:
+              raise SystemExit("Prepared build metadata candidate artifact reference mismatch.")
+          if candidate.get("payload_sha256") != expected["candidate_payload_sha256"]:
+              raise SystemExit("Prepared build metadata candidate payload hash mismatch.")
+          if composition.get("candidate_id") != expected["candidate_id"]:
+              raise SystemExit("Candidate composition mapping identity mismatch.")
+          if composition.get("lock_sha256") != lock_sha:
+              raise SystemExit("Candidate composition mapping lock hash mismatch.")
+          with open(sys.argv[9], "a", encoding="utf-8") as output:
+              output.write(f"composition_hash={composition['composition_hash']}\n")
+          print(f"Prepared candidate verified: {expected['candidate_id']}")
+          print(f"Lock SHA-256: {lock_sha}")
+          PY
+
+      - name: Resolve immutable image repository and staging identity
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/resolve_publish_target.py \
+            --image "$IMAGE_ID" \
+            --sha "$GITHUB_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+          IMAGE_REPOSITORY="$(awk -F= '$1 == "repository" { value=$2 } END { print value }' "$GITHUB_OUTPUT")"
+          IMAGE_REF="$(awk -F= '$1 == "image_ref" { value=$2 } END { print value }' "$GITHUB_OUTPUT")"
+          [[ -n "$IMAGE_REPOSITORY" && -n "$IMAGE_REF" ]] || {
+            echo "Unable to resolve configured image repository and source reference." >&2
+            exit 1
+          }
+          STAGING_TAG="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "repository=$IMAGE_REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "image_ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+          echo "staging_tag=$STAGING_TAG" >> "$GITHUB_OUTPUT"
+          echo "staging_ref=$IMAGE_REPOSITORY:$STAGING_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Ensure candidate staging tag is unused
+        env:
+          STAGING_REF: ${{ steps.image.outputs.staging_ref }}
+        run: |
+          set -euo pipefail
+          if output="$(docker buildx imagetools inspect "$STAGING_REF" 2>&1)"; then
+            echo "Candidate staging tag already exists: $STAGING_REF" >&2
+            exit 1
+          fi
+          if ! grep -Eqi 'not found|manifest unknown|404' <<< "$output"; then
+            echo "Unable to prove candidate staging tag is absent: $STAGING_REF" >&2
+            echo "$output" >&2
+            exit 1
+          fi
+
+      - name: Build candidate image from prepared lock-v2 inputs
+        id: build
+        env:
+          STAGING_TAG: ${{ steps.image.outputs.staging_tag }}
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/build_image.py \
+            --image "$IMAGE_ID" \
+            --tag "$STAGING_TAG" \
+            --platform linux/amd64 \
+            --prepared-inputs-dir "$PREPARED_ROOT/prepared" \
+            --cache-from "type=gha,scope=ndf-candidate-$IMAGE_ID" \
+            --cache-to "type=gha,mode=max,scope=ndf-candidate-$IMAGE_ID" \
+            --progress plain \
+            --push
+          BUILT_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "built_at=$BUILT_AT" >> "$GITHUB_OUTPUT"
+          mkdir -p "$BUILD_OUTPUT"
+          cp -a "$PREPARED_ROOT/prepared/." "$BUILD_OUTPUT/"
+          LOCK_FILE="$(find "$BUILD_OUTPUT" -maxdepth 1 -type f -name 'candidate-*.lock-v2.json' -print)"
+          [[ -n "$LOCK_FILE" ]] || { echo "Candidate lock-v2 missing after build." >&2; exit 1; }
+          [[ "$(printf '%s\n' "$LOCK_FILE" | wc -l)" -eq 1 ]] || {
+            echo "Expected exactly one candidate lock-v2 after build." >&2
+            exit 1
+          }
+          mv "$LOCK_FILE" "$BUILD_OUTPUT/$IMAGE_ID.lock-v2.json"
+
+      - name: Verify staging digest metadata
+        id: digest
+        env:
+          STAGING_REF: ${{ steps.image.outputs.staging_ref }}
+        run: |
+          set -euo pipefail
+          python - "$BUILD_OUTPUT/build-result.json" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          digest = result.get("digest")
+          if result.get("pushed") is not True or result.get("output") != "registry":
+              raise SystemExit("Build result does not confirm a registry push.")
+          if not isinstance(digest, str) or not digest.startswith("sha256:") or len(digest) != 71:
+              raise SystemExit("Buildx did not return a valid image digest.")
+          with Path(sys.argv[2]).open("a", encoding="utf-8") as stream:
+              stream.write(f"digest={digest}\n")
+          PY
+          EXPECTED_DIGEST="$(python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["digest"])' "$BUILD_OUTPUT/build-result.json")"
+          INSPECT_OUTPUT="$(docker buildx imagetools inspect "$STAGING_REF")"
+          ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
+          [[ "$ACTUAL_DIGEST" == "$EXPECTED_DIGEST" ]] || {
+            echo "Staging tag digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
+            exit 1
+          }
+
+      - name: Pull exact candidate staging image
+        env:
+          STAGING_REF: ${{ steps.image.outputs.staging_ref }}
+        run: docker pull "$STAGING_REF"
+
+      - name: Validate candidate image contents and metadata
+        env:
+          STAGING_REF: ${{ steps.image.outputs.staging_ref }}
+        run: |
+          set -euo pipefail
+          python images/ndf/scripts/validate_image.py \
+            --image "$STAGING_REF" \
+            --metadata "$BUILD_OUTPUT/build-metadata.json" \
+            --lock "$BUILD_OUTPUT/$IMAGE_ID.lock-v2.json" \
+            --buildx-metadata "$BUILD_OUTPUT/buildx-metadata.json" \
+            --inventory-output "$BUILD_OUTPUT/build-inventory.json" \
+            --apps-json "$BUILD_OUTPUT/apps.json" \
+            --composition-output "$BUILD_OUTPUT/image-composition-verification.json" \
+            --verification-evidence-output "$BUILD_OUTPUT/image-verification-evidence.json" \
+            --evidence-output "$BUILD_OUTPUT/build-evidence.json" \
+            --source-provenance-output "$BUILD_OUTPUT/source-provenance.json" \
+            --source-provenance-verification-output "$BUILD_OUTPUT/source-provenance-verification.json" \
+            --post-cleanup-verification-output "$BUILD_OUTPUT/source-tree-verification-post-cleanup.json" \
+            --runtime-verification-output "$BUILD_OUTPUT/source-tree-verification-runtime.json" \
+            --report "$BUILD_OUTPUT/image-validation.json"
+
+      - name: Enforce candidate image publication evidence gate
+        env:
+          STAGING_REF: ${{ steps.image.outputs.staging_ref }}
+          PUBLICATION_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          FRAMEWORK_MAJOR="$(python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["framework"]["version"].split(".")[0])' "$BUILD_OUTPUT/build-metadata.json")"
+          python images/ndf/scripts/gate_image_publication.py \
+            --build-output-dir "$BUILD_OUTPUT" \
+            --image-id "$IMAGE_ID" \
+            --source-sha "$GITHUB_SHA" \
+            --framework-major "$FRAMEWORK_MAJOR" \
+            --candidate-image-ref "$STAGING_REF" \
+            --publication-image-ref "$PUBLICATION_REF" \
+            --report "$BUILD_OUTPUT/publication-gate.json"
+
+      - name: Export evidence artifact identity
+        id: artifact-name
+        run: echo "name=ndf-candidate-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verified candidate image evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-candidate-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.BUILD_OUTPUT }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Write candidate image verification summary
+        if: success()
+        env:
+          STAGING_REF: ${{ steps.image.outputs.staging_ref }}
+          IMAGE_DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          {
+            echo "## Candidate Image Build and Verification"
+            echo
+            echo "- Candidate: `$CANDIDATE_ID`"
+            echo "- Product: `$IMAGE_ID`"
+            echo "- Staging image: `$STAGING_REF`"
+            echo "- Immutable digest: `$IMAGE_DIGEST`"
+            echo "- Lock SHA-256: `$EXPECTED_LOCK_SHA256`"
+            echo "- Official product tag promotion: **not performed**"
+          } >> "$GITHUB_STEP_SUMMARY"
