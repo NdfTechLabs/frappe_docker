@@ -61,7 +61,7 @@ def test_pdd_source_ownership_checks_remain_intact():
     assert ".github/workflows/ndf-publish-product.yml" in publication
     assert ".github/workflows/ndf-verify-product-deployment-binding.yml" in publication
 
- 
+
 def test_candidate_build_consumes_prepared_inputs_and_never_promotes_official_tag():
     entry = read_workflow("ndf-build-candidate.yml")
     reusable = read_workflow("ndf-reusable-build-candidate.yml")
@@ -85,7 +85,12 @@ def test_candidate_build_handoff_is_attempt_bound_and_digest_verified():
     assert "workflow_run_attempt" in reusable
     assert "EXPECTED_LOCK_SHA256" in reusable
     assert "ndf-candidate-build-${{ github.run_id }}-${{ github.run_attempt }}" in reusable
-    assert "containerimage.digest" in reusable
+    assert '"$BUILD_OUTPUT/build-result.json"' in reusable
+    assert 'result.get("pushed") is not True' in reusable
+    assert 'result.get("output") != "registry"' in reusable
+    assert 'result.get("digest")' in reusable
+    assert 'docker buildx imagetools inspect "$STAGING_REF"' in reusable
+    assert 'ACTUAL_DIGEST" == "$EXPECTED_DIGEST"' in reusable
     assert "packages: write" in reusable
 
 
