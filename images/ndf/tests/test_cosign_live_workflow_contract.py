@@ -13,7 +13,7 @@ def test_live_signing_is_confined_to_existing_product_workflow_identity():
     assert "name: NDF / Publish Product Images" in workflow
     assert "workflow_dispatch:" in workflow
     assert "sign-trust:" in workflow
-    assert "if: ${{ inputs.publish == false }}" in workflow
+    assert "if: ${{ inputs.publish == false && inputs.product != 'all' && github.ref == 'refs/heads/main' }}" in workflow
     assert "needs: [prepare, publish]" in workflow
 
 
