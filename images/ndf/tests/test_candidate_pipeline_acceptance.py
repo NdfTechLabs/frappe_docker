@@ -57,8 +57,8 @@ def test_image_build_outputs_are_bound_to_the_pdd_stage():
     build = workflow("ndf-reusable-build-candidate.yml")
     pdd = workflow("ndf-reusable-pdd-candidate.yml")
 
-    assert "image_digest: ${{ jobs.build-verify.outputs.image_digest }}" in build
-    assert "composition_hash: ${{ jobs.build-verify.outputs.composition_hash }}" in build
+    assert "value: ${{ jobs.build-verify.outputs.image_digest }}" in build
+    assert "value: ${{ jobs.build-verify.outputs.composition_hash }}" in build
     assert "image_digest: ${{ needs.build-candidate.outputs.image_digest }}" in entry
     assert "composition_hash: ${{ needs.build-candidate.outputs.composition_hash }}" in entry
     assert "EXPECTED_IMAGE_DIGEST: ${{ inputs.image_digest }}" in pdd
