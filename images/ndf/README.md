@@ -134,7 +134,7 @@ Current relevant components include:
 
 ### M4.2.7 — Candidate-Driven CI/CD
 
-**Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter implementation committed, verification pending; M4.2.7.4 orchestration design recorded.
+**Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter complete and locally verified (472 full-suite tests passed); M4.2.7.4 orchestration design recorded.
 
 - [M4.2.7 Readiness Audit](M4.2.7-READINESS-AUDIT.md) — NDF workflow/artifact audit and read-only reconciliation of the accepted DT Master/DT Tenant contracts.
 - [M4.2.7 Implementation Plan](M4.2.7-IMPLEMENTATION-PLAN.md) — NDF-only work packages, candidate/result contract, acceptance criteria, security boundaries and implementation dependencies.
