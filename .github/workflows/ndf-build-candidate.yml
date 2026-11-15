@@ -71,7 +71,7 @@ jobs:
       CANDIDATE_ROOT: ${{ runner.temp }}/ndf-candidate-${{ github.run_id }}-${{ github.run_attempt }}
       PREPARED_ARTIFACT_NAME: ndf-candidate-prepared-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
-      prepared_artifact_name: ${{ steps.artifact.outputs.name }}
+      prepared_artifact_name: ${{ steps.artifact-name.outputs.name }}
       image_id: ${{ steps.adapter.outputs.image_id }}
       lock_sha256: ${{ steps.adapter.outputs.lock_sha256 }}
     steps:
@@ -170,6 +170,11 @@ jobs:
               encoding="utf-8",
           )
           PY
+
+      - name: Export prepared artifact identity
+        id: artifact-name
+        shell: bash
+        run: echo "name=$PREPARED_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload prepared candidate build inputs
         id: artifact
