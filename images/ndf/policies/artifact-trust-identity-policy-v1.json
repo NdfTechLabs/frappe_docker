@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "ndf-artifact-trust-identity-policy-v1",
+  "status": "provisional_until_live_certificate_observation",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "verification": {
+    "certificate_identity_mode": "exact",
+    "certificate_identity_regex_allowed": false,
+    "oidc_issuer_mode": "exact",
+    "oidc_issuer_regex_allowed": false,
+    "required_ref": "refs/heads/main",
+    "required_event_name": "workflow_dispatch",
+    "required_repository": "NdfTechLabs/frappe_docker",
+    "require_rekor_inclusion_proof": true,
+    "fail_closed_on_missing_claims": true
+  },
+  "identities": [
+    {
+      "id": "product-image-publication",
+      "artifact_kinds": [
+        "product_image"
+      ],
+      "certificate_identity": "https://github.com/NdfTechLabs/frappe_docker/.github/workflows/ndf-publish-product.yml@refs/heads/main",
+      "workflow_ref": "NdfTechLabs/frappe_docker/.github/workflows/ndf-publish-product.yml@refs/heads/main",
+      "reusable_workflow_ref": null,
+      "runtime_observation_required": true
+    },
+    {
+      "id": "product-pdd-publication",
+      "artifact_kinds": [
+        "pdd"
+      ],
+      "certificate_identity": "https://github.com/NdfTechLabs/frappe_docker/.github/workflows/ndf-publish-product-deployment-descriptor.yml@refs/heads/main",
+      "workflow_ref": "NdfTechLabs/frappe_docker/.github/workflows/ndf-publish-product-deployment-descriptor.yml@refs/heads/main",
+      "reusable_workflow_ref": null,
+      "runtime_observation_required": true
+    },
+    {
+      "id": "candidate-image-build",
+      "artifact_kinds": [
+        "candidate_image"
+      ],
+      "certificate_identity": "https://github.com/NdfTechLabs/frappe_docker/.github/workflows/ndf-build-candidate.yml@refs/heads/main",
+      "workflow_ref": "NdfTechLabs/frappe_docker/.github/workflows/ndf-build-candidate.yml@refs/heads/main",
+      "reusable_workflow_ref": "NdfTechLabs/frappe_docker/.github/workflows/ndf-reusable-build-candidate.yml@refs/heads/main",
+      "runtime_observation_required": true
+    },
+    {
+      "id": "candidate-pdd-publication",
+      "artifact_kinds": [
+        "pdd"
+      ],
+      "certificate_identity": "https://github.com/NdfTechLabs/frappe_docker/.github/workflows/ndf-build-candidate.yml@refs/heads/main",
+      "workflow_ref": "NdfTechLabs/frappe_docker/.github/workflows/ndf-build-candidate.yml@refs/heads/main",
+      "reusable_workflow_ref": "NdfTechLabs/frappe_docker/.github/workflows/ndf-reusable-pdd-candidate.yml@refs/heads/main",
+      "runtime_observation_required": true
+    }
+  ],
+  "required_claims": [
+    "iss",
+    "repository",
+    "ref",
+    "event_name",
+    "workflow_ref",
+    "run_id",
+    "run_attempt"
+  ],
+  "reusable_workflow_claims": {
+    "required_when_configured": [
+      "job_workflow_ref",
+      "job_workflow_sha"
+    ],
+    "must_match_exactly": true,
+    "caller_workflow_must_match_identity_entry": true,
+    "called_workflow_must_match_identity_entry": true
+  },
+  "notes": [
+    "Certificate identities are exact expected GitHub workflow URI values derived from the NDF workflow paths and main ref.",
+    "All entries remain provisional until a real Cosign signing run confirms the Fulcio certificate identity and the claims available in the verification certificate.",
+    "For reusable workflows, validate the caller certificate identity and the called workflow identity separately; do not accept either claim on its own.",
+    "Candidate workflow dispatch authorization remains governed by the existing DT Master actor gate. A valid signer identity does not replace that authorization.",
+    "No identity wildcard or regular-expression fallback is permitted."
+  ]
+}
