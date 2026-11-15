@@ -467,4 +467,3 @@ jobs:
             .ndf-build/${{ matrix.image }}/cosign-live-verification-result.json
           if-no-files-found: warn
           retention-days: 90
-

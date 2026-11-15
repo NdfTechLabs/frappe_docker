@@ -13,13 +13,18 @@ def test_live_signing_is_confined_to_existing_product_workflow_identity():
     assert "name: NDF / Publish Product Images" in workflow
     assert "workflow_dispatch:" in workflow
     assert "sign-trust:" in workflow
-    assert "if: ${{ inputs.publish == false && inputs.product != 'all' && github.ref == 'refs/heads/main' }}" in workflow
+    assert (
+        "if: ${{ inputs.publish == false && inputs.product != 'all' && github.ref == 'refs/heads/main' }}"
+        in workflow
+    )
     assert "needs: [prepare, publish]" in workflow
 
 
 def test_only_dedicated_signing_job_receives_oidc_permission():
     workflow = read_workflow("ndf-publish-product.yml")
-    publish_job = workflow.split("\n  publish:\n", 1)[1].split("\n  sign-trust:\n", 1)[0]
+    publish_job = workflow.split("\n  publish:\n", 1)[1].split("\n  sign-trust:\n", 1)[
+        0
+    ]
     sign_job = workflow.split("\n  sign-trust:\n", 1)[1]
     assert "id-token: write" not in publish_job
     assert "id-token: write" in sign_job
@@ -43,7 +48,10 @@ def test_provenance_generation_follows_publication_gate_and_is_uploaded():
 def test_live_job_uses_run_attempt_scoped_evidence_and_pinned_cosign():
     workflow = read_workflow("ndf-publish-product.yml")
     sign_job = workflow.split("\n  sign-trust:\n", 1)[1]
-    assert "ndf-publish-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in sign_job
+    assert (
+        "ndf-publish-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        in sign_job
+    )
     assert "cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in sign_job
     assert "cosign-release: v3.1.4" in sign_job
     assert "cosign_image_trust.py sign" in sign_job
@@ -66,7 +74,7 @@ def test_live_job_never_promotes_or_changes_the_official_product_tag():
     sign_job = workflow.split("\n  sign-trust:\n", 1)[1]
     assert "imagetools create" not in sign_job
     assert "Promote verified digest" not in sign_job
-    promotion = workflow.split("name: Promote verified digest to official source tag", 1)[1].split(
-        "      - name:", 1
-    )[0]
+    promotion = workflow.split(
+        "name: Promote verified digest to official source tag", 1
+    )[1].split("      - name:", 1)[0]
     assert "if: ${{ inputs.publish }}" in promotion
