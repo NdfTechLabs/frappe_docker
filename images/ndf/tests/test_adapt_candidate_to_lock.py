@@ -12,8 +12,6 @@ from scripts.adapt_candidate_to_lock import (
 from scripts.resolve_manifest import ManifestLoader
 
 
-
-
 @pytest.fixture(autouse=True)
 def fake_candidate_commit_verification(monkeypatch):
     def verify_commit(_loader, _repository, target_ref):
@@ -22,6 +20,7 @@ def fake_candidate_commit_verification(monkeypatch):
         return {"sha": target_ref, "kind": "commit", "name": target_ref}
 
     monkeypatch.setattr(ManifestLoader, "resolve_git_ref", verify_commit)
+
 
 @pytest.fixture
 def ndf_dir(tmp_path):
@@ -112,8 +111,7 @@ def run_adapter(ndf_dir, tmp_path, candidate):
         candidate_path=candidate_path,
         output_dir=tmp_path / "output",
         candidate_artifact_ref=(
-            "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
-            + "b" * 64
+            "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:" + "b" * 64
         ),
         payload_sha256=payload_sha,
     )
@@ -252,8 +250,7 @@ def test_candidate_adapter_rejects_payload_hash_mismatch(ndf_dir, tmp_path):
             candidate_path=candidate_path,
             output_dir=tmp_path / "output",
             candidate_artifact_ref=(
-                "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
-                + "b" * 64
+                "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:" + "b" * 64
             ),
             payload_sha256="c" * 64,
         )
@@ -270,12 +267,9 @@ def test_candidate_adapter_rejects_wrong_candidate_artifact_repository(
             ndf_dir=ndf_dir,
             candidate_path=candidate_path,
             output_dir=tmp_path / "output",
-            candidate_artifact_ref=(
-                "ghcr.io/attacker/candidates@sha256:" + "b" * 64
-            ),
+            candidate_artifact_ref=("ghcr.io/attacker/candidates@sha256:" + "b" * 64),
             payload_sha256=payload_sha,
         )
-
 
 
 def test_candidate_adapter_rejects_optional_capability_for_v1_product(
@@ -303,12 +297,10 @@ def test_candidate_adapter_refuses_to_overwrite_attempt_outputs(ndf_dir, tmp_pat
             candidate_path=candidate_path,
             output_dir=output_dir,
             candidate_artifact_ref=(
-                "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
-                + "b" * 64
+                "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:" + "b" * 64
             ),
             payload_sha256=payload_sha,
         )
-
 
 
 def test_candidate_requested_version_is_preserved_separately_from_commit_pin(
@@ -323,7 +315,6 @@ def test_candidate_requested_version_is_preserved_separately_from_commit_pin(
     assert frappe["requested_version"] == "candidate-release-2026.11"
     assert frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
     assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
-
 
 
 def test_candidate_required_flag_is_preserved_without_changing_membership(

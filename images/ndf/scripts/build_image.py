@@ -346,7 +346,6 @@ def execute_build(
     return metadata
 
 
-
 def load_prepared_candidate_inputs(
     *,
     ndf_dir: Path,
@@ -362,9 +361,7 @@ def load_prepared_candidate_inputs(
             f"Prepared candidate input directory does not exist: {prepared_inputs_dir}"
         )
 
-    _, image = load_image_definition(
-        ndf_dir, definitions_relative_path, image_id
-    )
+    _, image = load_image_definition(ndf_dir, definitions_relative_path, image_id)
     lock_files = sorted(prepared_inputs_dir.glob("candidate-*.lock-v2.json"))
     if len(lock_files) != 1 or lock_files[0].is_symlink():
         raise BuildPreparationError(
@@ -385,25 +382,35 @@ def load_prepared_candidate_inputs(
     try:
         apps_json = json.loads(apps_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise BuildPreparationError(f"Unable to read candidate apps.json: {exc}") from exc
+        raise BuildPreparationError(
+            f"Unable to read candidate apps.json: {exc}"
+        ) from exc
     if not isinstance(apps_json, list):
         raise BuildPreparationError("Candidate apps.json must contain a JSON array.")
     metadata = load_json(metadata_path)
     candidate = lock_data.get("candidate")
 
     if not isinstance(candidate, dict) or not candidate.get("candidate_id"):
-        raise BuildPreparationError("Prepared lock does not contain candidate identity.")
+        raise BuildPreparationError(
+            "Prepared lock does not contain candidate identity."
+        )
     if not re.fullmatch(
         r"ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}",
         candidate.get("artifact_reference", ""),
     ):
-        raise BuildPreparationError("Prepared lock has an invalid candidate artifact reference.")
+        raise BuildPreparationError(
+            "Prepared lock has an invalid candidate artifact reference."
+        )
     if not re.fullmatch(r"[a-f0-9]{64}", candidate.get("payload_sha256", "")):
-        raise BuildPreparationError("Prepared lock has an invalid candidate payload hash.")
+        raise BuildPreparationError(
+            "Prepared lock has an invalid candidate payload hash."
+        )
     if lock_data.get("lock_version") != 2:
         raise BuildPreparationError("Prepared candidate lock is not lock-v2.")
     if lock_data.get("product", {}).get("id") != image_id:
-        raise BuildPreparationError("Candidate lock product does not match requested image.")
+        raise BuildPreparationError(
+            "Candidate lock product does not match requested image."
+        )
     if metadata.get("image", {}).get("id") != image_id:
         raise BuildPreparationError("Candidate build metadata image ID mismatch.")
     if metadata.get("image", {}).get("repository") != image["repository"]:
@@ -411,17 +418,25 @@ def load_prepared_candidate_inputs(
     if metadata.get("image", {}).get("manifest") != image["manifest"]:
         raise BuildPreparationError("Candidate build metadata manifest mismatch.")
     if metadata.get("lock", {}).get("version") != 2:
-        raise BuildPreparationError("Candidate build metadata does not identify lock-v2.")
+        raise BuildPreparationError(
+            "Candidate build metadata does not identify lock-v2."
+        )
     if metadata.get("lock", {}).get("path") != lock_path.name:
         raise BuildPreparationError("Candidate build metadata lock path mismatch.")
 
     lock_sha256 = hashlib.sha256(lock_bytes).hexdigest()
     if metadata.get("lock", {}).get("sha256") != lock_sha256:
-        raise BuildPreparationError("Candidate lock SHA-256 does not match build metadata.")
+        raise BuildPreparationError(
+            "Candidate lock SHA-256 does not match build metadata."
+        )
     if metadata.get("candidate") != candidate:
-        raise BuildPreparationError("Candidate identity differs between lock and metadata.")
+        raise BuildPreparationError(
+            "Candidate identity differs between lock and metadata."
+        )
     if metadata.get("framework") != lock_data.get("framework"):
-        raise BuildPreparationError("Candidate framework differs between lock and metadata.")
+        raise BuildPreparationError(
+            "Candidate framework differs between lock and metadata."
+        )
     if candidate.get("target_platforms") != platforms:
         raise BuildPreparationError(
             "Candidate target platforms do not match the requested Buildx platform."

@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from scripts.prepare_build import BuildPreparationError
 from scripts.build_image import (
     BuildExecutionError,
     build_command,
@@ -16,6 +15,7 @@ from scripts.build_image import (
     resolve_base_images,
     validate_image_tags,
 )
+from scripts.prepare_build import BuildPreparationError
 
 
 def test_get_manifest_checksum_returns_matching_source_revision():
@@ -303,8 +303,9 @@ def test_validate_image_tags_rejects_invalid_and_duplicate_tags():
         validate_image_tags(["v16-latest", "v16-latest"])
 
 
-
-def _write_prepared_candidate_inputs(tmp_path, *, apps_json=None, lock_sha_override=None):
+def _write_prepared_candidate_inputs(
+    tmp_path, *, apps_json=None, lock_sha_override=None
+):
     output_dir = tmp_path / "prepared-candidate"
     output_dir.mkdir()
     lock_name = "candidate-" + "a" * 16 + ".lock-v2.json"
@@ -312,8 +313,7 @@ def _write_prepared_candidate_inputs(tmp_path, *, apps_json=None, lock_sha_overr
         "candidate_id": "CAND-TEST-0001",
         "target_platforms": ["linux/amd64"],
         "artifact_reference": (
-            "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
-            + "b" * 64
+            "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:" + "b" * 64
         ),
         "payload_sha256": "c" * 64,
     }

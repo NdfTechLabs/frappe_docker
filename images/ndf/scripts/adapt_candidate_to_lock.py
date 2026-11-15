@@ -17,12 +17,6 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 try:
-    from .validate_image_definitions import (
-        ImageDefinitionError,
-        load_json,
-        validate_definitions,
-        validate_schema,
-    )
     from .prepare_build import (
         BuildPreparationError,
         build_apps_json,
@@ -30,13 +24,13 @@ try:
         write_json,
     )
     from .resolve_manifest import ManifestError, ManifestLoader
-except ImportError:
-    from validate_image_definitions import (
+    from .validate_image_definitions import (
         ImageDefinitionError,
         load_json,
         validate_definitions,
         validate_schema,
     )
+except ImportError:
     from prepare_build import (
         BuildPreparationError,
         build_apps_json,
@@ -44,6 +38,12 @@ except ImportError:
         write_json,
     )
     from resolve_manifest import ManifestError, ManifestLoader
+    from validate_image_definitions import (
+        ImageDefinitionError,
+        load_json,
+        validate_definitions,
+        validate_schema,
+    )
 
 
 class CandidateCompositionError(Exception):
@@ -110,7 +110,9 @@ def _strict_json(path: Path) -> dict[str, Any]:
             ),
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CandidateCompositionError(f"Unable to read candidate JSON: {exc}") from exc
+        raise CandidateCompositionError(
+            f"Unable to read candidate JSON: {exc}"
+        ) from exc
 
     if not isinstance(value, dict):
         raise CandidateCompositionError("Candidate payload must be a JSON object.")
@@ -136,7 +138,9 @@ def _validate_candidate(candidate: dict, ndf_dir: Path) -> None:
             f"{error.message}"
             for error in errors
         )
-        raise CandidateCompositionError(f"Candidate schema validation failed: {details}")
+        raise CandidateCompositionError(
+            f"Candidate schema validation failed: {details}"
+        )
 
 
 def _validate_optional_capabilities(candidate: dict) -> set[str]:
@@ -158,9 +162,7 @@ def _validate_optional_capabilities(candidate: dict) -> set[str]:
             or path.as_posix() != item
             or not item.endswith(".json")
         ):
-            raise CandidateCompositionError(
-                f"Invalid optional capability path: {item}"
-            )
+            raise CandidateCompositionError(f"Invalid optional capability path: {item}")
     return set(selected)
 
 
@@ -169,7 +171,10 @@ def _select_image(
 ) -> tuple[dict, dict]:
     product_id = candidate["product"]["id"]
     definitions_path = (ndf_dir / definitions_relative_path).resolve()
-    if not definitions_path.is_relative_to(ndf_dir.resolve()) or not definitions_path.is_file():
+    if (
+        not definitions_path.is_relative_to(ndf_dir.resolve())
+        or not definitions_path.is_file()
+    ):
         raise CandidateCompositionError("Image definitions path is invalid.")
 
     try:
@@ -178,7 +183,9 @@ def _select_image(
         validate_schema(definitions, schema_path)
         validate_definitions(definitions, ndf_dir / "manifests")
     except (OSError, json.JSONDecodeError, ImageDefinitionError) as exc:
-        raise CandidateCompositionError(f"Invalid NDF image definitions: {exc}") from exc
+        raise CandidateCompositionError(
+            f"Invalid NDF image definitions: {exc}"
+        ) from exc
 
     matches = [item for item in definitions["images"] if item["product"] == product_id]
     if len(matches) != 1:
@@ -189,11 +196,15 @@ def _select_image(
     image = matches[0]
     manifest_path = (ndf_dir / "manifests" / image["manifest"]).resolve()
     if not manifest_path.is_relative_to((ndf_dir / "manifests").resolve()):
-        raise CandidateCompositionError("Product manifest path escapes manifests directory.")
+        raise CandidateCompositionError(
+            "Product manifest path escapes manifests directory."
+        )
     try:
         product_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise CandidateCompositionError(f"Unable to read product manifest: {exc}") from exc
+        raise CandidateCompositionError(
+            f"Unable to read product manifest: {exc}"
+        ) from exc
 
     if candidate["framework_version"] != product_manifest["framework"]["version"]:
         raise CandidateCompositionError(
@@ -313,8 +324,13 @@ def adapt_candidate_to_lock(
     candidate = _strict_json(candidate_path)
     _validate_candidate(candidate, ndf_dir)
 
-    if not re.fullmatch(r"ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}", candidate_artifact_ref):
-        raise CandidateCompositionError("Candidate artifact reference is not allowlisted and digest-pinned.")
+    if not re.fullmatch(
+        r"ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:[a-f0-9]{64}",
+        candidate_artifact_ref,
+    ):
+        raise CandidateCompositionError(
+            "Candidate artifact reference is not allowlisted and digest-pinned."
+        )
     artifact_digest = candidate_artifact_ref.rsplit("@", 1)[1]
     if not re.fullmatch(r"[a-f0-9]{64}", payload_sha256):
         raise CandidateCompositionError("Candidate payload SHA-256 is invalid.")
@@ -358,10 +374,11 @@ def adapt_candidate_to_lock(
         )
 
     runtime = candidate.get("runtime_profile", {})
-    if not isinstance(runtime.get("python"), str) or not re.fullmatch(
-        r"3\.14(?:\.\d+)?", runtime["python"]
-    ) or not isinstance(runtime.get("node"), str) or not re.fullmatch(
-        r"24(?:\.\d+){0,2}", runtime["node"]
+    if (
+        not isinstance(runtime.get("python"), str)
+        or not re.fullmatch(r"3\.14(?:\.\d+)?", runtime["python"])
+        or not isinstance(runtime.get("node"), str)
+        or not re.fullmatch(r"24(?:\.\d+){0,2}", runtime["node"])
     ):
         raise CandidateCompositionError(
             "Candidate runtime_profile must select the verified Python 3.14 and Node 24 families."
@@ -369,9 +386,13 @@ def adapt_candidate_to_lock(
 
     build_parameters = candidate.get("approved_build_parameters", {})
     if build_parameters.get("build_profile", "production") != "production":
-        raise CandidateCompositionError("Only the production build profile is supported.")
+        raise CandidateCompositionError(
+            "Only the production build profile is supported."
+        )
     build_options = build_parameters.get("build_options", {})
-    if any(key != "assets" or value is not True for key, value in build_options.items()):
+    if any(
+        key != "assets" or value is not True for key, value in build_options.items()
+    ):
         raise CandidateCompositionError(
             "Candidate contains build options not implemented by the NDF build pipeline."
         )
@@ -393,9 +414,7 @@ def adapt_candidate_to_lock(
         }
     )
 
-    for locked_app, mapped_app in zip(
-        lock_data["applications"], pinned, strict=True
-    ):
+    for locked_app, mapped_app in zip(lock_data["applications"], pinned, strict=True):
         locked_app.update(
             {
                 "app_id": mapped_app["_candidate_app_id"],
@@ -441,7 +460,9 @@ def adapt_candidate_to_lock(
         "build-metadata.json",
         "candidate-composition.json",
     }
-    existing_outputs = sorted(name for name in expected_outputs if (output_dir / name).exists())
+    existing_outputs = sorted(
+        name for name in expected_outputs if (output_dir / name).exists()
+    )
     if existing_outputs:
         raise CandidateCompositionError(
             "Candidate build output already exists; use a fresh attempt directory: "
@@ -460,9 +481,7 @@ def adapt_candidate_to_lock(
         # mapping. Skip source-composition equality because candidate pins
         # replace manifest refs with immutable commit refs; retain all
         # structural lock, dependency, policy and manifest inventory checks.
-        loader.validate_lock_file(
-            lock_path, manifest, verify_manifest_checksums=False
-        )
+        loader.validate_lock_file(lock_path, manifest, verify_manifest_checksums=False)
         lock_bytes = lock_path.read_bytes()
         apps_json = build_apps_json(lock_data)
         apps_path = write_json(output_dir / "apps.json", apps_json)
