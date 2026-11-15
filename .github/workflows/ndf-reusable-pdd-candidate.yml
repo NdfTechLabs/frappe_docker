@@ -96,7 +96,7 @@ jobs:
       SOURCE_RUN_ID: ${{ inputs.workflow_run_id }}
       SOURCE_RUN_URL: ${{ inputs.workflow_run_url }}
       EVIDENCE_DIR: ${{ github.workspace }}/.ndf-candidate-pdd-evidence
-      PUBLICATION_RECORD: ${{ runner.temp }}/pdd-publication-record.json
+      PUBLICATION_RECORD: ${{ github.workspace }}/.ndf-candidate-pdd-publication-record.json
     steps:
       - name: Checkout NDF PDD verification and publication code
         uses: actions/checkout@v7
