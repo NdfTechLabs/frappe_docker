@@ -34,6 +34,12 @@ on:
       evidence_artifact_name:
         description: Attempt-scoped image verification evidence artifact
         value: ${{ jobs.build-verify.outputs.evidence_artifact_name }}
+      built_at:
+        description: UTC timestamp recorded immediately after the candidate image build
+        value: ${{ jobs.build-verify.outputs.built_at }}
+      composition_hash:
+        description: Candidate composition hash carried by the prepared adapter output
+        value: ${{ jobs.build-verify.outputs.composition_hash }}
 
 permissions:
   contents: read
@@ -49,6 +55,8 @@ jobs:
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
       evidence_artifact_name: ${{ steps.artifact-name.outputs.name }}
+      built_at: ${{ steps.build.outputs.built_at }}
+      composition_hash: ${{ steps.handoff.outputs.composition_hash }}
     env:
       IMAGE_ID: ${{ inputs.image_id }}
       CANDIDATE_ID: ${{ inputs.candidate_id }}
@@ -86,10 +94,11 @@ jobs:
           path: ${{ env.PREPARED_ROOT }}
 
       - name: Validate prepared handoff identity and contents
+        id: handoff
         shell: bash
         run: |
           set -euo pipefail
-          python - "$PREPARED_ROOT" "$CANDIDATE_ID" "$CANDIDATE_ARTIFACT_REF" "$CANDIDATE_PAYLOAD_SHA256" "$EXPECTED_LOCK_SHA256" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$IMAGE_ID" <<'PY'
+          python - "$PREPARED_ROOT" "$CANDIDATE_ID" "$CANDIDATE_ARTIFACT_REF" "$CANDIDATE_PAYLOAD_SHA256" "$EXPECTED_LOCK_SHA256" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$IMAGE_ID" "$GITHUB_OUTPUT" <<'PY'
           import hashlib
           import json
           import sys
@@ -128,6 +137,20 @@ jobs:
               raise SystemExit("Prepared build metadata image ID mismatch.")
           if metadata.get("candidate") is None:
               raise SystemExit("Prepared build metadata has no candidate identity.")
+          composition = json.loads((prepared / "candidate-composition.json").read_text(encoding="utf-8"))
+          candidate = metadata["candidate"]
+          if candidate.get("candidate_id") != expected["candidate_id"]:
+              raise SystemExit("Prepared build metadata candidate ID mismatch.")
+          if candidate.get("artifact_reference") != expected["candidate_artifact_ref"]:
+              raise SystemExit("Prepared build metadata candidate artifact reference mismatch.")
+          if candidate.get("payload_sha256") != expected["candidate_payload_sha256"]:
+              raise SystemExit("Prepared build metadata candidate payload hash mismatch.")
+          if composition.get("candidate_id") != expected["candidate_id"]:
+              raise SystemExit("Candidate composition mapping identity mismatch.")
+          if composition.get("lock_sha256") != lock_sha:
+              raise SystemExit("Candidate composition mapping lock hash mismatch.")
+          with open(sys.argv[9], "a", encoding="utf-8") as output:
+              output.write(f"composition_hash={composition['composition_hash']}\\n")
           print(f"Prepared candidate verified: {expected['candidate_id']}")
           print(f"Lock SHA-256: {lock_sha}")
           PY
@@ -193,6 +216,8 @@ jobs:
             --cache-to "type=gha,mode=max,scope=ndf-candidate-$IMAGE_ID" \
             --progress plain \
             --push
+          BUILT_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "built_at=$BUILT_AT" >> "$GITHUB_OUTPUT"
           mkdir -p "$BUILD_OUTPUT"
           cp -a "$PREPARED_ROOT/prepared/." "$BUILD_OUTPUT/"
           LOCK_FILE="$(find "$BUILD_OUTPUT" -maxdepth 1 -type f -name 'candidate-*.lock-v2.json' -print)"
