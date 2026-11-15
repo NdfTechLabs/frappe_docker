@@ -23,7 +23,6 @@ try:
     )
 except ImportError:
     from gate_image_publication import (
-        EVIDENCE_FILES,
         PublicationGateError,
         verify_publication_candidate,
     )
@@ -216,9 +215,9 @@ def generate_image_provenance(
     metadata, _ = load_json(build_output_dir / "build-metadata.json")
     buildx, _ = load_json(build_output_dir / "buildx-metadata.json")
     result, _ = load_json(build_output_dir / "build-result.json")
-    inventory, inventory_raw = load_json(build_output_dir / "build-inventory.json")
+    inventory, _ = load_json(build_output_dir / "build-inventory.json")
     provenance, provenance_raw = load_json(build_output_dir / "source-provenance.json")
-    source_verification, source_verification_raw = load_json(
+    source_verification, _ = load_json(
         build_output_dir / "source-provenance-verification.json"
     )
     composition, composition_raw = load_json(
@@ -262,7 +261,7 @@ def generate_image_provenance(
     _require(composition.get("lock", {}).get("sha256") == lock.get("sha256"), "Composition verification lock hash differs from build metadata.")
 
     lock_path = build_output_dir / f"{image_id}.lock-v2.json"
-    _lock, lock_raw = load_json(lock_path)
+    _, lock_raw = load_json(lock_path)
     lock_sha = sha256(lock_raw)
     _require(lock_sha == lock.get("sha256"), "Exact lock-v2 bytes differ from build metadata.")
     _require(lock_sha == gate_report.get("lock", {}).get("sha256"), "Exact lock-v2 bytes differ from publication gate.")
