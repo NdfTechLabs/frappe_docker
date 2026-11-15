@@ -415,11 +415,13 @@ jobs:
           OUTPUT=".ndf-build/$IMAGE_ID"
           VERIFY_LOG="$OUTPUT/cosign-live-verification.log"
           RESULT="$OUTPUT/cosign-live-verification-result.json"
+          ATTESTATION_OUTPUT="$OUTPUT/cosign-verified-attestation-output.json"
 
           set +e
           python images/ndf/scripts/cosign_image_trust.py verify \
             --image-ref "$IMAGE_REF" \
-            --result-output "$RESULT" > "$VERIFY_LOG" 2>&1
+            --result-output "$RESULT" \
+            --attestation-output "$ATTESTATION_OUTPUT" > "$VERIFY_LOG" 2>&1
           VERIFY_STATUS=$?
           set -e
 
@@ -464,6 +466,7 @@ jobs:
             .ndf-build/${{ matrix.image }}/image-provenance-predicate.json
             .ndf-build/${{ matrix.image }}/image-provenance-statement.json
             .ndf-build/${{ matrix.image }}/cosign-live-verification.log
+            .ndf-build/${{ matrix.image }}/cosign-verified-attestation-output.json
             .ndf-build/${{ matrix.image }}/cosign-live-verification-result.json
           if-no-files-found: warn
           retention-days: 90
