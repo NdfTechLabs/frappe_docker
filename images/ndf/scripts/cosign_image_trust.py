@@ -205,7 +205,7 @@ def _workflow_identity_args(
     ]
 
 
-def _validate_statement(
+def _validate_cosign_statement(
     statement: dict[str, Any], *, repository: str, digest: str
 ) -> dict[str, Any]:
     if statement.get("_type") != "https://in-toto.io/Statement/v0.1":
@@ -246,6 +246,36 @@ def _validate_statement(
     return report
 
 
+def _validate_ndf_statement(
+    statement: dict[str, Any], *, repository: str, digest: str
+) -> dict[str, Any]:
+    """Validate the original NDF-generated Statement v1 before signing."""
+    if statement.get("_type") != "https://in-toto.io/Statement/v1":
+        raise CosignTrustError("Original NDF provenance must use Statement v1.")
+    try:
+        report = artifact_trust.validate_image_provenance_statement(statement, digest)
+    except Exception as exc:
+        raise CosignTrustError(f"Original NDF provenance is invalid: {exc}") from exc
+    if statement["predicateType"] != PREDICATE_TYPE:
+        raise CosignTrustError("Provenance predicate type is not SLSA Provenance v1.")
+    subject = statement["subject"]
+    if len(subject) != 1 or subject[0]["name"] != repository:
+        raise CosignTrustError(
+            "Provenance subject repository does not match image reference."
+        )
+    workflow = statement["predicate"]["ndf_build"]["workflow"]
+    if (
+        workflow["repository"] != "NdfTechLabs/frappe_docker"
+        or workflow["path"] != ".github/workflows/ndf-publish-product.yml"
+        or workflow["ref"] != "refs/heads/main"
+    ):
+        raise CosignTrustError(
+            "Provenance workflow identity is outside the product-image policy."
+        )
+    return report
+
+
+
 def sign_image(
     *,
     image_ref: str,
@@ -263,7 +293,7 @@ def sign_image(
     policy, identity = _load_product_identity(policy_path)
     statement = _strict_json(statement_path, "provenance Statement")
     predicate = _strict_json(predicate_path, "SLSA provenance predicate")
-    _validate_statement(statement, repository=repository, digest=digest)
+    _validate_ndf_statement(statement, repository=repository, digest=digest)
     if predicate != statement["predicate"]:
         raise CosignTrustError(
             "Predicate file does not exactly match the Statement predicate."
@@ -457,7 +487,7 @@ def verify_image(
     verified_statement = extract_verified_statement(attestation_result.stdout)
     if verified_statement != statement:
         raise CosignTrustError("Attestation changed between verification passes.")
-    _validate_statement(verified_statement, repository=repository, digest=digest)
+    _validate_cosign_statement(verified_statement, repository=repository, digest=digest)
 
     now = verified_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
