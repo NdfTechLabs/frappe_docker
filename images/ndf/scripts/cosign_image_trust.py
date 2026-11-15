@@ -33,7 +33,6 @@ POLICY_PATH = NDF_DIR / "policies" / "artifact-trust-identity-policy-v1.json"
 COSIGN_VERSION = "v3.1.4"
 IDENTITY_ID = "product-image-publication"
 PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
-PREDICATE_ALIAS = "slsaprovenance1"
 IMAGE_REF_RE = re.compile(
     r"^(?P<repository>[a-z0-9.-]+(?::[0-9]+)?(?:/[a-z0-9._-]+)+)"
     r"@(?P<digest>sha256:[a-f0-9]{64})$"
@@ -273,7 +272,7 @@ def sign_image(
             "attest",
             "--yes",
             "--type",
-            PREDICATE_ALIAS,
+            PREDICATE_TYPE,
             "--predicate",
             str(predicate_path),
             image_ref,
@@ -367,6 +366,7 @@ def verify_image(
     runner: Runner = subprocess.run,
     verified_at: datetime | None = None,
     attestation_output: Path | None = None,
+    expected_predicate_path: Path | None = None,
 ) -> dict[str, Any]:
     """Verify image signature, Rekor-backed attestation and NDF provenance semantics."""
     repository, digest = parse_image_reference(image_ref)
@@ -392,7 +392,7 @@ def verify_image(
             cosign_binary,
             "verify-attestation",
             "--type",
-            PREDICATE_ALIAS,
+            PREDICATE_TYPE,
             *attestation_args,
             image_ref,
         ],
@@ -401,6 +401,17 @@ def verify_image(
     if attestation_output is not None:
         _atomic_write(attestation_output, attestation_result.stdout.encode("utf-8"))
     statement = extract_verified_statement(attestation_result.stdout)
+    if expected_predicate_path is None:
+        raise CosignTrustError(
+            "Expected original provenance predicate is required for exact comparison."
+        )
+    expected_predicate = _strict_json(
+        expected_predicate_path, "original SLSA provenance predicate"
+    )
+    if statement.get("predicate") != expected_predicate:
+        raise CosignTrustError(
+            "Verified Cosign predicate differs from the original NDF provenance predicate."
+        )
     _validate_statement(statement, repository=repository, digest=digest)
     workflow = statement["predicate"]["ndf_build"]["workflow"]
     source_commit = workflow["source_commit"]
@@ -419,7 +430,7 @@ def verify_image(
             cosign_binary,
             "verify-attestation",
             "--type",
-            PREDICATE_ALIAS,
+            PREDICATE_TYPE,
             *exact_args,
             image_ref,
         ],
@@ -507,6 +518,7 @@ def main(argv: list[str] | None = None) -> int:
     verify_parser.add_argument("--image-ref", required=True)
     verify_parser.add_argument("--result-output", type=Path, required=True)
     verify_parser.add_argument("--attestation-output", type=Path)
+    verify_parser.add_argument("--expected-predicate", type=Path, required=True)
     verify_parser.add_argument("--policy", type=Path, default=POLICY_PATH)
     verify_parser.add_argument("--cosign-binary", default="cosign")
     args = parser.parse_args(argv)
@@ -524,6 +536,7 @@ def main(argv: list[str] | None = None) -> int:
                 image_ref=args.image_ref,
                 result_output=args.result_output,
                 attestation_output=args.attestation_output,
+                expected_predicate_path=args.expected_predicate,
                 policy_path=args.policy,
                 cosign_binary=args.cosign_binary,
             )
