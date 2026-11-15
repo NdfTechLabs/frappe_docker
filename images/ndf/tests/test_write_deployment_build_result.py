@@ -1,10 +1,10 @@
 import json
 import os
-
-import pytest
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "images" / "ndf" / "scripts" / "write_deployment_build_result.py"
