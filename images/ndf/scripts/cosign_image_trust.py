@@ -366,6 +366,7 @@ def verify_image(
     cosign_binary: str = "cosign",
     runner: Runner = subprocess.run,
     verified_at: datetime | None = None,
+    attestation_output: Path | None = None,
 ) -> dict[str, Any]:
     """Verify image signature, Rekor-backed attestation and NDF provenance semantics."""
     repository, digest = parse_image_reference(image_ref)
@@ -397,6 +398,8 @@ def verify_image(
         ],
         runner=runner,
     )
+    if attestation_output is not None:
+        _atomic_write(attestation_output, attestation_result.stdout.encode("utf-8"))
     statement = extract_verified_statement(attestation_result.stdout)
     _validate_statement(statement, repository=repository, digest=digest)
     workflow = statement["predicate"]["ndf_build"]["workflow"]
@@ -503,6 +506,7 @@ def main(argv: list[str] | None = None) -> int:
     verify_parser = subparsers.add_parser("verify")
     verify_parser.add_argument("--image-ref", required=True)
     verify_parser.add_argument("--result-output", type=Path, required=True)
+    verify_parser.add_argument("--attestation-output", type=Path)
     verify_parser.add_argument("--policy", type=Path, default=POLICY_PATH)
     verify_parser.add_argument("--cosign-binary", default="cosign")
     args = parser.parse_args(argv)
@@ -519,6 +523,7 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_image(
                 image_ref=args.image_ref,
                 result_output=args.result_output,
+                attestation_output=args.attestation_output,
                 policy_path=args.policy,
                 cosign_binary=args.cosign_binary,
             )
