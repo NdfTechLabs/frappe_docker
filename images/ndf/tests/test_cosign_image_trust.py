@@ -115,7 +115,8 @@ def _write_expected_predicate(tmp_path, statement=None):
 class FakeRunner:
     def __init__(self, statement=None):
         self.calls = []
-        self.statement = statement or _statement()
+        self.statement = dict(statement or _statement())
+        self.statement["_type"] = "https://in-toto.io/Statement/v0.1"
         envelope = {
             "payloadType": "application/vnd.in-toto+json",
             "payload": base64.b64encode(
@@ -237,13 +238,19 @@ def test_sign_rejects_predicate_statement_disagreement(tmp_path):
 
 def test_extract_verified_statement_decodes_dsse_envelope():
     statement = _statement()
+    cosign_statement = dict(statement)
+    cosign_statement["_type"] = "https://in-toto.io/Statement/v0.1"
     envelope = {
         "payloadType": "application/vnd.in-toto+json",
-        "payload": base64.b64encode(json.dumps(statement).encode()).decode(),
+        "payload": base64.b64encode(json.dumps(cosign_statement).encode()).decode(),
     }
-    assert (
-        trust.extract_verified_statement("header\n" + json.dumps(envelope)) == statement
-    )
+    assert trust.extract_verified_statement("header\n" + json.dumps(envelope)) == cosign_statement
+
+
+def test_statement_candidate_parser_accepts_only_cosign_v01():
+    statement = _statement()
+    with pytest.raises(trust.CosignTrustError, match="found 0"):
+        trust.extract_verified_statement(json.dumps(statement))
 
 
 @pytest.mark.parametrize(
@@ -285,6 +292,8 @@ def test_verify_uses_exact_identity_and_rejects_provisional_policy(tmp_path):
     ]
     assert len(commands) == 4
     for command in commands:
+        if command[1] == "verify-attestation":
+            assert command[command.index("--type") + 1] == trust.PREDICATE_TYPE
         assert "--certificate-identity" in command
         assert "--certificate-oidc-issuer" in command
         assert "--certificate-github-workflow-trigger" in command
