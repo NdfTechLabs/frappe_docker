@@ -134,7 +134,7 @@ Current relevant components include:
 
 ### M4.2.7 — Candidate-Driven CI/CD
 
-**Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter complete and locally verified (472 full-suite tests passed); M4.2.7.4 orchestration design recorded.
+**Status:** A.1–A.4 readiness audit complete; M4.2.7.1 contract/fixtures verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter complete and locally verified (472 full-suite tests passed); M4.2.7.4 initial candidate entry/intake/prepared-input handoff implemented; reusable stages and result production pending.
 
 - [M4.2.7 Readiness Audit](M4.2.7-READINESS-AUDIT.md) — NDF workflow/artifact audit and read-only reconciliation of the accepted DT Master/DT Tenant contracts.
 - [M4.2.7 Implementation Plan](M4.2.7-IMPLEMENTATION-PLAN.md) — NDF-only work packages, candidate/result contract, acceptance criteria, security boundaries and implementation dependencies.
@@ -166,7 +166,7 @@ M4.1 completion records architecture approval, not implementation completion. ND
 
 ### M4.2.7 — Candidate-Driven CI/CD
 
-**Status:** M4.2.7.1 contract baseline verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter complete and locally verified (472 full-suite tests passed); M4.2.7.4 orchestration design recorded and is next.
+**Status:** M4.2.7.1 contract baseline verified; M4.2.7.2 intake accepted locally; M4.2.7.3 candidate-to-lock adapter complete and locally verified (472 full-suite tests passed); M4.2.7.4 initial workflow orchestration increment implemented; reusable build/PDD stages and result production remain next.
 
 - [M4.2.7 readiness audit](M4.2.7-READINESS-AUDIT.md) — A.1–A.4 cross-repository read-only audit and NDF boundary.
 - [M4.2.7 implementation plan](M4.2.7-IMPLEMENTATION-PLAN.md) — work packages, sequence and acceptance criteria.
