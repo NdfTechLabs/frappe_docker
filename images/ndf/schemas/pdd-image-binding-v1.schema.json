@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/pdd-image-binding-v1.schema.json",
+  "title": "NDF PDD-to-Image Binding Attestation",
+  "description": "NDF in-toto Statement v1 predicate authenticating the relationship between a published PDD OCI artifact and its exact subject image digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "_type",
+    "subject",
+    "predicateType",
+    "predicate"
+  ],
+  "properties": {
+    "_type": {
+      "const": "https://in-toto.io/Statement/v1"
+    },
+    "subject": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "digest"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "digest": {
+            "type": "object",
+            "required": [
+              "sha256"
+            ],
+            "properties": {
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "predicateType": {
+      "const": "https://ndftechlabs.com/attestations/pdd-image-binding/v1"
+    },
+    "predicate": {
+      "$ref": "#/$defs/predicate"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40,64}$"
+    },
+    "predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "descriptor",
+        "subject_image",
+        "lock_sha256",
+        "source_provenance",
+        "workflow"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0"
+        },
+        "descriptor": {
+          "type": "object",
+          "required": [
+            "id",
+            "content_sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "content_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "additionalProperties": false
+        },
+        "subject_image": {
+          "type": "object",
+          "required": [
+            "repository",
+            "digest",
+            "platform"
+          ],
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "platform": {
+              "type": "string",
+              "pattern": "^linux/(amd64|arm64)$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "lock_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_provenance": {
+          "type": "object",
+          "required": [
+            "predicate_type",
+            "attestation_sha256"
+          ],
+          "properties": {
+            "predicate_type": {
+              "const": "https://slsa.dev/provenance/v1"
+            },
+            "attestation_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "additionalProperties": false
+        },
+        "workflow": {
+          "type": "object",
+          "required": [
+            "repository",
+            "path",
+            "ref",
+            "run_id",
+            "run_attempt",
+            "source_commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "NdfTechLabs/frappe_docker"
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^\\.github/workflows/[a-z0-9._-]+\\.yml$"
+            },
+            "ref": {
+              "const": "refs/heads/main"
+            },
+            "run_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "run_attempt": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source_commit": {
+              "$ref": "#/$defs/gitCommit"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}
