@@ -56,6 +56,8 @@ def test_live_job_uses_run_attempt_scoped_evidence_and_pinned_cosign():
     assert "cosign-release: v3.1.4" in sign_job
     assert "cosign_image_trust.py sign" in sign_job
     assert "cosign_image_trust.py verify" in sign_job
+    assert "--attestation-output" in sign_job
+    assert "cosign-verified-attestation-output.json" in sign_job
 
 
 def test_live_job_uses_digest_reference_and_expects_only_provisional_rejection():
