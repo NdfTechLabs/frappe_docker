@@ -150,7 +150,7 @@ jobs:
           if composition.get("lock_sha256") != lock_sha:
               raise SystemExit("Candidate composition mapping lock hash mismatch.")
           with open(sys.argv[9], "a", encoding="utf-8") as output:
-              output.write(f"composition_hash={composition['composition_hash']}\\n")
+              output.write(f"composition_hash={composition['composition_hash']}\n")
           print(f"Prepared candidate verified: {expected['candidate_id']}")
           print(f"Lock SHA-256: {lock_sha}")
           PY
