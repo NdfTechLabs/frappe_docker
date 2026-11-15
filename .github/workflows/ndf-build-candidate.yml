@@ -304,13 +304,13 @@ jobs:
 
           result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
           with Path(sys.argv[2]).open("a", encoding="utf-8") as summary:
-              summary.write("## Candidate Build Result\\n\\n")
-              summary.write(f"- Result: \x60{result['result_id']}\x60\\n")
-              summary.write(f"- Candidate: \x60{result['candidate_id']}\x60\\n")
-              summary.write(f"- Status: **{result['status']}**\\n")
-              summary.write(f"- Attempt: \x60{result['workflow']['run_id']}/{result['workflow']['run_attempt']}\x60\\n")
+              summary.write("## Candidate Build Result\n\n")
+              summary.write(f"- Result: \x60{result['result_id']}\x60\n")
+              summary.write(f"- Candidate: \x60{result['candidate_id']}\x60\n")
+              summary.write(f"- Status: **{result['status']}**\n")
+              summary.write(f"- Attempt: \x60{result['workflow']['run_id']}/{result['workflow']['run_attempt']}\x60\n")
               if result.get("failure"):
-                  summary.write(f"- Failure: \x60{result['failure']['code']}\x60 — {result['failure']['summary']}\\n")
+                  summary.write(f"- Failure: \x60{result['failure']['code']}\x60 — {result['failure']['summary']}\n")
           PY
 
       - name: Upload immutable attempt result
