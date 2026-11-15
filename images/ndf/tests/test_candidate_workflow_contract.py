@@ -26,7 +26,10 @@ def test_candidate_intake_and_adapter_are_ordered_and_attempt_scoped():
     assert workflow.index("intake_deployment_candidate.py") < workflow.index(
         "adapt_candidate_to_lock.py"
     )
-    assert "ndf-candidate-prepared-${{ github.run_id }}-${{ github.run_attempt }}" in workflow
+    assert (
+        "ndf-candidate-prepared-${{ github.run_id }}-${{ github.run_attempt }}"
+        in workflow
+    )
     assert "packages: read" in workflow
 
 
