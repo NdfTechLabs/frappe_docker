@@ -118,7 +118,7 @@ def _workflow_context(env: dict[str, str]) -> dict[str, Any]:
     _require(COMMIT_RE.fullmatch(source_commit) is not None, "GITHUB_SHA is not a valid commit SHA.")
     return {
         "repository": env["GITHUB_REPOSITORY"],
-        "path": match.group("path"),
+        "path": PRODUCT_IMAGE_WORKFLOW_PATH,
         "ref": env["GITHUB_REF"],
         "run_id": env["GITHUB_RUN_ID"],
         "run_attempt": int(env["GITHUB_RUN_ATTEMPT"]),
