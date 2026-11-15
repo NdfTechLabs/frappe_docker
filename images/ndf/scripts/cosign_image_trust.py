@@ -30,10 +30,12 @@ except ImportError:
 
 NDF_DIR = Path(__file__).resolve().parents[1]
 POLICY_PATH = NDF_DIR / "policies" / "artifact-trust-identity-policy-v1.json"
+COSIGN_STATEMENT_V01_SCHEMA_PATH = (
+    NDF_DIR / "schemas" / "cosign-image-provenance-statement-v0.1.schema.json"
+)
 COSIGN_VERSION = "v3.1.4"
 IDENTITY_ID = "product-image-publication"
 PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
-PREDICATE_ALIAS = "slsaprovenance1"
 IMAGE_REF_RE = re.compile(
     r"^(?P<repository>[a-z0-9.-]+(?::[0-9]+)?(?:/[a-z0-9._-]+)+)"
     r"@(?P<digest>sha256:[a-f0-9]{64})$"
@@ -203,13 +205,57 @@ def _workflow_identity_args(
     ]
 
 
-def _validate_statement(
+def _validate_cosign_statement(
     statement: dict[str, Any], *, repository: str, digest: str
 ) -> dict[str, Any]:
+    if statement.get("_type") != "https://in-toto.io/Statement/v0.1":
+        raise CosignTrustError(
+            "Cosign interoperability statement must use in-toto Statement v0.1."
+        )
+    try:
+        artifact_trust._validate_schema(
+            statement,
+            COSIGN_STATEMENT_V01_SCHEMA_PATH,
+            "Cosign Statement v0.1 compatibility profile",
+        )
+        # Validate the complete predicate and NDF claims against the canonical
+        # Statement v1 profile without changing the verified payload itself.
+        canonical_statement = dict(statement)
+        canonical_statement["_type"] = "https://in-toto.io/Statement/v1"
+        report = artifact_trust.validate_image_provenance_statement(
+            canonical_statement, digest
+        )
+    except Exception as exc:
+        raise CosignTrustError(f"Image provenance statement is invalid: {exc}") from exc
+    if statement["predicateType"] != PREDICATE_TYPE:
+        raise CosignTrustError("Provenance predicate type is not SLSA Provenance v1.")
+    subject = statement["subject"]
+    if len(subject) != 1 or subject[0]["name"] != repository:
+        raise CosignTrustError(
+            "Provenance subject repository does not match image reference."
+        )
+    workflow = statement["predicate"]["ndf_build"]["workflow"]
+    if (
+        workflow["repository"] != "NdfTechLabs/frappe_docker"
+        or workflow["path"] != ".github/workflows/ndf-publish-product.yml"
+        or workflow["ref"] != "refs/heads/main"
+    ):
+        raise CosignTrustError(
+            "Provenance workflow identity is outside the product-image policy."
+        )
+    return report
+
+
+def _validate_ndf_statement(
+    statement: dict[str, Any], *, repository: str, digest: str
+) -> dict[str, Any]:
+    """Validate the original NDF-generated Statement v1 before signing."""
+    if statement.get("_type") != "https://in-toto.io/Statement/v1":
+        raise CosignTrustError("Original NDF provenance must use Statement v1.")
     try:
         report = artifact_trust.validate_image_provenance_statement(statement, digest)
     except Exception as exc:
-        raise CosignTrustError(f"Image provenance statement is invalid: {exc}") from exc
+        raise CosignTrustError(f"Original NDF provenance is invalid: {exc}") from exc
     if statement["predicateType"] != PREDICATE_TYPE:
         raise CosignTrustError("Provenance predicate type is not SLSA Provenance v1.")
     subject = statement["subject"]
@@ -246,7 +292,7 @@ def sign_image(
     policy, identity = _load_product_identity(policy_path)
     statement = _strict_json(statement_path, "provenance Statement")
     predicate = _strict_json(predicate_path, "SLSA provenance predicate")
-    _validate_statement(statement, repository=repository, digest=digest)
+    _validate_ndf_statement(statement, repository=repository, digest=digest)
     if predicate != statement["predicate"]:
         raise CosignTrustError(
             "Predicate file does not exactly match the Statement predicate."
@@ -273,7 +319,7 @@ def sign_image(
             "attest",
             "--yes",
             "--type",
-            PREDICATE_ALIAS,
+            PREDICATE_TYPE,
             "--predicate",
             str(predicate_path),
             image_ref,
@@ -316,7 +362,7 @@ def _statement_candidates(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, dict):
         return candidates
     if (
-        value.get("_type") == "https://in-toto.io/Statement/v1"
+        value.get("_type") == "https://in-toto.io/Statement/v0.1"
         and isinstance(value.get("subject"), list)
         and isinstance(value.get("predicate"), dict)
     ):
@@ -367,6 +413,7 @@ def verify_image(
     runner: Runner = subprocess.run,
     verified_at: datetime | None = None,
     attestation_output: Path | None = None,
+    expected_predicate_path: Path | None = None,
 ) -> dict[str, Any]:
     """Verify image signature, Rekor-backed attestation and NDF provenance semantics."""
     repository, digest = parse_image_reference(image_ref)
@@ -392,7 +439,7 @@ def verify_image(
             cosign_binary,
             "verify-attestation",
             "--type",
-            PREDICATE_ALIAS,
+            PREDICATE_TYPE,
             *attestation_args,
             image_ref,
         ],
@@ -401,7 +448,18 @@ def verify_image(
     if attestation_output is not None:
         _atomic_write(attestation_output, attestation_result.stdout.encode("utf-8"))
     statement = extract_verified_statement(attestation_result.stdout)
-    _validate_statement(statement, repository=repository, digest=digest)
+    if expected_predicate_path is None:
+        raise CosignTrustError(
+            "Expected original provenance predicate is required for exact comparison."
+        )
+    expected_predicate = _strict_json(
+        expected_predicate_path, "original SLSA provenance predicate"
+    )
+    if statement.get("predicate") != expected_predicate:
+        raise CosignTrustError(
+            "Verified Cosign predicate differs from the original NDF provenance predicate."
+        )
+    _validate_cosign_statement(statement, repository=repository, digest=digest)
     workflow = statement["predicate"]["ndf_build"]["workflow"]
     source_commit = workflow["source_commit"]
 
@@ -419,7 +477,7 @@ def verify_image(
             cosign_binary,
             "verify-attestation",
             "--type",
-            PREDICATE_ALIAS,
+            PREDICATE_TYPE,
             *exact_args,
             image_ref,
         ],
@@ -428,7 +486,7 @@ def verify_image(
     verified_statement = extract_verified_statement(attestation_result.stdout)
     if verified_statement != statement:
         raise CosignTrustError("Attestation changed between verification passes.")
-    _validate_statement(verified_statement, repository=repository, digest=digest)
+    _validate_cosign_statement(verified_statement, repository=repository, digest=digest)
 
     now = verified_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -507,6 +565,7 @@ def main(argv: list[str] | None = None) -> int:
     verify_parser.add_argument("--image-ref", required=True)
     verify_parser.add_argument("--result-output", type=Path, required=True)
     verify_parser.add_argument("--attestation-output", type=Path)
+    verify_parser.add_argument("--expected-predicate", type=Path, required=True)
     verify_parser.add_argument("--policy", type=Path, default=POLICY_PATH)
     verify_parser.add_argument("--cosign-binary", default="cosign")
     args = parser.parse_args(argv)
@@ -524,6 +583,7 @@ def main(argv: list[str] | None = None) -> int:
                 image_ref=args.image_ref,
                 result_output=args.result_output,
                 attestation_output=args.attestation_output,
+                expected_predicate_path=args.expected_predicate,
                 policy_path=args.policy,
                 cosign_binary=args.cosign_binary,
             )

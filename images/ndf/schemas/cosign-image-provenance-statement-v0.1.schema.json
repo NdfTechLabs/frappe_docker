@@ -1,0 +1,335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/cosign-image-provenance-statement-v0.1.schema.json",
+  "title": "Cosign Image Provenance Statement v0.1 Compatibility Profile",
+  "description": "Strict Cosign v3.1.4 interoperability wrapper for the NDF SLSA Provenance v1 profile. The predicate retains the complete NDF ndf_build claims; the canonical NDF provenance contract remains Statement v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["_type", "subject", "predicateType", "predicate"],
+  "properties": {
+    "_type": {
+      "const": "https://in-toto.io/Statement/v0.1"
+    },
+    "subject": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/imageSubject"
+      },
+      "maxItems": 1
+    },
+    "predicateType": {
+      "const": "https://slsa.dev/provenance/v1"
+    },
+    "predicate": {
+      "type": "object",
+      "required": ["buildDefinition", "runDetails", "ndf_build"],
+      "properties": {
+        "buildDefinition": {
+          "type": "object",
+          "required": ["buildType", "externalParameters"],
+          "properties": {
+            "buildType": {
+              "type": "string",
+              "format": "uri"
+            },
+            "externalParameters": {
+              "type": "object"
+            },
+            "internalParameters": {
+              "type": "object"
+            },
+            "resolvedDependencies": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/resourceDescriptor"
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "runDetails": {
+          "type": "object",
+          "required": ["builder"],
+          "properties": {
+            "builder": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "builderDependencies": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/resourceDescriptor"
+                  }
+                }
+              },
+              "additionalProperties": true
+            },
+            "metadata": {
+              "type": "object",
+              "properties": {
+                "invocationId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "startedOn": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "finishedOn": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": true
+            },
+            "byproducts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/resourceDescriptor"
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "ndf_build": {
+          "$ref": "#/$defs/ndfBuild"
+        }
+      },
+      "patternProperties": {
+        "^ndf_[a-z][a-z0-9_]*$": {}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40,64}$"
+    },
+    "imageSubject": {
+      "type": "object",
+      "required": ["name", "digest"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "object",
+          "required": ["sha256"],
+          "properties": {
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "resourceDescriptor": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "digest": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "downloadLocation": {
+          "type": "string",
+          "format": "uri"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "workflow": {
+      "type": "object",
+      "required": [
+        "repository",
+        "path",
+        "ref",
+        "run_id",
+        "run_attempt",
+        "source_commit"
+      ],
+      "properties": {
+        "repository": {
+          "const": "NdfTechLabs/frappe_docker"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\.github/workflows/[a-z0-9._-]+\\.yml$"
+        },
+        "ref": {
+          "const": "refs/heads/main"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_commit": {
+          "$ref": "#/$defs/gitCommit"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidenceCheck": {
+      "type": "object",
+      "required": ["status", "report_sha256"],
+      "properties": {
+        "status": {
+          "const": "passed"
+        },
+        "report_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ndfBuild": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "product_id",
+        "platform",
+        "workflow",
+        "lock_sha256",
+        "composition_sha256",
+        "source_revisions",
+        "validation"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0"
+        },
+        "product_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "pattern": "^linux/(amd64|arm64)$"
+        },
+        "workflow": {
+          "$ref": "#/$defs/workflow"
+        },
+        "lock_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "composition_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_revisions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["repository", "commit"],
+            "properties": {
+              "repository": {
+                "type": "string",
+                "minLength": 1
+              },
+              "commit": {
+                "$ref": "#/$defs/gitCommit"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "validation": {
+          "type": "object",
+          "required": [
+            "image_validation",
+            "source_provenance",
+            "composition_verification",
+            "evidence_binding"
+          ],
+          "properties": {
+            "image_validation": {
+              "$ref": "#/$defs/evidenceCheck"
+            },
+            "source_provenance": {
+              "$ref": "#/$defs/evidenceCheck"
+            },
+            "composition_verification": {
+              "$ref": "#/$defs/evidenceCheck"
+            },
+            "evidence_binding": {
+              "$ref": "#/$defs/evidenceCheck"
+            }
+          },
+          "additionalProperties": false
+        },
+        "candidate": {
+          "type": "object",
+          "required": [
+            "candidate_id",
+            "artifact_reference",
+            "artifact_digest",
+            "payload_sha256"
+          ],
+          "properties": {
+            "candidate_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "artifact_reference": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+            },
+            "artifact_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "payload_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

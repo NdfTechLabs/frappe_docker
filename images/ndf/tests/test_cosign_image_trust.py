@@ -105,10 +105,18 @@ def _write_policy(tmp_path, status="provisional_until_live_certificate_observati
     return path
 
 
+def _write_expected_predicate(tmp_path, statement=None):
+    value = (statement or _statement())["predicate"]
+    path = tmp_path / "expected-predicate.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    return path
+
+
 class FakeRunner:
     def __init__(self, statement=None):
         self.calls = []
-        self.statement = statement or _statement()
+        self.statement = dict(statement or _statement())
+        self.statement["_type"] = "https://in-toto.io/Statement/v0.1"
         envelope = {
             "payloadType": "application/vnd.in-toto+json",
             "payload": base64.b64encode(
@@ -190,7 +198,8 @@ def test_sign_requires_github_actions_and_exact_provenance(tmp_path):
     assert [call[1] for call in runner.calls] == ["version", "sign", "attest"]
     assert "--yes" in runner.calls[1]
     assert "--type" in runner.calls[2]
-    assert "slsaprovenance1" in runner.calls[2]
+    assert runner.calls[2][runner.calls[2].index("--type") + 1] == trust.PREDICATE_TYPE
+    assert "slsaprovenance1" not in runner.calls[2]
 
 
 def test_sign_rejects_local_execution(tmp_path):
@@ -227,15 +236,38 @@ def test_sign_rejects_predicate_statement_disagreement(tmp_path):
         )
 
 
+def test_cosign_v01_compatibility_schema_requires_complete_ndf_profile():
+    statement = _statement()
+    statement["_type"] = "https://in-toto.io/Statement/v0.1"
+    del statement["predicate"]["ndf_build"]
+    with pytest.raises(
+        trust.CosignTrustError, match="Image provenance statement is invalid"
+    ):
+        trust._validate_cosign_statement(
+            statement,
+            repository="ghcr.io/ndftechlabs/dalali",
+            digest="sha256:" + "a" * 64,
+        )
+
+
 def test_extract_verified_statement_decodes_dsse_envelope():
     statement = _statement()
+    cosign_statement = dict(statement)
+    cosign_statement["_type"] = "https://in-toto.io/Statement/v0.1"
     envelope = {
         "payloadType": "application/vnd.in-toto+json",
-        "payload": base64.b64encode(json.dumps(statement).encode()).decode(),
+        "payload": base64.b64encode(json.dumps(cosign_statement).encode()).decode(),
     }
     assert (
-        trust.extract_verified_statement("header\n" + json.dumps(envelope)) == statement
+        trust.extract_verified_statement("header\n" + json.dumps(envelope))
+        == cosign_statement
     )
+
+
+def test_statement_candidate_parser_accepts_only_cosign_v01():
+    statement = _statement()
+    with pytest.raises(trust.CosignTrustError, match="found 0"):
+        trust.extract_verified_statement(json.dumps(statement))
 
 
 @pytest.mark.parametrize(
@@ -258,6 +290,7 @@ def test_verify_uses_exact_identity_and_rejects_provisional_policy(tmp_path):
             image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
             result_output=output,
             attestation_output=attestation_output,
+            expected_predicate_path=_write_expected_predicate(tmp_path),
             policy_path=policy_path,
             runner=runner,
             verified_at=datetime(2026, 11, 15, tzinfo=timezone.utc),
@@ -276,6 +309,8 @@ def test_verify_uses_exact_identity_and_rejects_provisional_policy(tmp_path):
     ]
     assert len(commands) == 4
     for command in commands:
+        if command[1] == "verify-attestation":
+            assert command[command.index("--type") + 1] == trust.PREDICATE_TYPE
         assert "--certificate-identity" in command
         assert "--certificate-oidc-issuer" in command
         assert "--certificate-github-workflow-trigger" in command
@@ -296,6 +331,7 @@ def test_verify_trusts_only_confirmed_policy(tmp_path):
         image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
         result_output=output,
         policy_path=policy_path,
+        expected_predicate_path=_write_expected_predicate(tmp_path),
         runner=FakeRunner(),
         verified_at=datetime(2026, 11, 15, tzinfo=timezone.utc),
     )
@@ -312,6 +348,24 @@ def test_verify_rejects_attestation_for_another_digest(tmp_path):
             image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
             result_output=output,
             policy_path=_write_policy(tmp_path, status="confirmed"),
+            expected_predicate_path=_write_expected_predicate(tmp_path),
+            runner=FakeRunner(statement),
+        )
+
+
+def test_verify_rejects_any_change_to_original_ndf_predicate(tmp_path):
+    statement = _statement()
+    statement["predicate"]["ndf_build"]["composition_sha256"] = "f" * 64
+    expected = _write_expected_predicate(tmp_path)
+    with pytest.raises(
+        trust.CosignTrustError,
+        match="differs from the original NDF provenance predicate",
+    ):
+        trust.verify_image(
+            image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
+            result_output=tmp_path / "result.json",
+            expected_predicate_path=expected,
+            policy_path=_write_policy(tmp_path, status="confirmed"),
             runner=FakeRunner(statement),
         )
 
@@ -327,5 +381,6 @@ def test_verify_rejects_cosign_command_failure(tmp_path):
             image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
             result_output=tmp_path / "result.json",
             policy_path=_write_policy(tmp_path, status="confirmed"),
+            expected_predicate_path=_write_expected_predicate(tmp_path),
             runner=failed,
         )
