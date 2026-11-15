@@ -40,7 +40,7 @@ def base_env():
         "LOCK_SHA256": LOCK_HASH,
         "COMPOSITION_HASH": COMPOSITION_HASH,
         "IMAGE_DIGEST": IMAGE_DIGEST,
-        "PDD_REFERENCE": "ghcr.io/ndftechlabs/pdd/dalali@"+PDD_DIGEST,
+        "PDD_REFERENCE": "ghcr.io/ndftechlabs/pdd/dalali@" + PDD_DIGEST,
         "PDD_DIGEST": PDD_DIGEST,
         "PDD_CONTENT_SHA256": "9" * 64,
     }
@@ -106,7 +106,9 @@ def test_cancelled_attempt_produces_cancelled_result(tmp_path):
 
 def test_invalid_candidate_reference_fails_closed(tmp_path):
     env = base_env()
-    env["CANDIDATE_ARTIFACT_REF"] = "ghcr.io/ndftechlabs/dt-master-deployment-candidates:latest"
+    env["CANDIDATE_ARTIFACT_REF"] = (
+        "ghcr.io/ndftechlabs/dt-master-deployment-candidates:latest"
+    )
     completed, _ = invoke(tmp_path, env)
     assert completed.returncode != 0
     assert "immutable GHCR reference" in completed.stderr

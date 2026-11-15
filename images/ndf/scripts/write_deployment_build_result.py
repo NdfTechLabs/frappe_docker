@@ -14,17 +14,28 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-
 CANDIDATE_REF = re.compile(
     r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:([a-f0-9]{64})$"
 )
 HASH = re.compile(r"^[a-f0-9]{64}$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 SAFE_FAILURES = {
-    "dispatch-gate": ("DISPATCH_NOT_AUTHORIZED", "Candidate dispatch authorization failed."),
-    "prepare-candidate": ("CANDIDATE_INTAKE_FAILED", "Candidate intake or preparation failed."),
-    "build-candidate": ("IMAGE_BUILD_OR_VERIFICATION_FAILED", "Candidate image build or verification failed."),
-    "publish-candidate-pdd": ("PDD_PUBLICATION_FAILED", "Candidate descriptor verification or publication failed."),
+    "dispatch-gate": (
+        "DISPATCH_NOT_AUTHORIZED",
+        "Candidate dispatch authorization failed.",
+    ),
+    "prepare-candidate": (
+        "CANDIDATE_INTAKE_FAILED",
+        "Candidate intake or preparation failed.",
+    ),
+    "build-candidate": (
+        "IMAGE_BUILD_OR_VERIFICATION_FAILED",
+        "Candidate image build or verification failed.",
+    ),
+    "publish-candidate-pdd": (
+        "PDD_PUBLICATION_FAILED",
+        "Candidate descriptor verification or publication failed.",
+    ),
 }
 
 
@@ -36,7 +47,9 @@ def required_env(name: str) -> str:
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
 
 
 def main() -> int:
@@ -50,7 +63,9 @@ def main() -> int:
     candidate_ref = required_env("CANDIDATE_ARTIFACT_REF")
     match = CANDIDATE_REF.fullmatch(candidate_ref)
     if not match:
-        raise ValueError("Candidate artifact reference is not the accepted immutable GHCR reference.")
+        raise ValueError(
+            "Candidate artifact reference is not the accepted immutable GHCR reference."
+        )
     candidate_digest = f"sha256:{match.group(1)}"
     payload_hash = required_env("CANDIDATE_PAYLOAD_SHA256")
     if not HASH.fullmatch(payload_hash):
@@ -83,7 +98,10 @@ def main() -> int:
         )
         code, summary = SAFE_FAILURES.get(
             failed_stage,
-            ("RESULT_EVIDENCE_INVALID", "Required candidate result evidence is missing or invalid."),
+            (
+                "RESULT_EVIDENCE_INVALID",
+                "Required candidate result evidence is missing or invalid.",
+            ),
         )
         failure = {"code": code, "summary": summary}
 
@@ -132,7 +150,13 @@ def main() -> int:
             "digest": image_digest,
             "immutable_reference": f"{image_repository}@{image_digest}",
         }
-    if pdd_ref and pdd_digest and DIGEST.fullmatch(pdd_digest) and pdd_content_hash and HASH.fullmatch(pdd_content_hash):
+    if (
+        pdd_ref
+        and pdd_digest
+        and DIGEST.fullmatch(pdd_digest)
+        and pdd_content_hash
+        and HASH.fullmatch(pdd_content_hash)
+    ):
         if not pdd_ref.endswith("@" + pdd_digest):
             raise ValueError("PDD reference and digest outputs do not agree.")
         result["descriptor"] = {
@@ -164,7 +188,9 @@ def main() -> int:
 
     schema = json.loads(args.schema.read_text(encoding="utf-8"))
     errors = sorted(
-        Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(result),
+        Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(
+            result
+        ),
         key=lambda error: list(error.absolute_path),
     )
     if errors:
@@ -172,7 +198,9 @@ def main() -> int:
             f"{'/'.join(map(str, error.absolute_path)) or '<root>'}: {error.message}"
             for error in errors
         )
-        raise ValueError(f"Generated deployment build result violates schema: {details}")
+        raise ValueError(
+            f"Generated deployment build result violates schema: {details}"
+        )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.exists() or args.output.is_symlink():
@@ -180,7 +208,9 @@ def main() -> int:
     temporary = args.output.with_name(args.output.name + ".tmp")
     if temporary.exists() or temporary.is_symlink():
         raise FileExistsError("Refusing to overwrite an existing temporary result.")
-    temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(args.output)
     print(json.dumps({"result_id": result["result_id"], "status": result["status"]}))
     return 0

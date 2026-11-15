@@ -134,6 +134,7 @@ def test_candidate_build_exports_pdd_provenance_outputs():
     assert "composition_hash: ${{ steps.handoff.outputs.composition_hash }}" in build
     assert "date -u +'%Y-%m-%dT%H:%M:%SZ'" in build
 
+
 def test_candidate_terminal_result_job_is_always_run_and_least_privileged():
     workflow = read_workflow("ndf-build-candidate.yml")
     result_job = workflow.split("  publish-candidate-result:", 1)[1]
@@ -147,7 +148,10 @@ def test_candidate_terminal_result_job_is_always_run_and_least_privileged():
     assert "packages: write" not in result_job
     assert "write_deployment_build_result.py" in result_job
     assert "deployment-build-result-v1.schema.json" in result_job
-    assert "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}" in result_job
+    assert (
+        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}"
+        in result_job
+    )
     assert "retention-days: 90" in result_job
 
 
@@ -165,4 +169,3 @@ def test_candidate_result_job_preserves_attempt_and_pdd_correlation():
         "PDD_CONTENT_SHA256: ${{ needs.publish-candidate-pdd.outputs.pdd_content_sha256 }}",
     ):
         assert binding in result_job
-
