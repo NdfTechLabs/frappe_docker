@@ -12,8 +12,8 @@
     "candidate_artifact_digest",
     "workflow",
     "status",
-    "composition_hash",
-    "started_at"
+    "started_at",
+    "candidate_payload_sha256"
   ],
   "properties": {
     "schema_version": {
@@ -40,7 +40,13 @@
     "workflow": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "workflow_name", "run_id", "source_commit"],
+      "required": [
+        "repository",
+        "workflow_name",
+        "run_id",
+        "source_commit",
+        "run_attempt"
+      ],
       "properties": {
         "repository": {
           "const": "NdfTechLabs/frappe_docker"
@@ -58,11 +64,21 @@
         "source_commit": {
           "type": "string",
           "pattern": "^[a-f0-9]{40,64}$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
     "status": {
-      "enum": ["queued", "in_progress", "succeeded", "failed", "cancelled"]
+      "enum": [
+        "queued",
+        "in_progress",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ]
     },
     "composition_hash": {
       "$ref": "#/$defs/hash"
@@ -73,7 +89,10 @@
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "digest"],
+      "required": [
+        "repository",
+        "digest"
+      ],
       "properties": {
         "repository": {
           "type": "string"
@@ -90,7 +109,11 @@
     "descriptor": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference", "digest", "content_hash"],
+      "required": [
+        "reference",
+        "digest",
+        "content_hash"
+      ],
       "properties": {
         "reference": {
           "type": "string"
@@ -109,7 +132,10 @@
     "failure": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "summary"],
+      "required": [
+        "code",
+        "summary"
+      ],
       "properties": {
         "code": {
           "type": "string",
@@ -128,6 +154,9 @@
     "completed_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "candidate_payload_sha256": {
+      "$ref": "#/$defs/hash"
     }
   },
   "$defs": {
@@ -148,10 +177,13 @@
             "const": "succeeded"
           }
         },
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       },
       "then": {
         "required": [
+          "composition_hash",
           "resolved_lock_hash",
           "image",
           "descriptor",
@@ -164,13 +196,21 @@
       "if": {
         "properties": {
           "status": {
-            "const": "failed"
+            "enum": [
+              "failed",
+              "cancelled"
+            ]
           }
         },
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       },
       "then": {
-        "required": ["failure", "completed_at"]
+        "required": [
+          "failure",
+          "completed_at"
+        ]
       }
     }
   ]
