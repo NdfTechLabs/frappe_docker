@@ -180,7 +180,7 @@ def main() -> int:
     temporary = args.output.with_name(args.output.name + ".tmp")
     if temporary.exists() or temporary.is_symlink():
         raise FileExistsError("Refusing to overwrite an existing temporary result.")
-    temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+    temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(args.output)
     print(json.dumps({"result_id": result["result_id"], "status": result["status"]}))
     return 0
