@@ -201,3 +201,18 @@ jobs:
             echo "- Prepared artifact: `$PREPARED_ARTIFACT_NAME`"
             echo "- Workflow attempt: `$GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  build-candidate:
+    name: Build and verify candidate image
+    needs: prepare-candidate
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/ndf-reusable-build-candidate.yml
+    with:
+      prepared_artifact_name: ${{ needs.prepare-candidate.outputs.prepared_artifact_name }}
+      image_id: ${{ needs.prepare-candidate.outputs.image_id }}
+      candidate_id: ${{ inputs.candidate_id }}
+      candidate_artifact_ref: ${{ inputs.candidate_artifact_ref }}
+      candidate_payload_sha256: ${{ inputs.candidate_payload_sha256 }}
+      lock_sha256: ${{ needs.prepare-candidate.outputs.lock_sha256 }}
