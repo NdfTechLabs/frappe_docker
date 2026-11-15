@@ -480,7 +480,7 @@ def adapt_candidate_to_lock(
                 "applications": [
                     {
                         "app_id": item["app_id"],
-                        "repository": item["repository"],
+                        "repository": item["app_source"],
                         "requested_version": item["requested_version"],
                         "immutable_commit": item["immutable_commit"],
                         "release_version": item["release_version"],
