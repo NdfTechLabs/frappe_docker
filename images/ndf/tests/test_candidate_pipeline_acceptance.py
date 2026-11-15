@@ -60,7 +60,10 @@ def test_image_build_outputs_are_bound_to_the_pdd_stage():
     assert "value: ${{ jobs.build-verify.outputs.image_digest }}" in build
     assert "value: ${{ jobs.build-verify.outputs.composition_hash }}" in build
     assert "image_digest: ${{ needs.build-candidate.outputs.image_digest }}" in entry
-    assert "composition_hash: ${{ needs.build-candidate.outputs.composition_hash }}" in entry
+    assert (
+        "composition_hash: ${{ needs.build-candidate.outputs.composition_hash }}"
+        in entry
+    )
     assert "EXPECTED_IMAGE_DIGEST: ${{ inputs.image_digest }}" in pdd
     assert "EXPECTED_LOCK_SHA256: ${{ inputs.lock_sha256 }}" in pdd
     assert "EXPECTED_COMPOSITION_HASH: ${{ inputs.composition_hash }}" in pdd
@@ -90,7 +93,9 @@ def test_pdd_outputs_are_bound_to_the_same_attempt_result():
 
     assert "write_deployment_build_result.py" in result
     assert "deployment-build-result-v1.schema.json" in result
-    assert "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}" in result
+    assert (
+        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}" in result
+    )
 
 
 def test_candidate_jobs_keep_registry_permissions_at_the_required_boundaries():
