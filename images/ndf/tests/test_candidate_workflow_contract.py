@@ -104,3 +104,32 @@ def test_candidate_registry_inspection_is_authenticated_and_no_official_promotio
     assert login < inspect
     assert buildx < inspect
     assert "docker buildx imagetools create" not in reusable
+
+
+def test_candidate_pdd_stage_reuses_independent_pdd_and_binding_tools():
+    entry = read_workflow("ndf-build-candidate.yml")
+    pdd = read_workflow("ndf-reusable-pdd-candidate.yml")
+    assert "uses: ./.github/workflows/ndf-reusable-pdd-candidate.yml" in entry
+    assert "needs: [prepare-candidate, build-candidate]" in entry
+    assert "workflow_call:" in pdd
+    assert "generate_product_deployment_descriptor.py" in pdd
+    assert "validate_product_deployment_descriptor.py" in pdd
+    assert "verify_product_deployment_binding.py" in pdd
+    assert "publish_product_deployment_descriptor.py" in pdd
+    assert "candidate-composition.json" in pdd
+    assert "EXPECTED_IMAGE_DIGEST" in pdd
+    assert "EXPECTED_LOCK_SHA256" in pdd
+    assert "EXPECTED_COMPOSITION_HASH" in pdd
+    assert "packages: write" in pdd
+    assert "actions: read" in pdd
+    assert "imagetools create" not in pdd
+    assert "Promote verified digest" not in pdd
+
+
+def test_candidate_build_exports_pdd_provenance_outputs():
+    build = read_workflow("ndf-reusable-build-candidate.yml")
+    assert "built_at: ${{ jobs.build-verify.outputs.built_at }}" in build
+    assert "composition_hash: ${{ jobs.build-verify.outputs.composition_hash }}" in build
+    assert "built_at: ${{ steps.build.outputs.built_at }}" in build
+    assert "composition_hash: ${{ steps.handoff.outputs.composition_hash }}" in build
+    assert "date -u +'%Y-%m-%dT%H:%M:%SZ'" in build
