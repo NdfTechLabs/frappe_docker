@@ -30,6 +30,9 @@ except ImportError:
 
 NDF_DIR = Path(__file__).resolve().parents[1]
 POLICY_PATH = NDF_DIR / "policies" / "artifact-trust-identity-policy-v1.json"
+COSIGN_STATEMENT_V01_SCHEMA_PATH = (
+    NDF_DIR / "schemas" / "cosign-image-provenance-statement-v0.1.schema.json"
+)
 COSIGN_VERSION = "v3.1.4"
 IDENTITY_ID = "product-image-publication"
 PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
@@ -205,8 +208,23 @@ def _workflow_identity_args(
 def _validate_statement(
     statement: dict[str, Any], *, repository: str, digest: str
 ) -> dict[str, Any]:
+    if statement.get("_type") != "https://in-toto.io/Statement/v0.1":
+        raise CosignTrustError(
+            "Cosign interoperability statement must use in-toto Statement v0.1."
+        )
     try:
-        report = artifact_trust.validate_image_provenance_statement(statement, digest)
+        artifact_trust._validate_schema(
+            statement,
+            COSIGN_STATEMENT_V01_SCHEMA_PATH,
+            "Cosign Statement v0.1 compatibility profile",
+        )
+        # Validate the complete predicate and NDF claims against the canonical
+        # Statement v1 profile without changing the verified payload itself.
+        canonical_statement = dict(statement)
+        canonical_statement["_type"] = "https://in-toto.io/Statement/v1"
+        report = artifact_trust.validate_image_provenance_statement(
+            canonical_statement, digest
+        )
     except Exception as exc:
         raise CosignTrustError(f"Image provenance statement is invalid: {exc}") from exc
     if statement["predicateType"] != PREDICATE_TYPE:
@@ -315,7 +333,7 @@ def _statement_candidates(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, dict):
         return candidates
     if (
-        value.get("_type") == "https://in-toto.io/Statement/v1"
+        value.get("_type") == "https://in-toto.io/Statement/v0.1"
         and isinstance(value.get("subject"), list)
         and isinstance(value.get("predicate"), dict)
     ):
