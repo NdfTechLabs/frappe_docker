@@ -236,6 +236,18 @@ def test_sign_rejects_predicate_statement_disagreement(tmp_path):
         )
 
 
+def test_cosign_v01_compatibility_schema_requires_complete_ndf_profile():
+    statement = _statement()
+    statement["_type"] = "https://in-toto.io/Statement/v0.1"
+    del statement["predicate"]["ndf_build"]
+    with pytest.raises(trust.CosignTrustError, match="Image provenance statement is invalid"):
+        trust._validate_statement(
+            statement,
+            repository="ghcr.io/ndftechlabs/dalali",
+            digest="sha256:" + "a" * 64,
+        )
+
+
 def test_extract_verified_statement_decodes_dsse_envelope():
     statement = _statement()
     cosign_statement = dict(statement)
