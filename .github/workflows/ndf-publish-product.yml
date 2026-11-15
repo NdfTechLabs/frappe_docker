@@ -421,7 +421,8 @@ jobs:
           python images/ndf/scripts/cosign_image_trust.py verify \
             --image-ref "$IMAGE_REF" \
             --result-output "$RESULT" \
-            --attestation-output "$ATTESTATION_OUTPUT" > "$VERIFY_LOG" 2>&1
+            --attestation-output "$ATTESTATION_OUTPUT" \
+            --expected-predicate "$OUTPUT/image-provenance-predicate.json" > "$VERIFY_LOG" 2>&1
           VERIFY_STATUS=$?
           set -e
 
