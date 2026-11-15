@@ -24,9 +24,7 @@ POLICY_SCHEMA_PATH = (
 IMAGE_PROVENANCE_SCHEMA_PATH = (
     NDF_DIR / "schemas" / "ndf-image-provenance-v1.schema.json"
 )
-PDD_BINDING_SCHEMA_PATH = (
-    NDF_DIR / "schemas" / "pdd-image-binding-v1.schema.json"
-)
+PDD_BINDING_SCHEMA_PATH = NDF_DIR / "schemas" / "pdd-image-binding-v1.schema.json"
 TRUST_RESULT_SCHEMA_PATH = (
     NDF_DIR / "schemas" / "artifact-trust-verification-result-v1.schema.json"
 )
@@ -52,9 +50,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
             path.read_text(encoding="utf-8"),
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=lambda token: (_ for _ in ()).throw(
-                ArtifactTrustError(
-                    f"Non-finite JSON constant in {label}: {token}"
-                )
+                ArtifactTrustError(f"Non-finite JSON constant in {label}: {token}")
             ),
         )
     except ArtifactTrustError:
@@ -66,9 +62,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
-def _validate_schema(
-    value: dict[str, Any], schema_path: Path, label: str
-) -> None:
+def _validate_schema(value: dict[str, Any], schema_path: Path, label: str) -> None:
     try:
         schema = _read_json(schema_path, f"{label} schema")
         Draft202012Validator.check_schema(schema)
@@ -83,9 +77,7 @@ def _validate_schema(
             ),
         )
     except SchemaError as exc:
-        raise ArtifactTrustError(
-            f"{label} schema is invalid: {exc.message}"
-        ) from exc
+        raise ArtifactTrustError(f"{label} schema is invalid: {exc.message}") from exc
     except ValidationError as exc:
         raise ArtifactTrustError(
             f"{label} schema validation failed: {exc.message}"
@@ -124,7 +116,9 @@ def load_identity_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
             seen.add(key)
 
     if policy["issuer"] != GITHUB_OIDC_ISSUER:
-        raise ArtifactTrustError("Identity policy OIDC issuer is not the approved GitHub issuer.")
+        raise ArtifactTrustError(
+            "Identity policy OIDC issuer is not the approved GitHub issuer."
+        )
     if policy["status"] not in (
         "provisional_until_live_certificate_observation",
         "confirmed",
@@ -133,12 +127,12 @@ def load_identity_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
     return policy
 
 
-def _identity_entry(
-    policy: dict[str, Any], identity_id: str
-) -> dict[str, Any]:
+def _identity_entry(policy: dict[str, Any], identity_id: str) -> dict[str, Any]:
     matches = [item for item in policy["identities"] if item["id"] == identity_id]
     if len(matches) != 1:
-        raise ArtifactTrustError(f"Unknown or ambiguous signer identity purpose: {identity_id}")
+        raise ArtifactTrustError(
+            f"Unknown or ambiguous signer identity purpose: {identity_id}"
+        )
     return matches[0]
 
 
@@ -182,7 +176,9 @@ def validate_signer_claims(
             )
 
     if claims.get("certificate_identity") != entry["certificate_identity"]:
-        raise ArtifactTrustError("Fulcio certificate identity does not match the exact allowlist entry.")
+        raise ArtifactTrustError(
+            "Fulcio certificate identity does not match the exact allowlist entry."
+        )
 
     if not re.fullmatch(r"[0-9]+", str(claims["run_id"])):
         raise ArtifactTrustError("Signer run_id must contain decimal digits only.")
@@ -243,7 +239,9 @@ def validate_image_provenance_statement(
         statement, IMAGE_PROVENANCE_SCHEMA_PATH, "NDF image provenance statement"
     )
     if not re.fullmatch(r"sha256:[a-f0-9]{64}", image_digest):
-        raise ArtifactTrustError("Requested image digest must be a valid sha256 digest.")
+        raise ArtifactTrustError(
+            "Requested image digest must be a valid sha256 digest."
+        )
     subjects = statement["subject"]
     if len(subjects) != 1:
         raise ArtifactTrustError("Image provenance must contain exactly one subject.")
@@ -271,12 +269,12 @@ def validate_pdd_binding_statement(
     descriptor_content_sha256: str,
 ) -> dict[str, Any]:
     """Validate PDD binding statement subject and its image/content claims."""
-    _validate_schema(
-        statement, PDD_BINDING_SCHEMA_PATH, "PDD-image binding statement"
-    )
+    _validate_schema(statement, PDD_BINDING_SCHEMA_PATH, "PDD-image binding statement")
     for label, digest in (("PDD", pdd_digest), ("image", image_digest)):
         if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
-            raise ArtifactTrustError(f"Requested {label} digest is not a valid sha256 digest.")
+            raise ArtifactTrustError(
+                f"Requested {label} digest is not a valid sha256 digest."
+            )
     if not re.fullmatch(r"[a-f0-9]{64}", descriptor_content_sha256):
         raise ArtifactTrustError("Descriptor content SHA-256 is invalid.")
 
@@ -287,7 +285,9 @@ def validate_pdd_binding_statement(
         )
     predicate = statement["predicate"]
     if predicate["subject_image"]["digest"] != image_digest:
-        raise ArtifactTrustError("PDD binding predicate identifies a different image digest.")
+        raise ArtifactTrustError(
+            "PDD binding predicate identifies a different image digest."
+        )
     if predicate["descriptor"]["content_sha256"] != descriptor_content_sha256:
         raise ArtifactTrustError("PDD binding descriptor content hash mismatch.")
 
