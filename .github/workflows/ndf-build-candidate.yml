@@ -269,7 +269,6 @@ jobs:
       PDD_DIGEST: ${{ needs.publish-candidate-pdd.outputs.pdd_artifact_digest }}
       PDD_CONTENT_SHA256: ${{ needs.publish-candidate-pdd.outputs.pdd_content_sha256 }}
       WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      WORKFLOW_STARTED_AT: ${{ github.run_started_at }}
     steps:
       - name: Checkout result contract and writer
         uses: actions/checkout@v7
@@ -288,8 +287,21 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-test.txt
 
+      - name: Resolve workflow start time
+        id: run-metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --jq '.run_started_at')"
+          test -n "$started_at"
+          echo "started_at=$started_at" >> "$GITHUB_OUTPUT"
+
       - name: Generate and validate terminal result
         id: result
+        env:
+          WORKFLOW_STARTED_AT: ${{ steps.run-metadata.outputs.started_at }}
         shell: bash
         run: |
           set -euo pipefail
