@@ -128,8 +128,8 @@ def test_candidate_pdd_stage_reuses_independent_pdd_and_binding_tools():
 
 def test_candidate_build_exports_pdd_provenance_outputs():
     build = read_workflow("ndf-reusable-build-candidate.yml")
-    assert "built_at: ${{ jobs.build-verify.outputs.built_at }}" in build
-    assert "composition_hash: ${{ jobs.build-verify.outputs.composition_hash }}" in build
+    assert "value: ${{ jobs.build-verify.outputs.built_at }}" in build
+    assert "value: ${{ jobs.build-verify.outputs.composition_hash }}" in build
     assert "built_at: ${{ steps.build.outputs.built_at }}" in build
     assert "composition_hash: ${{ steps.handoff.outputs.composition_hash }}" in build
     assert "date -u +'%Y-%m-%dT%H:%M:%SZ'" in build
