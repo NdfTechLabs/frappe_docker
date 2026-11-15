@@ -201,4 +201,7 @@ def test_new_run_attempt_gets_a_distinct_result_identity(tmp_path):
     second_result = json.loads(second_output.read_text(encoding="utf-8"))
     assert first_result["result_id"] == "ndf-123456-2"
     assert second_result["result_id"] == "ndf-123456-3"
-    assert first_result["workflow"]["run_attempt"] != second_result["workflow"]["run_attempt"]
+    assert (
+        first_result["workflow"]["run_attempt"]
+        != second_result["workflow"]["run_attempt"]
+    )
