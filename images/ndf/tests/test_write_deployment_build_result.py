@@ -121,3 +121,82 @@ def test_result_writer_refuses_to_overwrite_attempt_result(tmp_path):
     completed, _ = invoke(tmp_path, env)
     assert completed.returncode != 0
     assert "Refusing to overwrite" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("failed_stage", "expected_code"),
+    [
+        ("DISPATCH_GATE_RESULT", "DISPATCH_NOT_AUTHORIZED"),
+        ("PREPARE_RESULT", "CANDIDATE_INTAKE_FAILED"),
+        ("BUILD_RESULT", "IMAGE_BUILD_OR_VERIFICATION_FAILED"),
+        ("PDD_RESULT", "PDD_PUBLICATION_FAILED"),
+    ],
+)
+def test_each_required_stage_failure_produces_failed_result(
+    tmp_path, failed_stage, expected_code
+):
+    env = base_env()
+    env[failed_stage] = "failure"
+    completed, output = invoke(tmp_path, env)
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["status"] == "failed"
+    assert result["failure"]["code"] == expected_code
+    assert "stack trace" not in result["failure"]["summary"].lower()
+    assert "registry password" not in result["failure"]["summary"].lower()
+
+
+def test_successful_stages_with_missing_image_evidence_fail_closed(tmp_path):
+    env = base_env()
+    env["IMAGE_DIGEST"] = ""
+    completed, output = invoke(tmp_path, env)
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["status"] == "failed"
+    assert result["failure"]["code"] == "RESULT_EVIDENCE_INVALID"
+    assert "provenance_ref" not in result
+
+
+def test_successful_stages_with_malformed_lock_hash_fail_closed(tmp_path):
+    env = base_env()
+    env["LOCK_SHA256"] = "not-a-sha256"
+    completed, output = invoke(tmp_path, env)
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["status"] == "failed"
+    assert result["failure"]["code"] == "RESULT_EVIDENCE_INVALID"
+
+
+def test_invalid_candidate_payload_hash_fails_closed(tmp_path):
+    env = base_env()
+    env["CANDIDATE_PAYLOAD_SHA256"] = "not-a-sha256"
+    completed, _ = invoke(tmp_path, env)
+    assert completed.returncode != 0
+    assert "payload SHA-256 is invalid" in completed.stderr
+
+
+def test_pdd_reference_digest_mismatch_fails_closed(tmp_path):
+    env = base_env()
+    env["PDD_REFERENCE"] = "ghcr.io/ndftechlabs/pdd/dalali@sha256:" + "0" * 64
+    completed, _ = invoke(tmp_path, env)
+    assert completed.returncode != 0
+    assert "PDD reference and digest outputs do not agree" in completed.stderr
+
+
+def test_new_run_attempt_gets_a_distinct_result_identity(tmp_path):
+    first_env = base_env()
+    first, first_output = invoke(tmp_path, first_env)
+    assert first.returncode == 0, first.stderr
+
+    second_dir = tmp_path / "attempt-3"
+    second_dir.mkdir()
+    second_env = base_env()
+    second_env["GITHUB_RUN_ATTEMPT"] = "3"
+    second, second_output = invoke(second_dir, second_env)
+    assert second.returncode == 0, second.stderr
+
+    first_result = json.loads(first_output.read_text(encoding="utf-8"))
+    second_result = json.loads(second_output.read_text(encoding="utf-8"))
+    assert first_result["result_id"] == "ndf-123456-2"
+    assert second_result["result_id"] == "ndf-123456-3"
+    assert first_result["workflow"]["run_attempt"] != second_result["workflow"]["run_attempt"]
