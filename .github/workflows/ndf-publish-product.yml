@@ -322,7 +322,7 @@ jobs:
   # official publication runs; it never creates or promotes an official tag.
   sign-trust:
     name: Live Cosign trust check for ${{ matrix.image }}
-    if: ${{ inputs.publish == false }}
+    if: ${{ inputs.publish == false && inputs.product != 'all' && github.ref == 'refs/heads/main' }}
     needs: [prepare, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 20
