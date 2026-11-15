@@ -275,7 +275,6 @@ def _validate_ndf_statement(
     return report
 
 
-
 def sign_image(
     *,
     image_ref: str,

@@ -240,7 +240,9 @@ def test_cosign_v01_compatibility_schema_requires_complete_ndf_profile():
     statement = _statement()
     statement["_type"] = "https://in-toto.io/Statement/v0.1"
     del statement["predicate"]["ndf_build"]
-    with pytest.raises(trust.CosignTrustError, match="Image provenance statement is invalid"):
+    with pytest.raises(
+        trust.CosignTrustError, match="Image provenance statement is invalid"
+    ):
         trust._validate_cosign_statement(
             statement,
             repository="ghcr.io/ndftechlabs/dalali",
@@ -256,7 +258,10 @@ def test_extract_verified_statement_decodes_dsse_envelope():
         "payloadType": "application/vnd.in-toto+json",
         "payload": base64.b64encode(json.dumps(cosign_statement).encode()).decode(),
     }
-    assert trust.extract_verified_statement("header\n" + json.dumps(envelope)) == cosign_statement
+    assert (
+        trust.extract_verified_statement("header\n" + json.dumps(envelope))
+        == cosign_statement
+    )
 
 
 def test_statement_candidate_parser_accepts_only_cosign_v01():
@@ -352,7 +357,10 @@ def test_verify_rejects_any_change_to_original_ndf_predicate(tmp_path):
     statement = _statement()
     statement["predicate"]["ndf_build"]["composition_sha256"] = "f" * 64
     expected = _write_expected_predicate(tmp_path)
-    with pytest.raises(trust.CosignTrustError, match="differs from the original NDF provenance predicate"):
+    with pytest.raises(
+        trust.CosignTrustError,
+        match="differs from the original NDF provenance predicate",
+    ):
         trust.verify_image(
             image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
             result_output=tmp_path / "result.json",
