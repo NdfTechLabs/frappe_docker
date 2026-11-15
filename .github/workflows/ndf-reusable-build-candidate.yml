@@ -56,7 +56,7 @@ jobs:
       CANDIDATE_PAYLOAD_SHA256: ${{ inputs.candidate_payload_sha256 }}
       EXPECTED_LOCK_SHA256: ${{ inputs.lock_sha256 }}
       PREPARED_ARTIFACT_NAME: ${{ inputs.prepared_artifact_name }}
-      PREPARED_ROOT: ${{ runner.temp }}/ndf-candidate-prepared
+      PREPARED_ROOT: ${{ github.workspace }}/.ndf-candidate-prepared
       BUILD_OUTPUT: ${{ github.workspace }}/.ndf-candidate-build
     steps:
       - name: Checkout NDF build and verification code
