@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -127,9 +128,14 @@ def main() -> int:
         "started_at": started_at,
         "completed_at": utc_now(),
     }
-    correlation_id = os.environ.get("CORRELATION_ID", "")
-    if correlation_id:
-        result["correlation_id"] = correlation_id
+    correlation_id = required_env("CORRELATION_ID")
+    try:
+        canonical_correlation_id = str(uuid.UUID(correlation_id))
+    except ValueError as exc:
+        raise ValueError("Correlation ID must be a canonical UUID.") from exc
+    if canonical_correlation_id != correlation_id:
+        raise ValueError("Correlation ID must use canonical lowercase UUID form.")
+    result["correlation_id"] = correlation_id
 
     composition_hash = os.environ.get("COMPOSITION_HASH", "")
     lock_hash = os.environ.get("LOCK_SHA256", "")
