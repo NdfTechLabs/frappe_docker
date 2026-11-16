@@ -32,7 +32,10 @@ def test_pdd_publication_job_has_only_required_registry_write_permission():
 def test_source_trust_artifact_is_derived_from_exact_build_artifact_identity():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
     assert 're.fullmatch(r"ndf-publish-(.+)-(\\d+)-(\\d+)", build_name)' in workflow
-    assert 'trust_name = f"ndf-cosign-live-{image_id}-{build_id}-{build_attempt}"' in workflow
+    assert (
+        'trust_name = f"ndf-cosign-live-{image_id}-{build_id}-{build_attempt}"'
+        in workflow
+    )
     assert 'trust_job_name = f"Live Cosign trust check for {image_id}"' in workflow
     assert "build-jobs.json" in workflow
     assert "jobs?per_page=100" in workflow
@@ -45,18 +48,24 @@ def test_source_trust_artifact_must_be_present_and_match_build_predicate():
     download = workflow.split("name: Download original build evidence", 1)[1].split(
         "\n      - name:", 1
     )[0]
-    assert 'steps.source.outputs.source_trust_artifact_name' in download
-    assert 'cosign-live-verification-result.json' in download
-    assert 'image-provenance-predicate.json' in download
-    assert 'cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_TRUST_DIR/image-provenance-predicate.json"' in download
+    assert "steps.source.outputs.source_trust_artifact_name" in download
+    assert "cosign-live-verification-result.json" in download
+    assert "image-provenance-predicate.json" in download
+    assert (
+        'cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_TRUST_DIR/image-provenance-predicate.json"'
+        in download
+    )
 
 
 def test_existing_publication_receipt_artifact_contract_is_preserved():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
-    assert 'pdd-publication-record.json' in workflow
-    assert 'name: ndf-pdd-publication-${{ inputs.build_run_id }}-${{ github.run_attempt }}' in workflow
-    assert 'path: ${{ runner.temp }}/pdd-publication-record.json' in workflow
-    assert 'retention-days: 90' in workflow
+    assert "pdd-publication-record.json" in workflow
+    assert (
+        "name: ndf-pdd-publication-${{ inputs.build_run_id }}-${{ github.run_attempt }}"
+        in workflow
+    )
+    assert "path: ${{ runner.temp }}/pdd-publication-record.json" in workflow
+    assert "retention-days: 90" in workflow
 
 
 def test_pdd_publication_remains_manual_main_only_and_does_not_gain_oidc():
