@@ -201,6 +201,13 @@ def test_verifier_rejects_unexpected_file(tmp_path):
         bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
 
 
+def test_verifier_rejects_unexpected_empty_directory(tmp_path):
+    output, _ = _pack(tmp_path)
+    (output / "unexpected").mkdir()
+    with pytest.raises(bundle.EvidenceBundleError, match="unexpected_dirs"):
+        bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
+
+
 def test_verifier_rejects_duplicate_manifest_paths(tmp_path):
     output, manifest = _pack(tmp_path)
     manifest["files"].append(dict(manifest["files"][0]))
