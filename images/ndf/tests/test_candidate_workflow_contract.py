@@ -179,3 +179,35 @@ def test_candidate_dispatch_requires_canonical_correlation_id():
     assert "required: true" in dispatch
     assert "Optional" not in dispatch
     assert "CORRELATION_ID: ${{ inputs.correlation_id }}" in workflow
+
+def test_candidate_origin_verification_precedes_intake_and_blocks_preparation():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    origin_job = workflow.split("  verify-candidate-origin:", 1)[1].split(
+        "  prepare-candidate:", 1
+    )[0]
+    prepare_job = workflow.split("  prepare-candidate:", 1)[1].split(
+        "  build-candidate:", 1
+    )[0]
+    assert "verify_deployment_candidate_origin.py" in origin_job
+    assert "cosign-release: v3.1.4" in origin_job
+    assert "packages: read" in origin_job
+    assert "packages: write" not in origin_job
+    assert "needs: [dispatch-gate, verify-candidate-origin]" in prepare_job
+    assert workflow.index("verify_deployment_candidate_origin.py") < workflow.index(
+        "intake_deployment_candidate.py"
+    )
+    assert workflow.index("intake_deployment_candidate.py") < workflow.index(
+        "adapt_candidate_to_lock.py"
+    )
+
+
+def test_candidate_terminal_result_requires_origin_verification_outcome():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    result_job = workflow.split("  publish-candidate-result:", 1)[1]
+    assert "verify-candidate-origin" in result_job
+    assert "ORIGIN_VERIFY_RESULT: ${{ needs.verify-candidate-origin.result }}" in result_job
+    assert "CANDIDATE_ORIGIN_TRUST_FAILED" in read_workflow(
+        "ndf-build-candidate.yml"
+    ) or "CANDIDATE_ORIGIN_TRUST_FAILED" in (
+        ROOT / "images" / "ndf" / "scripts" / "write_deployment_build_result.py"
+    ).read_text(encoding="utf-8")
