@@ -110,7 +110,9 @@ def _validate_schema(value: dict[str, Any], path: Path, label: str) -> None:
             schema, format_checker=Draft202012Validator.FORMAT_CHECKER
         ).validate(value)
     except (OSError, UnicodeError, json.JSONDecodeError, ValidationError) as exc:
-        raise PDDBindingGenerationError(f"{label} schema validation failed: {exc}") from exc
+        raise PDDBindingGenerationError(
+            f"{label} schema validation failed: {exc}"
+        ) from exc
 
 
 def _workflow_context(env: dict[str, str]) -> dict[str, Any]:
@@ -128,9 +130,7 @@ def _workflow_context(env: dict[str, str]) -> dict[str, Any]:
         raise PDDBindingGenerationError(
             f"GitHub Actions context is incomplete: {', '.join(missing)}"
         )
-    expected_ref = (
-        f"NdfTechLabs/frappe_docker/{PDD_WORKFLOW_PATH}@refs/heads/main"
-    )
+    expected_ref = f"NdfTechLabs/frappe_docker/{PDD_WORKFLOW_PATH}@refs/heads/main"
     if (
         env["GITHUB_REPOSITORY"] != "NdfTechLabs/frappe_docker"
         or env["GITHUB_WORKFLOW_REF"] != expected_ref
@@ -141,9 +141,13 @@ def _workflow_context(env: dict[str, str]) -> dict[str, Any]:
             "Workflow context is not the approved PDD publication workflow on main."
         )
     if not re.fullmatch(r"[0-9]+", env["GITHUB_RUN_ID"]):
-        raise PDDBindingGenerationError("GITHUB_RUN_ID must contain decimal digits only.")
+        raise PDDBindingGenerationError(
+            "GITHUB_RUN_ID must contain decimal digits only."
+        )
     if not re.fullmatch(r"[1-9][0-9]*", env["GITHUB_RUN_ATTEMPT"]):
-        raise PDDBindingGenerationError("GITHUB_RUN_ATTEMPT must be a positive integer.")
+        raise PDDBindingGenerationError(
+            "GITHUB_RUN_ATTEMPT must be a positive integer."
+        )
     source_commit = env["GITHUB_SHA"].lower()
     if not COMMIT_RE.fullmatch(source_commit):
         raise PDDBindingGenerationError("GITHUB_SHA is not a valid commit SHA.")
@@ -238,7 +242,10 @@ def _validate_source_image_trust(
             "Source image trust result must contain exactly one SLSA Provenance v1 attestation."
         )
     attestation = matching[0]
-    if attestation["verified"] is not True or attestation["subject_digest"] != image["digest"]:
+    if (
+        attestation["verified"] is not True
+        or attestation["subject_digest"] != image["digest"]
+    ):
         raise PDDBindingGenerationError(
             "Source image SLSA attestation is not verified for the exact image digest."
         )
@@ -301,8 +308,11 @@ def _atomic_write(path: Path, raw: bytes) -> None:
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode="wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp",
-            delete=False
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
         ) as stream:
             temporary = Path(stream.name)
             stream.write(raw)
@@ -312,7 +322,9 @@ def _atomic_write(path: Path, raw: bytes) -> None:
     except OSError as exc:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-        raise PDDBindingGenerationError(f"Unable to write output {path}: {exc}") from exc
+        raise PDDBindingGenerationError(
+            f"Unable to write output {path}: {exc}"
+        ) from exc
 
 
 def generate_pdd_image_binding(

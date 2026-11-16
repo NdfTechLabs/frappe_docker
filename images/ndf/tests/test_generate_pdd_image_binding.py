@@ -46,7 +46,10 @@ def _inputs():
             "validation": {
                 "image_validation": {"status": "passed", "report_sha256": "1" * 64},
                 "source_provenance": {"status": "passed", "report_sha256": "2" * 64},
-                "composition_verification": {"status": "passed", "report_sha256": "3" * 64},
+                "composition_verification": {
+                    "status": "passed",
+                    "report_sha256": "3" * 64,
+                },
                 "evidence_binding": {"status": "passed", "report_sha256": "4" * 64},
             },
         },
@@ -82,7 +85,9 @@ def _inputs():
             "repository": descriptor["artifact"]["repository"],
             "locator_tag": "pdd-v1-linux-amd64-" + "1" * 64,
             "digest": pdd_digest,
-            "immutable_reference": descriptor["artifact"]["repository"] + "@" + pdd_digest,
+            "immutable_reference": descriptor["artifact"]["repository"]
+            + "@"
+            + pdd_digest,
         },
         "evidence": {
             "count": 11,
@@ -98,7 +103,9 @@ def _inputs():
             "kind": "product_image",
             "repository": descriptor["artifact"]["repository"],
             "digest": image_digest,
-            "immutable_reference": descriptor["artifact"]["repository"] + "@" + image_digest,
+            "immutable_reference": descriptor["artifact"]["repository"]
+            + "@"
+            + image_digest,
         },
         "signature": {"verified": True, "verification_method": "cosign-keyless"},
         "signer": {
@@ -107,18 +114,25 @@ def _inputs():
             "certificate_identity": "https://github.com/NdfTechLabs/frappe_docker/.github/workflows/ndf-publish-product.yml@refs/heads/main",
         },
         "transparency": {"verified": True, "log_entry_verified": True},
-        "attestations": [{
-            "predicate_type": generator.PREDICATE_TYPE,
-            "verified": True,
-            "subject_digest": image_digest,
-            "predicate_sha256": _hash(predicate),
-        }],
-        "decision": {"status": "rejected", "reason_codes": [generator.PROVISIONAL_REASON]},
+        "attestations": [
+            {
+                "predicate_type": generator.PREDICATE_TYPE,
+                "verified": True,
+                "subject_digest": image_digest,
+                "predicate_sha256": _hash(predicate),
+            }
+        ],
+        "decision": {
+            "status": "rejected",
+            "reason_codes": [generator.PROVISIONAL_REASON],
+        },
         "verified_at": "2026-11-16T08:00:00Z",
     }
     env = {
         "GITHUB_REPOSITORY": "NdfTechLabs/frappe_docker",
-        "GITHUB_WORKFLOW_REF": "NdfTechLabs/frappe_docker/" + generator.PDD_WORKFLOW_PATH + "@refs/heads/main",
+        "GITHUB_WORKFLOW_REF": "NdfTechLabs/frappe_docker/"
+        + generator.PDD_WORKFLOW_PATH
+        + "@refs/heads/main",
         "GITHUB_REF": "refs/heads/main",
         "GITHUB_EVENT_NAME": "workflow_dispatch",
         "GITHUB_RUN_ID": "987654",
@@ -140,14 +154,20 @@ def test_canonical_json_uses_compact_sorted_utf8_and_trailing_lf():
 def test_workflow_context_requires_exact_pdd_workflow():
     _, _, _, _, env = _inputs()
     assert generator._workflow_context(env)["path"] == generator.PDD_WORKFLOW_PATH
-    env["GITHUB_WORKFLOW_REF"] = "NdfTechLabs/frappe_docker/.github/workflows/other.yml@refs/heads/main"
-    with pytest.raises(generator.PDDBindingGenerationError, match="approved PDD publication workflow"):
+    env["GITHUB_WORKFLOW_REF"] = (
+        "NdfTechLabs/frappe_docker/.github/workflows/other.yml@refs/heads/main"
+    )
+    with pytest.raises(
+        generator.PDDBindingGenerationError, match="approved PDD publication workflow"
+    ):
         generator._workflow_context(env)
 
 
 def test_source_trust_accepts_only_provisional_policy_rejection():
     descriptor, _, trust_result, predicate, _ = _inputs()
-    assert generator._validate_source_image_trust(trust_result, predicate, descriptor) == _hash(predicate)
+    assert generator._validate_source_image_trust(
+        trust_result, predicate, descriptor
+    ) == _hash(predicate)
 
 
 def test_source_trust_rejects_predicate_hash_mismatch():
@@ -160,7 +180,9 @@ def test_source_trust_rejects_predicate_hash_mismatch():
 def test_source_trust_rejects_other_rejection_reasons():
     descriptor, _, trust_result, predicate, _ = _inputs()
     trust_result["decision"]["reason_codes"] = ["SIGNATURE_INVALID"]
-    with pytest.raises(generator.PDDBindingGenerationError, match="only for provisional"):
+    with pytest.raises(
+        generator.PDDBindingGenerationError, match="only for provisional"
+    ):
         generator._validate_source_image_trust(trust_result, predicate, descriptor)
 
 
@@ -174,14 +196,18 @@ def test_source_trust_rejects_image_digest_mismatch():
 def test_publication_receipt_must_match_descriptor():
     descriptor, receipt, _, _, _ = _inputs()
     receipt["descriptor"]["content_sha256"] = "0" * 64
-    with pytest.raises(generator.PDDBindingGenerationError, match="does not match the PDD"):
+    with pytest.raises(
+        generator.PDDBindingGenerationError, match="does not match the PDD"
+    ):
         generator._validate_publication_receipt(receipt, descriptor)
 
 
 def test_publication_receipt_must_use_distinct_pdd_digest():
     descriptor, receipt, _, _, _ = _inputs()
     receipt["artifact"]["digest"] = descriptor["artifact"]["digest"]
-    receipt["artifact"]["immutable_reference"] = receipt["artifact"]["repository"] + "@" + receipt["artifact"]["digest"]
+    receipt["artifact"]["immutable_reference"] = (
+        receipt["artifact"]["repository"] + "@" + receipt["artifact"]["digest"]
+    )
     with pytest.raises(generator.PDDBindingGenerationError, match="must differ"):
         generator._validate_publication_receipt(receipt, descriptor)
 
@@ -193,7 +219,9 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
     trust_path = _write(tmp_path / "trust-result.json", trust_result)
     predicate_path = _write(tmp_path / "predicate.json", predicate)
     output = tmp_path / "binding-statement.json"
-    monkeypatch.setattr(generator, "validate_descriptor", lambda path: {"status": "passed"})
+    monkeypatch.setattr(
+        generator, "validate_descriptor", lambda path: {"status": "passed"}
+    )
 
     result = generator.generate_pdd_image_binding(
         descriptor_path=descriptor_path,
@@ -206,7 +234,9 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
     statement = json.loads(output.read_text(encoding="utf-8"))
     assert statement["_type"] == "https://in-toto.io/Statement/v1"
     assert statement["subject"][0]["digest"]["sha256"] == "b" * 64
-    assert statement["predicate"]["source_provenance"]["predicate_sha256"] == _hash(predicate)
+    assert statement["predicate"]["source_provenance"]["predicate_sha256"] == _hash(
+        predicate
+    )
     assert result["status"] == "passed"
     first_bytes = output.read_bytes()
 
