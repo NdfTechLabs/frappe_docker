@@ -83,6 +83,31 @@ def _inputs(tmp_path: Path):
     return result_path, report_path, evidence_root, result, report
 
 
+def _add_verified_evidence(result_path: Path, report_path: Path, evidence_root: Path):
+    signature = b'{"signature":"verified"}\\n'
+    attestation = b'{"attestation":"verified"}\\n'
+    (evidence_root / "signature.json").write_bytes(signature)
+    (evidence_root / "attestation.json").write_bytes(attestation)
+    result_bytes = result_path.read_bytes()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["candidate_origin"]["decision"] = "verified"
+    report["candidate_origin"]["reason_code"] = "CANDIDATE_ORIGIN_VERIFIED"
+    report["candidate_origin"]["evidence_references"] = [
+        {
+            "kind": "cosign_signature",
+            "reference": "signature.json",
+            "sha256": hashlib.sha256(signature).hexdigest(),
+        },
+        {
+            "kind": "candidate_origin_attestation",
+            "reference": "attestation.json",
+            "sha256": hashlib.sha256(attestation).hexdigest(),
+        },
+    ]
+    report["result_binding"]["result_sha256"] = hashlib.sha256(result_bytes).hexdigest()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+
 def _pack(tmp_path: Path):
     result, report, evidence, _, _ = _inputs(tmp_path)
     output = tmp_path / "bundle"
@@ -108,17 +133,8 @@ def test_pack_and_verify_attempt_scoped_bundle(tmp_path):
 
 
 def test_pack_includes_report_referenced_evidence(tmp_path):
-    result_path, report_path, evidence_root, result, report = _inputs(tmp_path)
-    evidence = b'{"sigstore":"evidence"}\n'
-    (evidence_root / "candidate-origin.json").write_bytes(evidence)
-    report["candidate_origin"]["evidence_references"] = [{
-        "kind": "candidate_origin_attestation",
-        "reference": "candidate-origin.json",
-        "sha256": hashlib.sha256(evidence).hexdigest(),
-    }]
-    result_bytes = result_path.read_bytes()
-    report["result_binding"]["result_sha256"] = hashlib.sha256(result_bytes).hexdigest()
-    report_path.write_text(json.dumps(report), encoding="utf-8")
+    result_path, report_path, evidence_root, _, _ = _inputs(tmp_path)
+    _add_verified_evidence(result_path, report_path, evidence_root)
 
     output = tmp_path / "bundle"
     bundle.pack_bundle(
@@ -128,13 +144,15 @@ def test_pack_includes_report_referenced_evidence(tmp_path):
         schema_dir=SCHEMAS,
         output_dir=output,
     )
-    assert (output / "evidence/candidate-origin.json").read_bytes() == evidence
-    assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["file_count"] == 4
+    assert (output / "evidence/signature.json").is_file()
+    assert (output / "evidence/attestation.json").is_file()
+    assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["file_count"] == 5
 
 
 def test_packer_rejects_evidence_hash_mismatch(tmp_path):
     result, report, evidence, _, _ = _inputs(tmp_path)
-    (evidence / "candidate-origin.json").write_text("changed")
+    _add_verified_evidence(result, report, evidence)
+    (evidence / "attestation.json").write_text("changed")
     with pytest.raises(bundle.EvidenceBundleError, match="SHA-256 differs"):
         bundle.pack_bundle(
             result_path=result,
@@ -147,11 +165,19 @@ def test_packer_rejects_evidence_hash_mismatch(tmp_path):
 
 def test_packer_rejects_symlinked_evidence_source(tmp_path):
     result, report, evidence, _, _ = _inputs(tmp_path)
+    _add_verified_evidence(result, report, evidence)
     outside = tmp_path / "outside"
     outside.write_text("secret")
-    (evidence / "candidate-origin.json").symlink_to(outside)
+    (evidence / "signature.json").unlink()
+    (evidence / "signature.json").symlink_to(outside)
     with pytest.raises(bundle.EvidenceBundleError, match="symlink"):
-        bundle._safe_source_file(evidence, "candidate-origin.json")
+        bundle.pack_bundle(
+            result_path=result,
+            report_path=report,
+            evidence_root=evidence,
+            schema_dir=SCHEMAS,
+            output_dir=tmp_path / "bundle",
+        )
 
 
 def test_verifier_rejects_tampered_result(tmp_path):
