@@ -322,8 +322,14 @@ jobs:
           import os
           from pathlib import Path
 
+          from jsonschema import Draft202012Validator
+
           root = Path(os.environ["RUNNER_TEMP"], "pdd-signing-input")
           receipt = json.loads((root / "pdd-publication-record.json").read_text())
+          schema = json.loads(Path("images/ndf/schemas/pdd-publication-record-v1.schema.json").read_text())
+          Draft202012Validator(
+              schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+          ).validate(receipt)
           reference = receipt["artifact"]["immutable_reference"]
           expected = f"{receipt['artifact']['repository']}@{receipt['artifact']['digest']}"
           if reference != expected or reference != os.environ["PDD_REFERENCE"]:
@@ -350,18 +356,26 @@ jobs:
         env:
           PDD_REFERENCE: ${{ needs.publish.outputs.pdd_reference }}
         run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/pdd-trust-verification-result.json" "$RUNNER_TEMP/pdd-verified-attestation.json" "$RUNNER_TEMP/pdd-verify.log"
           set +e
           python images/ndf/scripts/cosign_pdd_trust.py verify \
             --pdd-ref "$PDD_REFERENCE" \
             --expected-predicate "$RUNNER_TEMP/pdd-signing-input/pdd-image-binding-predicate.json" \
             --result-output "$RUNNER_TEMP/pdd-trust-verification-result.json" \
-            --attestation-output "$RUNNER_TEMP/pdd-verified-attestation.json"
+            --attestation-output "$RUNNER_TEMP/pdd-verified-attestation.json" \
+            > "$RUNNER_TEMP/pdd-verify.log" 2>&1
           verify_status=$?
           set -e
+          cat "$RUNNER_TEMP/pdd-verify.log"
           if [[ "$verify_status" -ne 1 ]]; then
             echo "Expected the verifier to exit 1 for the provisional identity policy; got $verify_status." >&2
             exit 1
           fi
+          grep -Fq "PDD cryptographic verification passed, but signer identity policy is provisional; result is rejected." "$RUNNER_TEMP/pdd-verify.log" || {
+            echo "Verifier did not report the exact expected provisional-policy rejection." >&2
+            exit 1
+          }
           python - <<'PY'
           import json
           import os
