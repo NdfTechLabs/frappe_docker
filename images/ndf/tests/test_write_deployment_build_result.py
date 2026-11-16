@@ -31,7 +31,7 @@ def base_env():
             + CANDIDATE_DIGEST
         ),
         "CANDIDATE_PAYLOAD_SHA256": PAYLOAD_HASH,
-        "CORRELATION_ID": "master-request-42",
+        "CORRELATION_ID": "4f9b4c7e-2c10-4c9e-9e3d-8a0d5f2e7b61",
         "WORKFLOW_RUN_URL": "https://github.com/NdfTechLabs/frappe_docker/actions/runs/123456",
         "WORKFLOW_STARTED_AT": "2026-11-15T10:00:00Z",
         "DISPATCH_GATE_RESULT": "success",
@@ -75,7 +75,7 @@ def test_success_result_binds_candidate_attempt_image_and_pdd(tmp_path):
     assert result["result_id"] == "ndf-123456-2"
     assert result["candidate_artifact_digest"] == "sha256:" + CANDIDATE_DIGEST
     assert result["candidate_payload_sha256"] == PAYLOAD_HASH
-    assert result["correlation_id"] == "master-request-42"
+    assert result["correlation_id"] == "4f9b4c7e-2c10-4c9e-9e3d-8a0d5f2e7b61"
     assert result["workflow"]["run_attempt"] == 2
     assert result["image"]["digest"] == IMAGE_DIGEST
     assert result["descriptor"]["digest"] == PDD_DIGEST
@@ -205,3 +205,20 @@ def test_new_run_attempt_gets_a_distinct_result_identity(tmp_path):
         first_result["workflow"]["run_attempt"]
         != second_result["workflow"]["run_attempt"]
     )
+
+
+def test_missing_correlation_id_fails_closed(tmp_path):
+    env = base_env()
+    env.pop("CORRELATION_ID")
+    completed, _ = invoke(tmp_path, env)
+    assert completed.returncode != 0
+    assert "CORRELATION_ID" in completed.stderr
+
+
+@pytest.mark.parametrize("value", ["master-request-42", "4F9B4C7E-2C10-4C9E-9E3D-8A0D5F2E7B61"])
+def test_noncanonical_correlation_id_fails_closed(tmp_path, value):
+    env = base_env()
+    env["CORRELATION_ID"] = value
+    completed, _ = invoke(tmp_path, env)
+    assert completed.returncode != 0
+    assert "canonical UUID" in completed.stderr
