@@ -112,7 +112,7 @@ jobs:
               raise SystemExit("Source image build must have run from main.")
           if str(build.get("id")) != build_id:
               raise SystemExit("Source build run ID mismatch.")
-          build_match = re.fullmatch(r"ndf-publish-(.+)-(\\d+)-(\\d+)", build_name)
+          build_match = re.fullmatch(r"ndf-publish-(.+)-(\d+)-(\d+)", build_name)
           if not build_match or build_match.group(2) != build_id or int(build_match.group(3)) != build.get("run_attempt"):
               raise SystemExit("Build evidence artifact does not belong to the supplied build run/attempt.")
           image_id = build_match.group(1)
@@ -152,9 +152,9 @@ jobs:
           print(f"Build evidence: {build_name}")
           print(f"Verified descriptor/report: {verification_name}")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              output.write(f"source_trust_artifact_name={trust_name}\\n")
-              output.write(f"source_image_id={image_id}\\n")
-              output.write(f"source_build_attempt={build_attempt}\\n")
+              output.write(f"source_trust_artifact_name={trust_name}\n")
+              output.write(f"source_image_id={image_id}\n")
+              output.write(f"source_build_attempt={build_attempt}\n")
           PY
 
       - name: Download original build evidence
