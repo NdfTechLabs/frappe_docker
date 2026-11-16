@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/deployment-build-evidence-bundle-v1.schema.json",
+  "title": "NDF Deployment Build Evidence Bundle Manifest",
+  "description": "Attempt-scoped transport integrity index for the immutable NDF result, trust-evidence report and referenced evidence. It is not a signature or trust authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "candidate_id",
+    "correlation_id",
+    "workflow",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "bundle_id": {
+      "type": "string",
+      "pattern": "^ndf-[0-9]+-[1-9][0-9]*-evidence$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 140,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "run_id",
+        "run_attempt",
+        "source_commit"
+      ],
+      "properties": {
+        "repository": {
+          "const": "NdfTechLabs/frappe_docker"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "path",
+          "sha256",
+          "size"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "result",
+              "trust_evidence",
+              "evidence"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}
