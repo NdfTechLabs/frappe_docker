@@ -299,7 +299,8 @@ def _map_candidate_applications(
         expected["_reference_kind"] = "commit"
         expected["_resolved_ref"] = commit
         expected["_candidate_app_id"] = app_id
-        expected["_candidate_requested_version"] = requested["requested_version"]
+        if "requested_version" in requested:
+            expected["_candidate_requested_version"] = requested["requested_version"]
         expected["_candidate_release_version"] = requested["release_version"]
         expected["_candidate_descriptor_ref"] = requested["descriptor_ref"]
         expected["_candidate_descriptor_digest"] = requested["descriptor_digest"]
@@ -418,7 +419,6 @@ def adapt_candidate_to_lock(
         locked_app.update(
             {
                 "app_id": mapped_app["_candidate_app_id"],
-                "requested_version": mapped_app["_candidate_requested_version"],
                 "candidate_release_version": mapped_app["_candidate_release_version"],
                 "candidate_descriptor_ref": mapped_app["_candidate_descriptor_ref"],
                 "candidate_descriptor_digest": mapped_app[
@@ -428,6 +428,8 @@ def adapt_candidate_to_lock(
                 "candidate_is_required": mapped_app.get("_candidate_is_required"),
             }
         )
+        if "_candidate_requested_version" in mapped_app:
+            locked_app["requested_version"] = mapped_app["_candidate_requested_version"]
 
     lock_data["candidate"] = {
         "schema_version": candidate["schema_version"],
@@ -500,7 +502,11 @@ def adapt_candidate_to_lock(
                     {
                         "app_id": item["app_id"],
                         "repository": item["app_source"],
-                        "requested_version": item["requested_version"],
+                        **(
+                            {"requested_version": item["requested_version"]}
+                            if "requested_version" in item
+                            else {}
+                        ),
                         "immutable_commit": item["immutable_commit"],
                         "release_version": item["release_version"],
                         "change_action": item["change_action"],

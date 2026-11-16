@@ -63,7 +63,7 @@ def make_candidate(ndf_dir):
                 "requested_version": app["target_ref"],
                 "immutable_commit": f"{index:040x}",
                 "is_required": True,
-                "change_action": "install",
+                "change_action": "Add",
             }
         )
 
@@ -71,7 +71,7 @@ def make_candidate(ndf_dir):
         "schema_version": "1.0.0",
         "candidate_id": "CAND-TEST-0001",
         "candidate_code": "dalali-v16-adapter-test",
-        "candidate_type": "product",
+        "candidate_type": "Product Upgrade",
         "product": {"id": "dalali", "release": "16.0.0"},
         "framework_version": "16",
         "base_deployment": None,
@@ -313,7 +313,9 @@ def test_candidate_requested_version_is_preserved_separately_from_commit_pin(
     frappe = next(item for item in lock["applications"] if item["name"] == "frappe")
 
     assert frappe["requested_version"] == "candidate-release-2026.11"
-    assert frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
+    assert (
+        frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
+    )
     assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
 
 
@@ -328,3 +330,25 @@ def test_candidate_required_flag_is_preserved_without_changing_membership(
 
     assert frappe["candidate_is_required"] is False
     assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
+
+
+def test_candidate_adapter_accepts_missing_optional_requested_version(
+    ndf_dir, tmp_path
+):
+    candidate = make_candidate(ndf_dir)
+    candidate["applications"][0].pop("requested_version")
+    result = run_adapter(ndf_dir, tmp_path / "without-requested-version", candidate)
+    lock_data = json.loads(result["lock_path"].read_text(encoding="utf-8"))
+    assert lock_data["applications"]
+    frappe = next(
+        item for item in lock_data["applications"] if item["name"] == "frappe"
+    )
+    assert frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
+    assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
+    composition = json.loads(result["mapping_path"].read_text(encoding="utf-8"))
+    mapped_app = next(
+        item
+        for item in composition["applications"]
+        if item["app_id"] == candidate["applications"][0]["app_id"]
+    )
+    assert "requested_version" not in mapped_app

@@ -8,12 +8,14 @@ import json
 import os
 import re
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+CANDIDATE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$")
 CANDIDATE_REF = re.compile(
     r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:([a-f0-9]{64})$"
 )
@@ -105,13 +107,19 @@ def main() -> int:
         )
         failure = {"code": code, "summary": summary}
 
+    candidate_id = required_env("CANDIDATE_ID")
+    if not CANDIDATE_ID_PATTERN.fullmatch(candidate_id):
+        raise ValueError(
+            "Candidate ID does not match the shared 140-character contract."
+        )
+
     source_commit = required_env("GITHUB_SHA")
     run_url = required_env("WORKFLOW_RUN_URL")
     started_at = required_env("WORKFLOW_STARTED_AT")
     result: dict[str, Any] = {
         "schema_version": "1.0.0",
         "result_id": f"ndf-{run_id}-{run_attempt}",
-        "candidate_id": required_env("CANDIDATE_ID"),
+        "candidate_id": candidate_id,
         "candidate_artifact_ref": candidate_ref,
         "candidate_artifact_digest": candidate_digest,
         "candidate_payload_sha256": payload_hash,
@@ -127,9 +135,14 @@ def main() -> int:
         "started_at": started_at,
         "completed_at": utc_now(),
     }
-    correlation_id = os.environ.get("CORRELATION_ID", "")
-    if correlation_id:
-        result["correlation_id"] = correlation_id
+    correlation_id = required_env("CORRELATION_ID")
+    try:
+        canonical_correlation_id = str(uuid.UUID(correlation_id))
+    except ValueError as exc:
+        raise ValueError("Correlation ID must be a canonical UUID.") from exc
+    if canonical_correlation_id != correlation_id:
+        raise ValueError("Correlation ID must use canonical lowercase UUID form.")
+    result["correlation_id"] = correlation_id
 
     composition_hash = os.environ.get("COMPOSITION_HASH", "")
     lock_hash = os.environ.get("LOCK_SHA256", "")

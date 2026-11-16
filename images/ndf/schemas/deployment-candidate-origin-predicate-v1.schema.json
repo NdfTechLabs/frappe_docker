@@ -21,7 +21,8 @@
     "candidate_id": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 200
+      "maxLength": 140,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$"
     },
     "candidate_artifact": {
       "type": "object",
@@ -88,8 +89,9 @@
       }
     },
     "correlation_id": {
-      "type": ["string", "null"],
-      "maxLength": 200
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     }
   }
 }

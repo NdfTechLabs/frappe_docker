@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0.0",
+  "report_id": "ndf-123456-2-trust",
+  "candidate_id": "CAND-2026-00042",
+  "correlation_id": "4f9b4c7e-2c10-4c9e-9e3d-8a0d5f2e7b61",
+  "result_binding": {
+    "result_id": "ndf-123456-2",
+    "result_file": "deployment-build-result.json",
+    "result_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "workflow": {
+    "repository": "NdfTechLabs/frappe_docker",
+    "run_id": "123456",
+    "run_attempt": 2,
+    "source_commit": "1111111111111111111111111111111111111111"
+  },
+  "candidate_origin": {
+    "verifier": "NDF",
+    "decision": "verified",
+    "reason_code": "CANDIDATE_ORIGIN_VERIFIED",
+    "subject": {
+      "repository": "ghcr.io/ndftechlabs/dt-master-deployment-candidates",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "payload_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "evidence_references": [
+      {
+        "kind": "cosign_signature",
+        "reference": "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      {
+        "kind": "candidate_origin_attestation",
+        "reference": "rekor://entry/12345",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    ]
+  },
+  "ndf_artifacts": {
+    "image": {
+      "repository": "ghcr.io/ndftechlabs/dalali",
+      "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "evidence_references": [
+        {
+          "kind": "cosign_signature",
+          "reference": "ghcr.io/ndftechlabs/dalali@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        {
+          "kind": "slsa_provenance",
+          "reference": "rekor://entry/23456",
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ]
+    },
+    "descriptor": {
+      "reference": "ghcr.io/ndftechlabs/pdd/dalali@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "content_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "evidence_references": [
+        {
+          "kind": "pdd_signature",
+          "reference": "ghcr.io/ndftechlabs/pdd/dalali@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+        },
+        {
+          "kind": "pdd_image_binding",
+          "reference": "rekor://entry/34567",
+          "sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+        }
+      ]
+    }
+  }
+}

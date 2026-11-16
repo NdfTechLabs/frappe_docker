@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "candidate_id": "CAND-2026-00042",
   "candidate_code": "dalali-v16-2026-11-14",
-  "candidate_type": "product",
+  "candidate_type": "Product Upgrade",
   "product": {
     "id": "dalali",
     "release": "16.0.0"
@@ -22,7 +22,7 @@
       "requested_version": "version-16",
       "immutable_commit": "cccccccccccccccccccccccccccccccccccccccc",
       "is_required": true,
-      "change_action": "install"
+      "change_action": "Add"
     }
   ],
   "optional_capabilities": [],
