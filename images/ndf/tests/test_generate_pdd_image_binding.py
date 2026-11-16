@@ -1,10 +1,15 @@
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from scripts import generate_pdd_image_binding as generator
+TESTS_DIR = str(Path(__file__).resolve().parent)
+if TESTS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_DIR)
+
+from scripts import generate_pdd_image_binding as generator  # noqa: E402
 
 
 def _hash(value):
