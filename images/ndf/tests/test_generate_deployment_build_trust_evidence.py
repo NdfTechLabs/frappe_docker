@@ -174,7 +174,7 @@ def test_missing_origin_result_is_explicitly_not_evaluated(tmp_path):
 
 @pytest.mark.parametrize("field", ["candidate_id", "correlation_id", "payload_sha256"])
 def test_origin_identity_must_match_terminal_result(tmp_path, field):
-    _, _, origin_path, evidence_dir = _write_inputs(tmp_path)
+    _, origin_path, evidence_dir = _write_inputs(tmp_path)
     origin = _origin()
     origin[field] = "different" if field != "payload_sha256" else "e" * 64
     origin_path.write_text(json.dumps(origin), encoding="utf-8")
