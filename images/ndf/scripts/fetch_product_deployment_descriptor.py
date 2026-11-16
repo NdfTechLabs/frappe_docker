@@ -95,6 +95,20 @@ def _json_output(
     return value
 
 
+def _preserve_pulled_bundle(pulled_dir: Path, output_dir: Path) -> None:
+    """Copy a safely retrieved bundle to durable output before verification.
+
+    The caller creates an empty output directory. Reject symlinks anywhere in
+    the pulled tree before copying so the diagnostic copy cannot escape its
+    destination or preserve an unsafe filesystem reference.
+    """
+    for item in pulled_dir.rglob("*"):
+        if item.is_symlink():
+            raise PDDRetrievalError("Published artifact contains a symlink.")
+
+    shutil.copytree(pulled_dir, output_dir, dirs_exist_ok=True, symlinks=False)
+
+
 def _load_receipt(path: Path) -> dict[str, Any]:
     try:
         receipt = _strict_json_file(path, "publication receipt")
@@ -208,6 +222,9 @@ def fetch_product_deployment_descriptor(
             ),
             "ORAS artifact pull",
         )
+        # Preserve the retrieved bytes before any receipt, binding, trust or
+        # provenance validation can fail and the temporary directory is removed.
+        _preserve_pulled_bundle(pulled_dir, output_dir)
         if pull_result.get("reference") != reference:
             raise PDDRetrievalError(
                 "ORAS pull returned a different artifact reference."
@@ -335,13 +352,6 @@ def fetch_product_deployment_descriptor(
                 image_attestation_output=image_attestation_output,
                 consumer_report_output=consumer_report_output,
             )
-
-        for item in pulled_dir.iterdir():
-            target = output_dir / item.name
-            if item.is_dir():
-                shutil.copytree(item, target)
-            elif item.is_file() and not item.is_symlink():
-                shutil.copy2(item, target)
 
     if verify_image_binding:
         return consumer_report
