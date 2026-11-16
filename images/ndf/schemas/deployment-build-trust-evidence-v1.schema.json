@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/deployment-build-trust-evidence-v1.schema.json",
+  "title": "NDF Deployment Build Trust Evidence Report",
+  "description": "Attempt-scoped NDF-owned trust decision and immutable evidence handoff. It does not contain or assert DT Master verification outcomes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_id",
+    "candidate_id",
+    "correlation_id",
+    "result_binding",
+    "workflow",
+    "candidate_origin",
+    "ndf_artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^ndf-[0-9]+-[1-9][0-9]*-trust$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 140,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "result_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_id",
+        "result_file",
+        "result_sha256"
+      ],
+      "properties": {
+        "result_id": {
+          "type": "string",
+          "pattern": "^ndf-[0-9]+-[1-9][0-9]*$"
+        },
+        "result_file": {
+          "const": "deployment-build-result.json"
+        },
+        "result_sha256": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "run_id",
+        "run_attempt",
+        "source_commit"
+      ],
+      "properties": {
+        "repository": {
+          "const": "NdfTechLabs/frappe_docker"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
+        }
+      }
+    },
+    "candidate_origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verifier",
+        "decision",
+        "reason_code",
+        "subject",
+        "payload_sha256",
+        "evidence_references"
+      ],
+      "properties": {
+        "verifier": {
+          "const": "NDF"
+        },
+        "decision": {
+          "enum": [
+            "verified",
+            "rejected",
+            "not_evaluated"
+          ]
+        },
+        "reason_code": {
+          "enum": [
+            "CANDIDATE_ORIGIN_VERIFIED",
+            "IDENTITY_POLICY_PROVISIONAL",
+            "SIGNATURE_INVALID",
+            "SIGNER_IDENTITY_REJECTED",
+            "OIDC_ISSUER_REJECTED",
+            "REKOR_EVIDENCE_INVALID",
+            "SUBJECT_DIGEST_MISMATCH",
+            "PREDICATE_INVALID",
+            "PAYLOAD_DIGEST_MISMATCH",
+            "NOT_EVALUATED"
+          ]
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "digest"
+          ],
+          "properties": {
+            "repository": {
+              "const": "ghcr.io/ndftechlabs/dt-master-deployment-candidates"
+            },
+            "digest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "evidence_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      }
+    },
+    "ndf_artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "descriptor"
+      ],
+      "properties": {
+        "image": {
+          "$ref": "#/$defs/ndfImageEvidence"
+        },
+        "descriptor": {
+          "$ref": "#/$defs/ndfDescriptorEvidence"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "evidenceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reference",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "cosign_signature",
+            "slsa_provenance",
+            "pdd_signature",
+            "pdd_image_binding",
+            "rekor_entry",
+            "verification_bundle",
+            "verification_report"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "sha256": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "ndfImageEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "digest",
+        "evidence_references"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "evidence_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      }
+    },
+    "ndfDescriptorEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "digest",
+        "content_sha256",
+        "evidence_references"
+      ],
+      "properties": {
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "evidence_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceReference"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "decision": {
+                "const": "verified"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          }
+        },
+        "required": [
+          "candidate_origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "reason_code": {
+                "const": "CANDIDATE_ORIGIN_VERIFIED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "decision": {
+                "const": "not_evaluated"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          }
+        },
+        "required": [
+          "candidate_origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "reason_code": {
+                "const": "NOT_EVALUATED"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
