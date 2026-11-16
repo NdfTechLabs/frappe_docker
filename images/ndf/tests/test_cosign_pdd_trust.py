@@ -100,7 +100,9 @@ class FakeRunner:
         )
         # The second verification pass applies the exact source-SHA constraint.
         # Keep a separately named fixture so tests assert that pass is retained.
-        self.exact_attestation_output = self.attestation_output
+        self.exact_attestation_output = (
+            "Verification for PDD --\\n" + json.dumps(envelope, indent=2) + "\\n"
+        )
 
     def __call__(self, args, **kwargs):
         self.calls.append(list(args))
