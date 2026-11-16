@@ -63,7 +63,7 @@ def make_candidate(ndf_dir):
                 "requested_version": app["target_ref"],
                 "immutable_commit": f"{index:040x}",
                 "is_required": True,
-                "change_action": "install",
+                "change_action": "Add",
             }
         )
 
@@ -71,7 +71,7 @@ def make_candidate(ndf_dir):
         "schema_version": "1.0.0",
         "candidate_id": "CAND-TEST-0001",
         "candidate_code": "dalali-v16-adapter-test",
-        "candidate_type": "product",
+        "candidate_type": "Product Upgrade",
         "product": {"id": "dalali", "release": "16.0.0"},
         "framework_version": "16",
         "base_deployment": None,
