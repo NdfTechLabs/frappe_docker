@@ -207,7 +207,8 @@ def test_successful_result_and_verified_origin_can_be_packaged(tmp_path):
         schema_dir=SCHEMAS,
         output_dir=output,
     )
-    assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["transport_integrity"] == "verified"
+    verified = bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
+    assert verified["transport_integrity"] == "verified"
 
 
 @pytest.mark.parametrize("decision", ["rejected", "not_evaluated"])
