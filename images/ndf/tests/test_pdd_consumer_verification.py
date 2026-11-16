@@ -208,6 +208,116 @@ def test_rejects_mutable_image_reference():
         cosign_image_trust.parse_image_reference("ghcr.io/ndftechlabs/dalali:latest")
 
 
+def _consumer_report_fixture():
+    digest = "sha256:" + "a" * 64
+    sha = "b" * 64
+    artifact = {
+        "kind": "pdd",
+        "repository": "ghcr.io/ndftechlabs/dalali-pdd",
+        "digest": digest,
+        "immutable_reference": f"ghcr.io/ndftechlabs/dalali-pdd@{digest}",
+        "predicate_type": "https://ndftechlabs.com/attestations/pdd-image-binding/v1",
+        "predicate_sha256": sha,
+        "signature_verified": True,
+        "signer_verified": True,
+        "certificate_identity": "https://github.com/NdfTechLabs/frappe_docker/.github/workflows/publish.yml@refs/heads/main",
+        "oidc_issuer": "https://token.actions.githubusercontent.com",
+        "workflow_ref": "NdfTechLabs/frappe_docker/.github/workflows/publish.yml@refs/heads/main",
+        "transparency_verified": True,
+        "trust_decision": "rejected",
+        "trust_reason_codes": ["IDENTITY_POLICY_PROVISIONAL"],
+        "source_commit": "c" * 40,
+        "trust_result_file": "pdd-trust-result.json",
+        "attestation_file": "pdd-verified-attestation.json",
+    }
+    source_image = {
+        **artifact,
+        "kind": "product_image",
+        "repository": "ghcr.io/ndftechlabs/dalali",
+        "immutable_reference": f"ghcr.io/ndftechlabs/dalali@{digest}",
+        "predicate_type": "https://slsa.dev/provenance/v1",
+        "trust_result_file": "image-trust-result.json",
+        "attestation_file": "image-verified-attestation.json",
+        "platform": "linux/amd64",
+    }
+    return {
+        "schema_version": "1.0.0",
+        "verification_id": "consumer-report-test",
+        "verified_at": "2026-11-16T11:00:00Z",
+        "execution": {
+            "status": "completed",
+            "stages": {
+                "pdd_retrieval": "passed",
+                "pdd_trust": "passed",
+                "image_trust": "passed",
+                "provenance_correlation": "passed",
+                "evidence_binding": "passed",
+            },
+        },
+        "policy": {
+            "policy_id": "ndf-artifact-trust-identity-policy-v1",
+            "schema_version": "1.0.0",
+            "status": "provisional_until_live_certificate_observation",
+            "policy_sha256": sha,
+        },
+        "pdd": artifact,
+        "source_image": source_image,
+        "correlation": {
+            "pdd_subject_matches": True,
+            "descriptor_matches": True,
+            "image_repository_matches": True,
+            "image_digest_matches": True,
+            "image_platform_matches": True,
+            "image_source_sha_verified": True,
+            "predicate_hash_matches": True,
+            "pdd_subject_digest": digest,
+            "image_repository": "ghcr.io/ndftechlabs/dalali",
+            "image_digest": digest,
+            "platform": "linux/amd64",
+            "binding_predicate_sha256": sha,
+            "verified_predicate_sha256": sha,
+        },
+        "evidence": {
+            "binding_status": "passed",
+            "published_file_count": 1,
+            "binding_report_sha256": sha,
+            "files": [{"path": "binding-verification.json", "sha256": sha, "size_bytes": 1}],
+        },
+        "trust_decision": {
+            "status": "rejected",
+            "reason_codes": ["IDENTITY_POLICY_PROVISIONAL"],
+        },
+        "deployment_authorization": "not_granted",
+    }
+
+
+def test_consumer_report_schema_accepts_generated_field_contract():
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "pdd-consumer-verification-report-v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    from jsonschema import Draft202012Validator
+
+    Draft202012Validator(schema).validate(_consumer_report_fixture())
+
+
+def test_consumer_report_schema_rejects_legacy_source_workflow_field():
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "pdd-consumer-verification-report-v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    from jsonschema import Draft202012Validator
+
+    report = _consumer_report_fixture()
+    report["correlation"]["source_workflow_sha_matches_binding"] = True
+    with pytest.raises(Exception):
+        Draft202012Validator(schema).validate(report)
+
+
 def test_consumer_report_schema_is_valid():
     schema_path = (
         Path(__file__).resolve().parents[1]
