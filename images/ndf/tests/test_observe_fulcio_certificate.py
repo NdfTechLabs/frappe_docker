@@ -97,6 +97,7 @@ def _certificate_der():
         "13": "a042e49b27dc13cfc45023d29acc52a80204588f",
         "14": "refs/heads/main",
         "20": "workflow_dispatch",
+        "21": "https://github.com/NdfTechLabs/frappe_docker/actions/runs/123456789/attempts/1",
     }
     for suffix, value in generic.items():
         builder = builder.add_extension(
@@ -193,6 +194,7 @@ def test_rejects_bundle_without_exact_verified_envelope_match(tmp_path):
             verified,
             artifact_reference=ARTIFACT_REFERENCE,
             predicate_type=PDD_PREDICATE,
+            identity_id="product-image-publication",
         )
 
 
@@ -226,6 +228,7 @@ def test_rejects_wrong_predicate_type(tmp_path):
             verified,
             artifact_reference=ARTIFACT_REFERENCE,
             predicate_type=IMAGE_PREDICATE,
+            identity_id="product-image-publication",
         )
 
 
