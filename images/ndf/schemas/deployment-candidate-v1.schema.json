@@ -51,7 +51,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id"
+        "id",
+        "release"
       ],
       "properties": {
         "id": {
