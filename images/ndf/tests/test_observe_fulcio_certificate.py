@@ -32,8 +32,7 @@ def _der_utf8(value):
     return b"\x0c" + bytes([0x80 | len(length)]) + length + encoded
 
 
-def _certificate_der():
-    key = ec.generate_private_key(ec.SECP256R1())
+def _certificate_der(key):
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test-fulcio")])
     now = datetime.now(timezone.utc)
     builder = (
@@ -117,19 +116,45 @@ def _certificate_der():
     return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.DER)
 
 
-def _fixture(tmp_path, *, envelope_mutation=None, bundle_count=1, include_certificate=True):
+def _fixture(
+    tmp_path,
+    *,
+    envelope_mutation=None,
+    bundle_count=1,
+    include_certificate=True,
+    certificate_key_mismatch=False,
+):
     statement = {
         "_type": "https://in-toto.io/Statement/v0.1",
         "subject": [{"name": REPOSITORY, "digest": {"sha256": DIGEST}}],
         "predicateType": PDD_PREDICATE,
         "predicate": {"descriptor": {"id": "dalali-v16"}},
     }
+    payload_type = "application/vnd.in-toto+json"
+    payload = json.dumps(statement, separators=(",", ":")).encode()
+    payload_type_bytes = payload_type.encode()
+    pae = (
+        b"DSSEv1 "
+        + str(len(payload_type_bytes)).encode()
+        + b" "
+        + payload_type_bytes
+        + b" "
+        + str(len(payload)).encode()
+        + b" "
+        + payload
+    )
+    signing_key = ec.generate_private_key(ec.SECP256R1())
     envelope = {
-        "payloadType": "application/vnd.in-toto+json",
-        "payload": base64.b64encode(
-            json.dumps(statement, separators=(",", ":")).encode()
-        ).decode(),
-        "signatures": [{"sig": "c2lnbmF0dXJl", "keyid": ""}],
+        "payloadType": payload_type,
+        "payload": base64.b64encode(payload).decode(),
+        "signatures": [
+            {
+                "sig": base64.b64encode(
+                    signing_key.sign(pae, ec.ECDSA(hashes.SHA256()))
+                ).decode(),
+                "keyid": "",
+            }
+        ],
     }
     bundle_envelope = json.loads(json.dumps(envelope))
     if envelope_mutation:
@@ -138,7 +163,15 @@ def _fixture(tmp_path, *, envelope_mutation=None, bundle_count=1, include_certif
         "mediaType": observer.BUNDLE_MEDIA_TYPE,
         "verificationMaterial": {
             "certificate": (
-                {"rawBytes": base64.b64encode(_certificate_der()).decode()}
+                {
+                    "rawBytes": base64.b64encode(
+                        _certificate_der(
+                            ec.generate_private_key(ec.SECP256R1())
+                            if certificate_key_mismatch
+                            else signing_key
+                        )
+                    ).decode()
+                }
                 if include_certificate
                 else {}
             ),
