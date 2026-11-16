@@ -112,6 +112,11 @@ def fetch_product_deployment_descriptor(
     docker_bin: str = "docker",
     verify_image_binding: bool = True,
     cosign_bin: str = "cosign",
+    pdd_result_output: Path | None = None,
+    pdd_attestation_output: Path | None = None,
+    image_result_output: Path | None = None,
+    image_attestation_output: Path | None = None,
+    consumer_report_output: Path | None = None,
 ) -> dict[str, Any]:
     receipt = _load_receipt(publication_record)
     artifact = receipt["artifact"]
@@ -314,6 +319,11 @@ def fetch_product_deployment_descriptor(
                 pulled_dir=pulled_dir,
                 output_dir=output_dir,
                 cosign_bin=cosign_bin,
+                pdd_result_output=pdd_result_output,
+                pdd_attestation_output=pdd_attestation_output,
+                image_result_output=image_result_output,
+                image_attestation_output=image_attestation_output,
+                consumer_report_output=consumer_report_output,
             )
 
         for item in pulled_dir.iterdir():
@@ -344,6 +354,11 @@ def main() -> int:
     parser.add_argument("--oras-bin", default="oras")
     parser.add_argument("--docker-bin", default="docker")
     parser.add_argument("--cosign-bin", default="cosign")
+    parser.add_argument("--pdd-trust-result-output", type=Path)
+    parser.add_argument("--pdd-attestation-output", type=Path)
+    parser.add_argument("--image-trust-result-output", type=Path)
+    parser.add_argument("--image-attestation-output", type=Path)
+    parser.add_argument("--consumer-report-output", type=Path)
     parser.add_argument(
         "--skip-image-binding",
         action="store_true",
@@ -358,6 +373,11 @@ def main() -> int:
             docker_bin=args.docker_bin,
             cosign_bin=args.cosign_bin,
             verify_image_binding=not args.skip_image_binding,
+            pdd_result_output=args.pdd_trust_result_output,
+            pdd_attestation_output=args.pdd_attestation_output,
+            image_result_output=args.image_trust_result_output,
+            image_attestation_output=args.image_attestation_output,
+            consumer_report_output=args.consumer_report_output,
         )
     except (
         PDDRetrievalError,
@@ -480,6 +500,11 @@ def _verify_independent_consumer_trust(
     pulled_dir: Path,
     output_dir: Path,
     cosign_bin: str,
+    pdd_result_output: Path | None = None,
+    pdd_attestation_output: Path | None = None,
+    image_result_output: Path | None = None,
+    image_attestation_output: Path | None = None,
+    consumer_report_output: Path | None = None,
 ) -> dict[str, Any]:
     """Verify PDD and source-image trust using only second-pass registry attestations."""
     pdd_ref = receipt["artifact"]["immutable_reference"]
@@ -499,11 +524,26 @@ def _verify_independent_consumer_trust(
         raise PDDRetrievalError("Consumer signer identities are missing or ambiguous in the shared policy.")
     pdd_identity = pdd_identity_matches[0]
     image_identity = image_identity_matches[0]
-    pdd_result_path = output_dir / "pdd-trust-result.json"
-    pdd_attestation_path = output_dir / "pdd-verified-attestation.json"
-    image_result_path = output_dir / "image-trust-result.json"
-    image_attestation_path = output_dir / "image-verified-attestation.json"
-    report_path = output_dir / "pdd-consumer-verification-report.json"
+    pdd_result_path = pdd_result_output or output_dir / "pdd-trust-result.json"
+    pdd_attestation_path = pdd_attestation_output or output_dir / "pdd-verified-attestation.json"
+    image_result_path = image_result_output or output_dir / "image-trust-result.json"
+    image_attestation_path = image_attestation_output or output_dir / "image-verified-attestation.json"
+    report_path = consumer_report_output or output_dir / "pdd-consumer-verification-report.json"
+    output_paths = (
+        pdd_result_path,
+        pdd_attestation_path,
+        image_result_path,
+        image_attestation_path,
+        report_path,
+    )
+    if len({path.resolve() for path in output_paths}) != len(output_paths):
+        raise PDDRetrievalError("Consumer trust output paths must be unique.")
+    output_root = output_dir.resolve()
+    for path in output_paths:
+        if path.is_symlink() or path.exists() or path.parent.resolve() != output_root:
+            raise PDDRetrievalError(
+                "Consumer trust output paths must be new files directly inside the output directory."
+            )
 
     try:
         cosign_pdd_trust.verify_pdd(
