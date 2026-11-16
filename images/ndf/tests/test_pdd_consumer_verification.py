@@ -23,7 +23,11 @@ def _trust_result(policy, *, kind="pdd", digest="sha256:" + "a" * 64):
         "product-pdd-publication" if kind == "pdd" else "product-image-publication"
     )
     identity = next(item for item in policy["identities"] if item["id"] == identity_id)
-    repository = "ghcr.io/ndftechlabs/dalali-pdd" if kind == "pdd" else "ghcr.io/ndftechlabs/dalali"
+    repository = (
+        "ghcr.io/ndftechlabs/dalali-pdd"
+        if kind == "pdd"
+        else "ghcr.io/ndftechlabs/dalali"
+    )
     predicate_type = (
         "https://ndftechlabs.com/attestations/pdd-image-binding/v1"
         if kind == "pdd"

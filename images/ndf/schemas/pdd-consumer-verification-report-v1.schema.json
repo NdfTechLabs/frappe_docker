@@ -30,7 +30,13 @@
         "stages": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["pdd_retrieval", "pdd_trust", "image_trust", "provenance_correlation", "evidence_binding"],
+          "required": [
+            "pdd_retrieval",
+            "pdd_trust",
+            "image_trust",
+            "provenance_correlation",
+            "evidence_binding"
+          ],
           "properties": {
             "pdd_retrieval": { "const": "passed" },
             "pdd_trust": { "const": "passed" },
@@ -48,7 +54,12 @@
       "properties": {
         "policy_id": { "const": "ndf-artifact-trust-identity-policy-v1" },
         "schema_version": { "const": "1.0.0" },
-        "status": { "enum": ["provisional_until_live_certificate_observation", "confirmed"] },
+        "status": {
+          "enum": [
+            "provisional_until_live_certificate_observation",
+            "confirmed"
+          ]
+        },
         "policy_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
@@ -85,7 +96,12 @@
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["binding_status", "published_file_count", "binding_report_sha256", "files"],
+      "required": [
+        "binding_status",
+        "published_file_count",
+        "binding_report_sha256",
+        "files"
+      ],
       "properties": {
         "binding_status": { "const": "passed" },
         "published_file_count": { "type": "integer", "minimum": 1 },
@@ -151,17 +167,31 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "kind", "repository", "digest", "immutable_reference", "predicate_type",
-        "predicate_sha256", "signature_verified", "signer_verified",
-        "certificate_identity", "oidc_issuer", "workflow_ref",
-        "transparency_verified", "trust_decision", "source_commit",
-        "trust_result_file", "attestation_file"
+        "kind",
+        "repository",
+        "digest",
+        "immutable_reference",
+        "predicate_type",
+        "predicate_sha256",
+        "signature_verified",
+        "signer_verified",
+        "certificate_identity",
+        "oidc_issuer",
+        "workflow_ref",
+        "transparency_verified",
+        "trust_decision",
+        "source_commit",
+        "trust_result_file",
+        "attestation_file"
       ],
       "properties": {
         "kind": { "enum": ["pdd", "product_image"] },
         "repository": { "type": "string", "minLength": 1 },
         "digest": { "$ref": "#/$defs/digest" },
-        "immutable_reference": { "type": "string", "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$" },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        },
         "platform": { "type": "string", "pattern": "^linux/(amd64|arm64)$" },
         "descriptor_id": { "type": "string", "minLength": 1 },
         "descriptor_content_sha256": { "$ref": "#/$defs/sha256" },

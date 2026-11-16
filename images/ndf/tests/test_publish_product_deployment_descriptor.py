@@ -413,7 +413,10 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
         pulled_dir = kwargs["pulled_dir"]
         assert pulled_dir.is_dir()
         pulled_files_at_verification.extend(
-            sorted(item.relative_to(pulled_dir).as_posix() for item in pulled_dir.rglob("*"))
+            sorted(
+                item.relative_to(pulled_dir).as_posix()
+                for item in pulled_dir.rglob("*")
+            )
         )
         trust_calls.append(kwargs)
         return consumer_report
@@ -428,9 +431,7 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
     assert report is consumer_report
     assert report["execution"]["status"] == "completed"
     assert report["evidence"]["binding_status"] == "passed"
-    assert report["trust_decision"]["reason_codes"] == [
-        "IDENTITY_POLICY_PROVISIONAL"
-    ]
+    assert report["trust_decision"]["reason_codes"] == ["IDENTITY_POLICY_PROVISIONAL"]
     assert report["deployment_authorization"] == "not_granted"
     assert len(trust_calls) == 1
     assert trust_calls[0]["receipt"] == receipt

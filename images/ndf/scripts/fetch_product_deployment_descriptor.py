@@ -53,8 +53,12 @@ except ImportError:
 NDF_DIR = Path(__file__).resolve().parents[1]
 PUBLICATION_SCHEMA = NDF_DIR / "schemas" / "pdd-publication-record-v1.schema.json"
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
-CONSUMER_REPORT_SCHEMA = NDF_DIR / "schemas" / "pdd-consumer-verification-report-v1.schema.json"
-TRUST_RESULT_SCHEMA = NDF_DIR / "schemas" / "artifact-trust-verification-result-v1.schema.json"
+CONSUMER_REPORT_SCHEMA = (
+    NDF_DIR / "schemas" / "pdd-consumer-verification-report-v1.schema.json"
+)
+TRUST_RESULT_SCHEMA = (
+    NDF_DIR / "schemas" / "artifact-trust-verification-result-v1.schema.json"
+)
 PROVISIONAL_POLICY_STATUS = "provisional_until_live_certificate_observation"
 PROVISIONAL_REASON = "IDENTITY_POLICY_PROVISIONAL"
 
@@ -97,7 +101,13 @@ def _load_receipt(path: Path) -> dict[str, Any]:
         schema = json.loads(PUBLICATION_SCHEMA.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
         Draft202012Validator(schema).validate(receipt)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, SchemaError, ValidationError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        SchemaError,
+        ValidationError,
+    ) as exc:
         raise PDDRetrievalError(f"Invalid publication receipt: {exc}") from exc
     if not isinstance(receipt, dict):
         raise PDDRetrievalError("Publication receipt must be a JSON object.")
@@ -390,7 +400,9 @@ def main() -> int:
         print(json.dumps({"status": "failed", "error": str(exc)}, ensure_ascii=False))
         return 1
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
-    if report.get("trust_decision", {}).get("status") == "rejected" and report.get("trust_decision", {}).get("reason_codes") == [PROVISIONAL_REASON]:
+    if report.get("trust_decision", {}).get("status") == "rejected" and report.get(
+        "trust_decision", {}
+    ).get("reason_codes") == [PROVISIONAL_REASON]:
         return 2
     return 0
 
@@ -440,7 +452,9 @@ def _load_trust_result(
     try:
         artifact_trust.validate_trust_verification_result(result)
     except Exception as exc:
-        raise PDDRetrievalError(f"{kind} trust result schema validation failed: {exc}") from exc
+        raise PDDRetrievalError(
+            f"{kind} trust result schema validation failed: {exc}"
+        ) from exc
 
     artifact = result["artifact"]
     if (
@@ -455,10 +469,13 @@ def _load_trust_result(
     if (
         result["signer"]["verified"] is not True
         or result["signer"]["oidc_issuer"] != policy["issuer"]
-        or result["signer"]["certificate_identity"] != expected_identity["certificate_identity"]
+        or result["signer"]["certificate_identity"]
+        != expected_identity["certificate_identity"]
         or result["signer"]["workflow_ref"] != expected_identity["workflow_ref"]
     ):
-        raise PDDRetrievalError(f"{kind} signer identity does not match the trust policy.")
+        raise PDDRetrievalError(
+            f"{kind} signer identity does not match the trust policy."
+        )
     if (
         result["transparency"]["verified"] is not True
         or result["transparency"]["log_entry_verified"] is not True
@@ -466,26 +483,33 @@ def _load_trust_result(
         raise PDDRetrievalError(f"{kind} transparency-log verification is incomplete.")
     attestations = result["attestations"]
     if len(attestations) != 1:
-        raise PDDRetrievalError(f"{kind} must contain exactly one verified attestation.")
+        raise PDDRetrievalError(
+            f"{kind} must contain exactly one verified attestation."
+        )
     attestation = attestations[0]
     if (
         attestation["verified"] is not True
         or attestation["predicate_type"] != predicate_type
         or attestation["subject_digest"] != digest
     ):
-        raise PDDRetrievalError(f"{kind} attestation result does not match its artifact.")
+        raise PDDRetrievalError(
+            f"{kind} attestation result does not match its artifact."
+        )
     if policy["status"] == PROVISIONAL_POLICY_STATUS:
-        if (
-            result["decision"]["status"] != "rejected"
-            or result["decision"]["reason_codes"] != [PROVISIONAL_REASON]
-        ):
-            raise PDDRetrievalError(f"{kind} did not produce the exact provisional rejection.")
+        if result["decision"]["status"] != "rejected" or result["decision"][
+            "reason_codes"
+        ] != [PROVISIONAL_REASON]:
+            raise PDDRetrievalError(
+                f"{kind} did not produce the exact provisional rejection."
+            )
     elif policy["status"] == "confirmed":
         if (
             result["decision"]["status"] != "trusted"
             or result["decision"]["reason_codes"] != []
         ):
-            raise PDDRetrievalError(f"{kind} did not produce a trusted decision under confirmed policy.")
+            raise PDDRetrievalError(
+                f"{kind} did not produce a trusted decision under confirmed policy."
+            )
     else:
         raise PDDRetrievalError("Artifact trust policy status is not recognized.")
     return result
@@ -513,22 +537,34 @@ def _verify_independent_consumer_trust(
     policy_path = artifact_trust.POLICY_PATH
     policy_file_sha256 = hashlib.sha256(policy_path.read_bytes()).hexdigest()
     pdd_identity_matches = [
-        item for item in policy["identities"]
-        if item["id"] == cosign_pdd_trust.IDENTITY_ID and "pdd" in item["artifact_kinds"]
+        item
+        for item in policy["identities"]
+        if item["id"] == cosign_pdd_trust.IDENTITY_ID
+        and "pdd" in item["artifact_kinds"]
     ]
     image_identity_matches = [
-        item for item in policy["identities"]
-        if item["id"] == cosign_image_trust.IDENTITY_ID and "product_image" in item["artifact_kinds"]
+        item
+        for item in policy["identities"]
+        if item["id"] == cosign_image_trust.IDENTITY_ID
+        and "product_image" in item["artifact_kinds"]
     ]
     if len(pdd_identity_matches) != 1 or len(image_identity_matches) != 1:
-        raise PDDRetrievalError("Consumer signer identities are missing or ambiguous in the shared policy.")
+        raise PDDRetrievalError(
+            "Consumer signer identities are missing or ambiguous in the shared policy."
+        )
     pdd_identity = pdd_identity_matches[0]
     image_identity = image_identity_matches[0]
     pdd_result_path = pdd_result_output or output_dir / "pdd-trust-result.json"
-    pdd_attestation_path = pdd_attestation_output or output_dir / "pdd-verified-attestation.json"
+    pdd_attestation_path = (
+        pdd_attestation_output or output_dir / "pdd-verified-attestation.json"
+    )
     image_result_path = image_result_output or output_dir / "image-trust-result.json"
-    image_attestation_path = image_attestation_output or output_dir / "image-verified-attestation.json"
-    report_path = consumer_report_output or output_dir / "pdd-consumer-verification-report.json"
+    image_attestation_path = (
+        image_attestation_output or output_dir / "image-verified-attestation.json"
+    )
+    report_path = (
+        consumer_report_output or output_dir / "pdd-consumer-verification-report.json"
+    )
     output_paths = (
         pdd_result_path,
         pdd_attestation_path,
@@ -557,7 +593,10 @@ def _verify_independent_consumer_trust(
     except cosign_pdd_trust.PDDCosignTrustError:
         # The only expected exception is the primitive's provisional-policy
         # rejection, which is meaningful only under the provisional policy.
-        if policy["status"] != PROVISIONAL_POLICY_STATUS or not pdd_result_path.is_file():
+        if (
+            policy["status"] != PROVISIONAL_POLICY_STATUS
+            or not pdd_result_path.is_file()
+        ):
             raise PDDRetrievalError("PDD Cosign verification failed unexpectedly.")
     pdd_result = _load_trust_result(
         pdd_result_path,
@@ -570,12 +609,16 @@ def _verify_independent_consumer_trust(
         policy=policy,
     )
     if pdd_attestation_path.is_symlink() or not pdd_attestation_path.is_file():
-        raise PDDRetrievalError("PDD second-pass verified attestation output is missing or unsafe.")
+        raise PDDRetrievalError(
+            "PDD second-pass verified attestation output is missing or unsafe."
+        )
     pdd_statement = cosign_image_trust.extract_verified_statement(
         pdd_attestation_path.read_text(encoding="utf-8")
     )
     if pdd_statement.get("_type") != "https://in-toto.io/Statement/v0.1":
-        raise PDDRetrievalError("PDD attestation is not the supported Cosign Statement v0.1.")
+        raise PDDRetrievalError(
+            "PDD attestation is not the supported Cosign Statement v0.1."
+        )
     normalized_pdd_statement = dict(pdd_statement)
     normalized_pdd_statement["_type"] = "https://in-toto.io/Statement/v1"
     pdd_predicate = normalized_pdd_statement["predicate"]
@@ -585,11 +628,20 @@ def _verify_independent_consumer_trust(
     image_platform = image_claim["platform"]
     image_ref = f"{image_repository}@{image_digest}"
     try:
-        parsed_image_repository, parsed_image_digest = cosign_image_trust.parse_image_reference(image_ref)
+        parsed_image_repository, parsed_image_digest = (
+            cosign_image_trust.parse_image_reference(image_ref)
+        )
     except cosign_image_trust.CosignTrustError as exc:
-        raise PDDRetrievalError(f"PDD binding does not provide an immutable image reference: {exc}") from exc
-    if parsed_image_repository != image_repository or parsed_image_digest != image_digest:
-        raise PDDRetrievalError("Derived image reference does not match the PDD binding predicate.")
+        raise PDDRetrievalError(
+            f"PDD binding does not provide an immutable image reference: {exc}"
+        ) from exc
+    if (
+        parsed_image_repository != image_repository
+        or parsed_image_digest != image_digest
+    ):
+        raise PDDRetrievalError(
+            "Derived image reference does not match the PDD binding predicate."
+        )
 
     try:
         artifact_trust.validate_pdd_binding_statement(
@@ -599,28 +651,49 @@ def _verify_independent_consumer_trust(
             descriptor_content_sha256=validated["content_sha256"],
         )
     except Exception as exc:
-        raise PDDRetrievalError(f"Verified PDD binding predicate is invalid: {exc}") from exc
+        raise PDDRetrievalError(
+            f"Verified PDD binding predicate is invalid: {exc}"
+        ) from exc
     if (
         pdd_statement["subject"][0]["name"] != pdd_repository
         or pdd_predicate["descriptor"]["id"] != validated["descriptor_id"]
         or pdd_predicate["descriptor"]["content_sha256"] != validated["content_sha256"]
-        or pdd_predicate["subject_image"]["repository"] != descriptor["artifact"]["repository"]
+        or pdd_predicate["subject_image"]["repository"]
+        != descriptor["artifact"]["repository"]
         or pdd_predicate["subject_image"]["digest"] != descriptor["artifact"]["digest"]
-        or pdd_predicate["subject_image"]["platform"] != descriptor["artifact"]["platform"]
-        or pdd_predicate["subject_image"]["repository"] != receipt["subject_image"]["repository"]
-        or pdd_predicate["subject_image"]["digest"] != receipt["subject_image"]["digest"]
-        or pdd_predicate["subject_image"]["platform"] != receipt["subject_image"]["platform"]
+        or pdd_predicate["subject_image"]["platform"]
+        != descriptor["artifact"]["platform"]
+        or pdd_predicate["subject_image"]["repository"]
+        != receipt["subject_image"]["repository"]
+        or pdd_predicate["subject_image"]["digest"]
+        != receipt["subject_image"]["digest"]
+        or pdd_predicate["subject_image"]["platform"]
+        != receipt["subject_image"]["platform"]
     ):
-        raise PDDRetrievalError("PDD binding predicate disagrees with the retrieved descriptor or receipt.")
-    if pdd_statement["subject"][0]["digest"]["sha256"] != pdd_digest.removeprefix("sha256:"):
-        raise PDDRetrievalError("PDD binding Statement subject digest does not match the PDD artifact.")
+        raise PDDRetrievalError(
+            "PDD binding predicate disagrees with the retrieved descriptor or receipt."
+        )
+    if pdd_statement["subject"][0]["digest"]["sha256"] != pdd_digest.removeprefix(
+        "sha256:"
+    ):
+        raise PDDRetrievalError(
+            "PDD binding Statement subject digest does not match the PDD artifact."
+        )
 
-    lock_files = [item for item in pulled_dir.rglob("*.lock-v2.json") if item.is_file() and not item.is_symlink()]
+    lock_files = [
+        item
+        for item in pulled_dir.rglob("*.lock-v2.json")
+        if item.is_file() and not item.is_symlink()
+    ]
     if len(lock_files) != 1:
-        raise PDDRetrievalError("Published PDD evidence must contain exactly one lock-v2 file.")
+        raise PDDRetrievalError(
+            "Published PDD evidence must contain exactly one lock-v2 file."
+        )
     lock_sha = hashlib.sha256(lock_files[0].read_bytes()).hexdigest()
     if pdd_predicate["lock_sha256"] != lock_sha:
-        raise PDDRetrievalError("PDD binding lock hash does not match the published lock-v2 evidence.")
+        raise PDDRetrievalError(
+            "PDD binding lock hash does not match the published lock-v2 evidence."
+        )
 
     try:
         cosign_image_trust.verify_image(
@@ -632,7 +705,10 @@ def _verify_independent_consumer_trust(
             self_contained=True,
         )
     except cosign_image_trust.CosignTrustError:
-        if policy["status"] != PROVISIONAL_POLICY_STATUS or not image_result_path.is_file():
+        if (
+            policy["status"] != PROVISIONAL_POLICY_STATUS
+            or not image_result_path.is_file()
+        ):
             raise PDDRetrievalError("Image Cosign verification failed unexpectedly.")
     image_result = _load_trust_result(
         image_result_path,
@@ -645,28 +721,42 @@ def _verify_independent_consumer_trust(
         policy=policy,
     )
     if hashlib.sha256(policy_path.read_bytes()).hexdigest() != policy_file_sha256:
-        raise PDDRetrievalError("Artifact trust identity policy changed during consumer verification.")
+        raise PDDRetrievalError(
+            "Artifact trust identity policy changed during consumer verification."
+        )
     if pdd_result["decision"]["status"] != image_result["decision"]["status"]:
-        raise PDDRetrievalError("PDD and image trust decisions are mixed; refusing to infer a combined decision.")
+        raise PDDRetrievalError(
+            "PDD and image trust decisions are mixed; refusing to infer a combined decision."
+        )
     if policy["status"] == PROVISIONAL_POLICY_STATUS and (
         pdd_result["decision"]["reason_codes"] != [PROVISIONAL_REASON]
         or image_result["decision"]["reason_codes"] != [PROVISIONAL_REASON]
     ):
-        raise PDDRetrievalError("Both artifacts must have the exact provisional rejection.")
+        raise PDDRetrievalError(
+            "Both artifacts must have the exact provisional rejection."
+        )
 
     if image_attestation_path.is_symlink() or not image_attestation_path.is_file():
-        raise PDDRetrievalError("Image second-pass verified attestation output is missing or unsafe.")
+        raise PDDRetrievalError(
+            "Image second-pass verified attestation output is missing or unsafe."
+        )
     image_statement = cosign_image_trust.extract_verified_statement(
         image_attestation_path.read_text(encoding="utf-8")
     )
     if image_statement.get("_type") != "https://in-toto.io/Statement/v0.1":
-        raise PDDRetrievalError("Image attestation is not the supported Cosign Statement v0.1.")
+        raise PDDRetrievalError(
+            "Image attestation is not the supported Cosign Statement v0.1."
+        )
     normalized_image_statement = dict(image_statement)
     normalized_image_statement["_type"] = "https://in-toto.io/Statement/v1"
     try:
-        artifact_trust.validate_image_provenance_statement(normalized_image_statement, image_digest)
+        artifact_trust.validate_image_provenance_statement(
+            normalized_image_statement, image_digest
+        )
     except Exception as exc:
-        raise PDDRetrievalError(f"Verified source-image provenance is invalid: {exc}") from exc
+        raise PDDRetrievalError(
+            f"Verified source-image provenance is invalid: {exc}"
+        ) from exc
     image_subject = normalized_image_statement["subject"]
     image_predicate = normalized_image_statement["predicate"]
     workflow = image_predicate["ndf_build"]["workflow"]
@@ -678,34 +768,52 @@ def _verify_independent_consumer_trust(
         or image_predicate["ndf_build"]["platform"] != image_platform
         or image_predicate["ndf_build"]["lock_sha256"] != pdd_predicate["lock_sha256"]
     ):
-        raise PDDRetrievalError("Verified image provenance disagrees with the PDD binding predicate.")
-    predicate_hash = hashlib.sha256(cosign_image_trust._canonical_json(image_predicate)).hexdigest()
+        raise PDDRetrievalError(
+            "Verified image provenance disagrees with the PDD binding predicate."
+        )
+    predicate_hash = hashlib.sha256(
+        cosign_image_trust._canonical_json(image_predicate)
+    ).hexdigest()
     expected_predicate_hash = pdd_predicate["source_provenance"]["predicate_sha256"]
     if predicate_hash != expected_predicate_hash:
-        raise PDDRetrievalError("Verified SLSA predicate hash does not match the PDD binding claim.")
+        raise PDDRetrievalError(
+            "Verified SLSA predicate hash does not match the PDD binding claim."
+        )
 
-    pdd_attestation_hash = hashlib.sha256(cosign_image_trust._canonical_json(pdd_predicate)).hexdigest()
+    pdd_attestation_hash = hashlib.sha256(
+        cosign_image_trust._canonical_json(pdd_predicate)
+    ).hexdigest()
     if pdd_result["attestations"][0].get("predicate_sha256") != pdd_attestation_hash:
-        raise PDDRetrievalError("PDD trust result predicate hash does not match its verified attestation.")
+        raise PDDRetrievalError(
+            "PDD trust result predicate hash does not match its verified attestation."
+        )
     if image_result["attestations"][0].get("predicate_sha256") != predicate_hash:
-        raise PDDRetrievalError("Image trust result predicate hash does not match its verified attestation.")
+        raise PDDRetrievalError(
+            "Image trust result predicate hash does not match its verified attestation."
+        )
     evidence_files = []
     for item in sorted(pulled_dir.rglob("*")):
         if item.is_file() and not item.is_symlink():
             raw = item.read_bytes()
-            evidence_files.append({
-                "path": item.relative_to(pulled_dir).as_posix(),
-                "sha256": hashlib.sha256(raw).hexdigest(),
-                "size_bytes": len(raw),
-            })
-    binding_report_sha = hashlib.sha256((pulled_dir / "binding-verification.json").read_bytes()).hexdigest()
+            evidence_files.append(
+                {
+                    "path": item.relative_to(pulled_dir).as_posix(),
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                    "size_bytes": len(raw),
+                }
+            )
+    binding_report_sha = hashlib.sha256(
+        (pulled_dir / "binding-verification.json").read_bytes()
+    ).hexdigest()
     policy_status = policy["status"]
     trust_status = pdd_result["decision"]["status"]
     reasons = [PROVISIONAL_REASON] if trust_status == "rejected" else []
     report = {
         "schema_version": "1.0.0",
         "verification_id": str(uuid.uuid4()),
-        "verified_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "verified_at": datetime.now(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
         "execution": {
             "status": "completed",
             "stages": {
@@ -790,12 +898,18 @@ def _verify_independent_consumer_trust(
     try:
         schema = json.loads(CONSUMER_REPORT_SCHEMA.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
-        Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER).validate(report)
+        Draft202012Validator(
+            schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+        ).validate(report)
     except (OSError, json.JSONDecodeError, SchemaError, ValidationError) as exc:
-        raise PDDRetrievalError(f"Consumer verification report failed schema validation: {exc}") from exc
+        raise PDDRetrievalError(
+            f"Consumer verification report failed schema validation: {exc}"
+        ) from exc
     cosign_image_trust._atomic_write(
         report_path,
-        (json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"),
+        (
+            json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+        ).encode("utf-8"),
     )
     return report
 
