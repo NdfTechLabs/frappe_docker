@@ -1,9 +1,15 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
+TESTS_DIR = str(Path(__file__).resolve().parent)
+if TESTS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_DIR)
+
 from scripts import artifact_trust
+from scripts.artifact_trust import ArtifactTrustError
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -62,7 +68,7 @@ def test_candidate_origin_predicate_schema_rejects_malformed_claims(path, value)
         target = target[key]
     target[path[-1]] = value
 
-    with pytest.raises(Exception):
+    with pytest.raises(ArtifactTrustError):
         artifact_trust._validate_schema(
             predicate, SCHEMA_PATH, "deployment candidate origin predicate"
         )
