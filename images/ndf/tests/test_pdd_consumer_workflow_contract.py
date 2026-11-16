@@ -172,7 +172,10 @@ def test_consumer_downloads_raw_sigstore_bundles_after_independent_verification(
     assert verify < download < upload
     assert 'cosign download attestation "$PDD_REF"' in step
     assert 'cosign download attestation "$IMAGE_REF"' in step
-    assert '--predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1"' in step
+    assert (
+        '--predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1"'
+        in step
+    )
     assert '--predicate-type "https://slsa.dev/provenance/v1"' in step
     assert "pdd-sigstore-bundles.jsonl" in step
     assert "image-sigstore-bundles.jsonl" in step
