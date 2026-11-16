@@ -15,7 +15,7 @@ def _workflow(name: str) -> str:
 
 def _job(workflow: str, name: str) -> str:
     match = re.search(
-        rf"(?ms)^  {re.escape(name)}:\\n(.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
+        rf"(?ms)^  {re.escape(name)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
         workflow,
     )
     assert match, f"Workflow job {name!r} was not found."
@@ -25,7 +25,7 @@ def _job(workflow: str, name: str) -> str:
 def _job_permissions(workflow: str, name: str) -> dict[str, str]:
     block = _job(workflow, name)
     match = re.search(
-        r"(?m)^    permissions:\\n((?:^      [^\\n]*\\n)+)", block
+        r"(?m)^    permissions:\n((?:^      [^\n]*\n)+)", block
     )
     assert match, f"Job {name!r} must declare explicit permissions."
     return {
@@ -37,7 +37,7 @@ def _job_permissions(workflow: str, name: str) -> dict[str, str]:
 
 
 def _oidc_jobs(workflow: str) -> set[str]:
-    names = re.findall(r"(?m)^  ([A-Za-z0-9_-]+):\\n", workflow)
+    names = re.findall(r"(?m)^  ([A-Za-z0-9_-]+):\n", workflow)
     return {
         name
         for name in names
