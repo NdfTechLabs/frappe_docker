@@ -34,7 +34,9 @@ def _strict_json(raw: bytes, label: str) -> Any:
         value: dict[str, Any] = {}
         for key, item in pairs:
             if key in value:
-                raise EvidenceBundleError(f"{label} contains duplicate JSON key {key!r}.")
+                raise EvidenceBundleError(
+                    f"{label} contains duplicate JSON key {key!r}."
+                )
             value[key] = item
         return value
 
@@ -70,7 +72,9 @@ def _validate_schema(value: dict[str, Any], path: Path, label: str) -> None:
         schema = _strict_json(path.read_bytes(), f"{label} schema")
         Draft202012Validator.check_schema(schema)
         errors = sorted(
-            Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(value),
+            Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(
+                value
+            ),
             key=lambda error: (tuple(map(str, error.absolute_path)), error.message),
         )
     except (OSError, json.JSONDecodeError) as exc:
@@ -78,7 +82,9 @@ def _validate_schema(value: dict[str, Any], path: Path, label: str) -> None:
     if errors:
         first = errors[0]
         location = ".".join(map(str, first.absolute_path)) or "<root>"
-        raise EvidenceBundleError(f"{label} violates schema at {location}: {first.message}")
+        raise EvidenceBundleError(
+            f"{label} violates schema at {location}: {first.message}"
+        )
 
 
 def _safe_relative(value: Any, label: str) -> PurePosixPath:
@@ -102,7 +108,9 @@ def _safe_source_file(root: Path, reference: str) -> Path:
         for part in relative.parts:
             current = current / part
             if current.is_symlink():
-                raise EvidenceBundleError(f"Evidence source contains a symlink: {reference}.")
+                raise EvidenceBundleError(
+                    f"Evidence source contains a symlink: {reference}."
+                )
         resolved = current.resolve(strict=True)
         resolved.relative_to(root_resolved)
     except EvidenceBundleError:
@@ -112,7 +120,9 @@ def _safe_source_file(root: Path, reference: str) -> Path:
             f"Evidence source is missing or escapes its root: {reference}."
         ) from exc
     if not resolved.is_file():
-        raise EvidenceBundleError(f"Evidence source is not a regular file: {reference}.")
+        raise EvidenceBundleError(
+            f"Evidence source is not a regular file: {reference}."
+        )
     return resolved
 
 
@@ -122,7 +132,9 @@ def _report_evidence_references(report: dict[str, Any]) -> list[dict[str, str]]:
     if isinstance(candidate_origin, dict):
         refs = candidate_origin.get("evidence_references", [])
         if not isinstance(refs, list):
-            raise EvidenceBundleError("Candidate-origin evidence references must be an array.")
+            raise EvidenceBundleError(
+                "Candidate-origin evidence references must be an array."
+            )
         references.extend(refs)
 
     artifacts = report.get("ndf_artifacts", {})
@@ -134,10 +146,14 @@ def _report_evidence_references(report: dict[str, Any]) -> list[dict[str, str]]:
             if artifact is None:
                 continue
             if not isinstance(artifact, dict):
-                raise EvidenceBundleError(f"NDF {artifact_name} evidence must be an object.")
+                raise EvidenceBundleError(
+                    f"NDF {artifact_name} evidence must be an object."
+                )
             refs = artifact.get("evidence_references", [])
             if not isinstance(refs, list):
-                raise EvidenceBundleError(f"NDF {artifact_name} evidence references must be an array.")
+                raise EvidenceBundleError(
+                    f"NDF {artifact_name} evidence references must be an array."
+                )
             references.extend(refs)
 
     seen: set[str] = set()
@@ -148,7 +164,9 @@ def _report_evidence_references(report: dict[str, Any]) -> list[dict[str, str]]:
         reference = item.get("reference")
         digest = item.get("sha256")
         if not isinstance(reference, str) or not isinstance(digest, str):
-            raise EvidenceBundleError("Evidence reference requires reference and sha256.")
+            raise EvidenceBundleError(
+                "Evidence reference requires reference and sha256."
+            )
         _safe_relative(reference, "Evidence reference")
         if reference in seen:
             raise EvidenceBundleError(f"Duplicate evidence reference: {reference}.")
@@ -166,7 +184,9 @@ def _validate_pair(
     schema_dir: Path,
 ) -> dict[str, Any]:
     _validate_schema(
-        result, schema_dir / "deployment-build-result-v1.schema.json", "Deployment Build result"
+        result,
+        schema_dir / "deployment-build-result-v1.schema.json",
+        "Deployment Build result",
     )
     _validate_schema(
         report,
@@ -191,15 +211,23 @@ def _validate_pair(
         or not isinstance(source_commit, str)
         or not re.fullmatch(r"[a-f0-9]{40,64}", source_commit)
     ):
-        raise EvidenceBundleError("Deployment Build result workflow identity is invalid.")
+        raise EvidenceBundleError(
+            "Deployment Build result workflow identity is invalid."
+        )
     if not isinstance(candidate_id, str) or not candidate_id:
         raise EvidenceBundleError("Deployment Build result candidate ID is missing.")
-    if not isinstance(correlation_id, str) or not UUID_PATTERN.fullmatch(correlation_id):
-        raise EvidenceBundleError("Deployment Build result correlation UUID is invalid.")
+    if not isinstance(correlation_id, str) or not UUID_PATTERN.fullmatch(
+        correlation_id
+    ):
+        raise EvidenceBundleError(
+            "Deployment Build result correlation UUID is invalid."
+        )
 
     result_id = f"ndf-{run_id}-{attempt}"
     if result.get("result_id") != result_id:
-        raise EvidenceBundleError("Deployment Build result ID does not match run/attempt.")
+        raise EvidenceBundleError(
+            "Deployment Build result ID does not match run/attempt."
+        )
     if report.get("report_id") != f"{result_id}-trust":
         raise EvidenceBundleError("Trust report ID does not match result run/attempt.")
     if report.get("candidate_id") != candidate_id:
@@ -226,7 +254,9 @@ def _validate_pair(
         or binding.get("result_file") != RESULT_FILENAME
         or binding.get("result_sha256") != expected_hash
     ):
-        raise EvidenceBundleError("Trust report does not bind the exact terminal result bytes.")
+        raise EvidenceBundleError(
+            "Trust report does not bind the exact terminal result bytes."
+        )
 
     return {
         "candidate_id": candidate_id,
@@ -255,7 +285,9 @@ def pack_bundle(
     output_dir: Path,
 ) -> dict[str, Any]:
     result, result_bytes = _read_json(result_path, "Deployment Build result")
-    report, report_bytes = _read_json(report_path, "Deployment Build trust-evidence report")
+    report, report_bytes = _read_json(
+        report_path, "Deployment Build trust-evidence report"
+    )
     identity = _validate_pair(result, result_bytes, report, schema_dir)
     references = _report_evidence_references(report)
 
@@ -297,7 +329,9 @@ def pack_bundle(
     )
 
     if output_dir.exists() or output_dir.is_symlink():
-        raise EvidenceBundleError("Refusing to overwrite an existing evidence bundle directory.")
+        raise EvidenceBundleError(
+            "Refusing to overwrite an existing evidence bundle directory."
+        )
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(
         tempfile.mkdtemp(prefix=f".{output_dir.name}.", dir=output_dir.parent)
@@ -309,7 +343,9 @@ def pack_bundle(
             destination = temporary.joinpath(*PurePosixPath(relative).parts)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(raw)
-        manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
+        manifest_bytes = (
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        ).encode()
         (temporary / MANIFEST_FILENAME).write_bytes(manifest_bytes)
         os.replace(temporary, output_dir)
     except Exception:
@@ -326,21 +362,27 @@ def _walk_regular_files(root: Path) -> tuple[set[str], set[str]]:
         for name in list(dirs):
             path = current_path / name
             if path.is_symlink():
-                raise EvidenceBundleError(f"Bundle contains a symlink directory: {path}.")
+                raise EvidenceBundleError(
+                    f"Bundle contains a symlink directory: {path}."
+                )
             found_dirs.add(path.relative_to(root).as_posix())
         for name in files:
             path = current_path / name
             if path.is_symlink():
                 raise EvidenceBundleError(f"Bundle contains a symlink file: {path}.")
             if not path.is_file():
-                raise EvidenceBundleError(f"Bundle contains a non-regular file: {path}.")
+                raise EvidenceBundleError(
+                    f"Bundle contains a non-regular file: {path}."
+                )
             found_files.add(path.relative_to(root).as_posix())
     return found_files, found_dirs
 
 
 def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
     if bundle_dir.is_symlink() or not bundle_dir.is_dir():
-        raise EvidenceBundleError("Bundle root must be a real directory, not a symlink.")
+        raise EvidenceBundleError(
+            "Bundle root must be a real directory, not a symlink."
+        )
     manifest_path = bundle_dir / MANIFEST_FILENAME
     manifest, _ = _read_json(manifest_path, "Evidence bundle manifest")
     _validate_schema(
@@ -363,19 +405,27 @@ def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
         by_path[relative] = entry
         role_counts[entry.get("role")] = role_counts.get(entry.get("role"), 0) + 1
     if role_counts.get("result") != 1 or role_counts.get("trust_evidence") != 1:
-        raise EvidenceBundleError("Bundle must contain exactly one result and one trust report.")
+        raise EvidenceBundleError(
+            "Bundle must contain exactly one result and one trust report."
+        )
     if by_path.get(RESULT_FILENAME, {}).get("role") != "result":
         raise EvidenceBundleError("Bundle result must use the canonical filename.")
     if by_path.get(REPORT_FILENAME, {}).get("role") != "trust_evidence":
-        raise EvidenceBundleError("Bundle trust report must use the canonical filename.")
+        raise EvidenceBundleError(
+            "Bundle trust report must use the canonical filename."
+        )
     for path, entry in by_path.items():
         if entry.get("role") == "evidence":
             if not path.startswith("evidence/"):
-                raise EvidenceBundleError("Evidence files must be stored under evidence/.")
+                raise EvidenceBundleError(
+                    "Evidence files must be stored under evidence/."
+                )
             if path == MANIFEST_FILENAME:
                 raise EvidenceBundleError("Manifest cannot also be listed as evidence.")
         if entry.get("role") not in {"result", "trust_evidence", "evidence"}:
-            raise EvidenceBundleError(f"Unsupported bundle file role: {entry.get('role')!r}.")
+            raise EvidenceBundleError(
+                f"Unsupported bundle file role: {entry.get('role')!r}."
+            )
 
     expected_paths = set(by_path) | {MANIFEST_FILENAME}
     actual_paths, actual_dirs = _walk_regular_files(bundle_dir)
@@ -409,12 +459,14 @@ def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
         contents[relative] = raw
 
     result = _strict_json(contents[RESULT_FILENAME], "Deployment Build result")
-    report = _strict_json(contents[REPORT_FILENAME], "Deployment Build trust-evidence report")
-    if not isinstance(result, dict) or not isinstance(report, dict):
-        raise EvidenceBundleError("Bundle result and trust report must be JSON objects.")
-    identity = _validate_pair(
-        result, contents[RESULT_FILENAME], report, schema_dir
+    report = _strict_json(
+        contents[REPORT_FILENAME], "Deployment Build trust-evidence report"
     )
+    if not isinstance(result, dict) or not isinstance(report, dict):
+        raise EvidenceBundleError(
+            "Bundle result and trust report must be JSON objects."
+        )
+    identity = _validate_pair(result, contents[RESULT_FILENAME], report, schema_dir)
 
     workflow = manifest.get("workflow")
     if (
@@ -422,10 +474,10 @@ def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
         or manifest.get("correlation_id") != identity["correlation_id"]
         or workflow != identity["workflow"]
     ):
-        raise EvidenceBundleError("Bundle manifest identity differs from result/report.")
-    expected_bundle_id = (
-        f"ndf-{workflow['run_id']}-{workflow['run_attempt']}-evidence"
-    )
+        raise EvidenceBundleError(
+            "Bundle manifest identity differs from result/report."
+        )
+    expected_bundle_id = f"ndf-{workflow['run_id']}-{workflow['run_attempt']}-evidence"
     if manifest.get("bundle_id") != expected_bundle_id:
         raise EvidenceBundleError("Bundle ID does not match workflow run/attempt.")
 
@@ -447,7 +499,9 @@ def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
         )
     for path, digest in expected_evidence.items():
         if by_path[path].get("sha256") != digest:
-            raise EvidenceBundleError(f"Evidence hash differs from trust report: {path}.")
+            raise EvidenceBundleError(
+                f"Evidence hash differs from trust report: {path}."
+            )
 
     return {
         "bundle_id": manifest["bundle_id"],
@@ -463,7 +517,9 @@ def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    pack = subparsers.add_parser("pack", help="Create an immutable attempt-scoped bundle.")
+    pack = subparsers.add_parser(
+        "pack", help="Create an immutable attempt-scoped bundle."
+    )
     pack.add_argument("--result", required=True, type=Path)
     pack.add_argument("--trust-evidence", required=True, type=Path)
     pack.add_argument("--evidence-root", required=True, type=Path)
@@ -483,13 +539,26 @@ def main(argv: list[str] | None = None) -> int:
                 schema_dir=args.schema_dir,
                 output_dir=args.output_dir,
             )
-            print(json.dumps({"bundle_id": manifest["bundle_id"], "files": len(manifest["files"]) + 1}, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "bundle_id": manifest["bundle_id"],
+                        "files": len(manifest["files"]) + 1,
+                    },
+                    sort_keys=True,
+                )
+            )
         else:
-            result = verify_bundle(bundle_dir=args.bundle_dir, schema_dir=args.schema_dir)
+            result = verify_bundle(
+                bundle_dir=args.bundle_dir, schema_dir=args.schema_dir
+            )
             print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, EvidenceBundleError, json.JSONDecodeError) as exc:
-        print(f"Deployment Build evidence bundle {args.command} failed: {exc}", file=sys.stderr)
+        print(
+            f"Deployment Build evidence bundle {args.command} failed: {exc}",
+            file=sys.stderr,
+        )
         return 1
 
 

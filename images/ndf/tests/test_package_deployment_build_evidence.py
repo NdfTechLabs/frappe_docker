@@ -26,7 +26,8 @@ def _inputs(tmp_path: Path):
         "schema_version": "1.0.0",
         "result_id": f"ndf-{RUN_ID}-{ATTEMPT}",
         "candidate_id": CANDIDATE_ID,
-        "candidate_artifact_ref": "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:" + "a" * 64,
+        "candidate_artifact_ref": "ghcr.io/ndftechlabs/dt-master-deployment-candidates@sha256:"
+        + "a" * 64,
         "candidate_artifact_digest": "sha256:" + "a" * 64,
         "candidate_payload_sha256": "b" * 64,
         "correlation_id": CORRELATION_ID,
@@ -41,7 +42,10 @@ def _inputs(tmp_path: Path):
         "status": "failed",
         "started_at": "2026-11-17T00:00:00Z",
         "completed_at": "2026-11-17T00:01:00Z",
-        "failure": {"code": "CANDIDATE_ORIGIN_TRUST_FAILED", "summary": "Origin rejected."},
+        "failure": {
+            "code": "CANDIDATE_ORIGIN_TRUST_FAILED",
+            "summary": "Origin rejected.",
+        },
     }
     result_bytes = (json.dumps(result, sort_keys=True) + "\n").encode()
     evidence = b'{"verified":true}\n'
@@ -146,7 +150,9 @@ def test_pack_includes_report_referenced_evidence(tmp_path):
     )
     assert (output / "evidence/signature.json").is_file()
     assert (output / "evidence/attestation.json").is_file()
-    assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["file_count"] == 5
+    assert (
+        bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["file_count"] == 5
+    )
 
 
 def test_packer_rejects_missing_referenced_evidence(tmp_path):
@@ -167,7 +173,9 @@ def test_packer_rejects_unsafe_evidence_reference(tmp_path):
     result, report_path, evidence, _, _ = _inputs(tmp_path)
     _add_verified_evidence(result, report_path, evidence)
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    report["candidate_origin"]["evidence_references"][0]["reference"] = "../outside.json"
+    report["candidate_origin"]["evidence_references"][0][
+        "reference"
+    ] = "../outside.json"
     report_path.write_text(json.dumps(report), encoding="utf-8")
     with pytest.raises(bundle.EvidenceBundleError, match="safe relative path"):
         bundle.pack_bundle(
@@ -213,7 +221,9 @@ def test_packer_rejects_symlinked_evidence_source(tmp_path):
 def test_verifier_rejects_tampered_result(tmp_path):
     output, _ = _pack(tmp_path)
     (output / bundle.RESULT_FILENAME).write_text("tampered")
-    with pytest.raises(bundle.EvidenceBundleError, match="size mismatch|SHA-256 mismatch"):
+    with pytest.raises(
+        bundle.EvidenceBundleError, match="size mismatch|SHA-256 mismatch"
+    ):
         bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
 
 
@@ -229,7 +239,9 @@ def test_verifier_rejects_tampered_referenced_evidence(tmp_path):
         output_dir=output,
     )
     (output / "evidence/attestation.json").write_text("tampered")
-    with pytest.raises(bundle.EvidenceBundleError, match="size mismatch|SHA-256 mismatch"):
+    with pytest.raises(
+        bundle.EvidenceBundleError, match="size mismatch|SHA-256 mismatch"
+    ):
         bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
 
 
@@ -288,7 +300,9 @@ def test_verifier_rejects_report_result_binding_mismatch(tmp_path):
     report["result_binding"]["result_sha256"] = "e" * 64
     report_bytes = (json.dumps(report) + "\n").encode()
     report_path.write_bytes(report_bytes)
-    report_entry = next(item for item in manifest["files"] if item["role"] == "trust_evidence")
+    report_entry = next(
+        item for item in manifest["files"] if item["role"] == "trust_evidence"
+    )
     report_entry["size"] = len(report_bytes)
     report_entry["sha256"] = hashlib.sha256(report_bytes).hexdigest()
     (output / bundle.MANIFEST_FILENAME).write_text(json.dumps(manifest))

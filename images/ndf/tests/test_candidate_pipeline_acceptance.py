@@ -102,7 +102,10 @@ def test_pdd_outputs_are_bound_to_the_same_attempt_result():
     assert "${{ runner.temp }}/ndf-candidate-evidence-bundle/" in result
     assert "package_deployment_build_evidence.py pack" in result
     assert "package_deployment_build_evidence.py verify" in result
-    assert "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}" not in result
+    assert (
+        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}"
+        not in result
+    )
 
 
 def test_candidate_jobs_keep_registry_permissions_at_the_required_boundaries():
