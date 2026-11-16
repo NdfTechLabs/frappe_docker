@@ -236,7 +236,9 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
     statement = json.loads(output.read_text(encoding="utf-8"))
     generated_predicate = json.loads(predicate_output.read_text(encoding="utf-8"))
     assert generated_predicate == statement["predicate"]
-    assert predicate_output.read_bytes() == generator._canonical_json(generated_predicate)
+    assert predicate_output.read_bytes() == generator._canonical_json(
+        generated_predicate
+    )
     assert statement["_type"] == "https://in-toto.io/Statement/v1"
     assert statement["subject"][0]["digest"]["sha256"] == "b" * 64
     assert statement["predicate"]["source_provenance"]["predicate_sha256"] == _hash(
@@ -262,7 +264,7 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
 
 
 
-def test_generator_rejects_same_statement_and_predicate_output_path(tmp_path, monkeypatch):
+def test_generator_rejects_same_output_path(tmp_path, monkeypatch):
     descriptor, receipt, trust_result, predicate, env = _inputs()
     descriptor_path = _write(tmp_path / "product-deployment.json", descriptor)
     receipt_path = _write(tmp_path / "publication.json", receipt)
