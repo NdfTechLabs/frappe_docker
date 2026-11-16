@@ -173,7 +173,9 @@ def test_candidate_result_job_preserves_attempt_and_pdd_correlation():
 
 def test_candidate_dispatch_requires_canonical_correlation_id():
     workflow = read_workflow("ndf-build-candidate.yml")
-    dispatch = workflow.split("      correlation_id:", 1)[1].split("\n\npermissions:", 1)[0]
+    dispatch = workflow.split("      correlation_id:", 1)[1].split(
+        "\n\npermissions:", 1
+    )[0]
     assert "required: true" in dispatch
     assert "Optional" not in dispatch
     assert "CORRELATION_ID: ${{ inputs.correlation_id }}" in workflow
