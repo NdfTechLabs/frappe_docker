@@ -69,7 +69,6 @@ jobs:
       CANDIDATE_ARTIFACT_REF: ${{ inputs.candidate_artifact_ref }}
       CANDIDATE_PAYLOAD_SHA256: ${{ inputs.candidate_payload_sha256 }}
       CORRELATION_ID: ${{ inputs.correlation_id }}
-      CANDIDATE_ORIGIN_ROOT: ${{ runner.temp }}/ndf-candidate-origin
     steps:
       - name: Checkout candidate trust verifier
         uses: actions/checkout@v7
@@ -107,10 +106,14 @@ jobs:
           printf '%s' "$GH_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
       - name: Create isolated candidate-origin evidence directory
+        env:
+          CANDIDATE_ORIGIN_ROOT: ${{ runner.temp }}/ndf-candidate-origin
         run: mkdir -p "$CANDIDATE_ORIGIN_ROOT"
 
       - name: Verify candidate signature and origin attestation
         id: origin
+        env:
+          CANDIDATE_ORIGIN_ROOT: ${{ runner.temp }}/ndf-candidate-origin
         shell: bash
         run: |
           set -euo pipefail
