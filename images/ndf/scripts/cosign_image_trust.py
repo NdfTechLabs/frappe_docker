@@ -414,8 +414,21 @@ def verify_image(
     verified_at: datetime | None = None,
     attestation_output: Path | None = None,
     expected_predicate_path: Path | None = None,
+    self_contained: bool = False,
 ) -> dict[str, Any]:
-    """Verify image signature, Rekor-backed attestation and NDF provenance semantics."""
+    """Verify image signature and NDF provenance.
+
+    Producer mode requires exact comparison with the original predicate file.
+    Self-contained consumer mode validates the complete verified Statement directly.
+    """
+    if self_contained and expected_predicate_path is not None:
+        raise CosignTrustError(
+            "Self-contained verification must not receive an expected predicate file."
+        )
+    if not self_contained and expected_predicate_path is None:
+        raise CosignTrustError(
+            "Expected original provenance predicate is required outside self-contained mode."
+        )
     repository, digest = parse_image_reference(image_ref)
     policy, identity = _load_product_identity(policy_path)
     _require_cosign_version(runner=runner, cosign_binary=cosign_binary)
@@ -445,20 +458,15 @@ def verify_image(
         ],
         runner=runner,
     )
-    if attestation_output is not None:
-        _atomic_write(attestation_output, attestation_result.stdout.encode("utf-8"))
     statement = extract_verified_statement(attestation_result.stdout)
-    if expected_predicate_path is None:
-        raise CosignTrustError(
-            "Expected original provenance predicate is required for exact comparison."
+    if not self_contained:
+        expected_predicate = _strict_json(
+            expected_predicate_path, "original SLSA provenance predicate"
         )
-    expected_predicate = _strict_json(
-        expected_predicate_path, "original SLSA provenance predicate"
-    )
-    if statement.get("predicate") != expected_predicate:
-        raise CosignTrustError(
-            "Verified Cosign predicate differs from the original NDF provenance predicate."
-        )
+        if statement.get("predicate") != expected_predicate:
+            raise CosignTrustError(
+                "Verified Cosign predicate differs from the original NDF provenance predicate."
+            )
     _validate_cosign_statement(statement, repository=repository, digest=digest)
     workflow = statement["predicate"]["ndf_build"]["workflow"]
     source_commit = workflow["source_commit"]
@@ -487,6 +495,11 @@ def verify_image(
     if verified_statement != statement:
         raise CosignTrustError("Attestation changed between verification passes.")
     _validate_cosign_statement(verified_statement, repository=repository, digest=digest)
+    if attestation_output is not None:
+        # Preserve the exact-source-SHA-constrained second verification pass.
+        _atomic_write(
+            attestation_output, attestation_result.stdout.encode("utf-8")
+        )
 
     now = verified_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -565,7 +578,12 @@ def main(argv: list[str] | None = None) -> int:
     verify_parser.add_argument("--image-ref", required=True)
     verify_parser.add_argument("--result-output", type=Path, required=True)
     verify_parser.add_argument("--attestation-output", type=Path)
-    verify_parser.add_argument("--expected-predicate", type=Path, required=True)
+    verify_parser.add_argument("--expected-predicate", type=Path)
+    verify_parser.add_argument(
+        "--self-contained",
+        action="store_true",
+        help="Verify the registry attestation without a producer-side expected predicate.",
+    )
     verify_parser.add_argument("--policy", type=Path, default=POLICY_PATH)
     verify_parser.add_argument("--cosign-binary", default="cosign")
     args = parser.parse_args(argv)
@@ -584,6 +602,7 @@ def main(argv: list[str] | None = None) -> int:
                 result_output=args.result_output,
                 attestation_output=args.attestation_output,
                 expected_predicate_path=args.expected_predicate,
+                self_contained=args.self_contained,
                 policy_path=args.policy,
                 cosign_binary=args.cosign_binary,
             )
