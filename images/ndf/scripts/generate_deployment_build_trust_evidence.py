@@ -79,9 +79,9 @@ def _validate_schema(value: dict[str, Any], path: Path, label: str) -> None:
         schema = _strict_json(path.read_bytes(), f"{label} schema")
         Draft202012Validator.check_schema(schema)
         errors = sorted(
-            Draft202012Validator(
-                schema, format_checker=FormatChecker()
-            ).iter_errors(value),
+            Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(
+                value
+            ),
             key=lambda error: (
                 tuple(map(str, error.absolute_path)),
                 error.message,
@@ -108,7 +108,9 @@ def _safe_evidence_file(root: Path, reference: str) -> Path:
             f"Evidence reference is not a safe relative path: {reference!r}."
         )
     if root.is_symlink():
-        raise TrustEvidenceError("Candidate-origin evidence directory must not be a symlink.")
+        raise TrustEvidenceError(
+            "Candidate-origin evidence directory must not be a symlink."
+        )
     root_resolved = root.resolve(strict=True)
     candidate = root / relative
     if candidate.is_symlink():
@@ -121,7 +123,9 @@ def _safe_evidence_file(root: Path, reference: str) -> Path:
             f"Evidence file is missing or escapes its evidence directory: {reference}."
         ) from exc
     if not resolved.is_file():
-        raise TrustEvidenceError(f"Evidence reference is not a regular file: {reference}.")
+        raise TrustEvidenceError(
+            f"Evidence reference is not a regular file: {reference}."
+        )
     return resolved
 
 
@@ -130,21 +134,31 @@ def _verified_origin_evidence(
 ) -> list[dict[str, str]]:
     references = origin.get("evidence_references")
     if not isinstance(references, list):
-        raise TrustEvidenceError("Candidate-origin evidence_references must be an array.")
+        raise TrustEvidenceError(
+            "Candidate-origin evidence_references must be an array."
+        )
     validated: list[dict[str, str]] = []
     seen: set[str] = set()
     for item in references:
         if not isinstance(item, dict):
-            raise TrustEvidenceError("Candidate-origin evidence reference must be an object.")
+            raise TrustEvidenceError(
+                "Candidate-origin evidence reference must be an object."
+            )
         reference = item.get("reference")
         expected_hash = item.get("sha256")
         kind = item.get("kind")
         if not isinstance(reference, str) or not isinstance(expected_hash, str):
-            raise TrustEvidenceError("Candidate-origin evidence reference is incomplete.")
+            raise TrustEvidenceError(
+                "Candidate-origin evidence reference is incomplete."
+            )
         if kind not in {"cosign_signature", "candidate_origin_attestation"}:
-            raise TrustEvidenceError(f"Unsupported candidate-origin evidence kind: {kind!r}.")
+            raise TrustEvidenceError(
+                f"Unsupported candidate-origin evidence kind: {kind!r}."
+            )
         if reference in seen:
-            raise TrustEvidenceError(f"Duplicate candidate-origin evidence reference: {reference}.")
+            raise TrustEvidenceError(
+                f"Duplicate candidate-origin evidence reference: {reference}."
+            )
         seen.add(reference)
         if not HASH_PATTERN.fullmatch(expected_hash):
             raise TrustEvidenceError(f"Invalid evidence SHA-256 for {reference}.")
@@ -152,9 +166,7 @@ def _verified_origin_evidence(
         actual_hash = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
         if actual_hash != expected_hash:
             raise TrustEvidenceError(f"Evidence SHA-256 mismatch for {reference}.")
-        validated.append(
-            {"kind": kind, "reference": reference, "sha256": actual_hash}
-        )
+        validated.append({"kind": kind, "reference": reference, "sha256": actual_hash})
     return validated
 
 
@@ -183,22 +195,34 @@ def generate_report(
     candidate_digest = result.get("candidate_artifact_digest")
     payload_sha256 = result.get("candidate_payload_sha256")
     workflow = result.get("workflow")
-    if not isinstance(candidate_id, str) or not CANDIDATE_ID_PATTERN.fullmatch(candidate_id):
+    if not isinstance(candidate_id, str) or not CANDIDATE_ID_PATTERN.fullmatch(
+        candidate_id
+    ):
         raise TrustEvidenceError("Terminal result has an invalid candidate ID.")
     if not isinstance(correlation_id, str) or not re.fullmatch(
         r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
         correlation_id,
     ):
-        raise TrustEvidenceError("Terminal result has a missing or noncanonical correlation UUID.")
-    if not isinstance(candidate_digest, str) or not DIGEST_PATTERN.fullmatch(candidate_digest):
-        raise TrustEvidenceError("Terminal result has an invalid candidate artifact digest.")
+        raise TrustEvidenceError(
+            "Terminal result has a missing or noncanonical correlation UUID."
+        )
+    if not isinstance(candidate_digest, str) or not DIGEST_PATTERN.fullmatch(
+        candidate_digest
+    ):
+        raise TrustEvidenceError(
+            "Terminal result has an invalid candidate artifact digest."
+        )
     expected_candidate_ref = f"{CANDIDATE_REPOSITORY}@{candidate_digest}"
     if result.get("candidate_artifact_ref") != expected_candidate_ref:
         raise TrustEvidenceError(
             "Terminal result candidate artifact reference and digest do not agree."
         )
-    if not isinstance(payload_sha256, str) or not HASH_PATTERN.fullmatch(payload_sha256):
-        raise TrustEvidenceError("Terminal result has an invalid candidate payload SHA-256.")
+    if not isinstance(payload_sha256, str) or not HASH_PATTERN.fullmatch(
+        payload_sha256
+    ):
+        raise TrustEvidenceError(
+            "Terminal result has an invalid candidate payload SHA-256."
+        )
     if not isinstance(workflow, dict):
         raise TrustEvidenceError("Terminal result workflow metadata is missing.")
     run_id = workflow.get("run_id")
@@ -215,15 +239,21 @@ def generate_report(
     ):
         raise TrustEvidenceError("Terminal result workflow identity is invalid.")
     if result.get("result_id") != f"ndf-{run_id}-{attempt}":
-        raise TrustEvidenceError("Terminal result ID does not match its run ID and attempt.")
+        raise TrustEvidenceError(
+            "Terminal result ID does not match its run ID and attempt."
+        )
 
     if origin_result_path is None or not origin_result_path.exists():
         origin = None
     else:
         if origin_result_path.is_symlink():
             raise TrustEvidenceError("Candidate-origin result must not be a symlink.")
-        origin, _ = _read_json(origin_result_path, "candidate-origin verification result")
-        origin_schema = schema_path.with_name("candidate-origin-verification-result-v1.schema.json")
+        origin, _ = _read_json(
+            origin_result_path, "candidate-origin verification result"
+        )
+        origin_schema = schema_path.with_name(
+            "candidate-origin-verification-result-v1.schema.json"
+        )
         _validate_schema(origin, origin_schema, "candidate-origin verification result")
 
     if origin is None:
@@ -234,18 +264,31 @@ def generate_report(
         origin_payload_hash = payload_sha256
     else:
         if origin.get("candidate_id") != candidate_id:
-            raise TrustEvidenceError("Candidate-origin result candidate ID differs from terminal result.")
+            raise TrustEvidenceError(
+                "Candidate-origin result candidate ID differs from terminal result."
+            )
         if origin.get("correlation_id") != correlation_id:
-            raise TrustEvidenceError("Candidate-origin result correlation ID differs from terminal result.")
+            raise TrustEvidenceError(
+                "Candidate-origin result correlation ID differs from terminal result."
+            )
         subject = origin.get("subject")
-        if not isinstance(subject, dict) or subject.get("repository") != CANDIDATE_REPOSITORY:
-            raise TrustEvidenceError("Candidate-origin result subject repository is invalid.")
+        if (
+            not isinstance(subject, dict)
+            or subject.get("repository") != CANDIDATE_REPOSITORY
+        ):
+            raise TrustEvidenceError(
+                "Candidate-origin result subject repository is invalid."
+            )
         subject_digest = subject.get("digest") or candidate_digest
         origin_payload_hash = origin.get("payload_sha256") or payload_sha256
         if subject_digest != candidate_digest:
-            raise TrustEvidenceError("Candidate-origin subject digest differs from terminal result.")
+            raise TrustEvidenceError(
+                "Candidate-origin subject digest differs from terminal result."
+            )
         if origin_payload_hash != payload_sha256:
-            raise TrustEvidenceError("Candidate-origin payload SHA-256 differs from terminal result.")
+            raise TrustEvidenceError(
+                "Candidate-origin payload SHA-256 differs from terminal result."
+            )
         decision = origin.get("decision")
         reason_code = origin.get("reason_code")
         if decision not in {"verified", "rejected"}:
@@ -253,12 +296,14 @@ def generate_report(
         if reason_code not in REASON_CODES:
             raise TrustEvidenceError("Candidate-origin reason code is not supported.")
         if decision == "verified" and reason_code != "CANDIDATE_ORIGIN_VERIFIED":
-            raise TrustEvidenceError("Verified candidate origin must use CANDIDATE_ORIGIN_VERIFIED.")
+            raise TrustEvidenceError(
+                "Verified candidate origin must use CANDIDATE_ORIGIN_VERIFIED."
+            )
         if decision == "rejected" and reason_code == "CANDIDATE_ORIGIN_VERIFIED":
-            raise TrustEvidenceError("Rejected candidate origin cannot use the verified reason code.")
-        evidence_references = _verified_origin_evidence(
-            origin, origin_evidence_dir
-        )
+            raise TrustEvidenceError(
+                "Rejected candidate origin cannot use the verified reason code."
+            )
+        evidence_references = _verified_origin_evidence(origin, origin_evidence_dir)
         if decision == "verified":
             kinds = {item["kind"] for item in evidence_references}
             if kinds != {"cosign_signature", "candidate_origin_attestation"}:
@@ -320,14 +365,26 @@ def main(argv: list[str] | None = None) -> int:
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         if args.output.exists() or args.output.is_symlink():
-            raise TrustEvidenceError("Refusing to overwrite an existing trust-evidence report.")
+            raise TrustEvidenceError(
+                "Refusing to overwrite an existing trust-evidence report."
+            )
         temporary = args.output.with_name(args.output.name + ".tmp")
         if temporary.exists() or temporary.is_symlink():
-            raise TrustEvidenceError("Refusing to overwrite an existing temporary report.")
+            raise TrustEvidenceError(
+                "Refusing to overwrite an existing temporary report."
+            )
         encoded = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode("utf-8")
         temporary.write_bytes(encoded)
         os.replace(temporary, args.output)
-        print(json.dumps({"report_id": report["report_id"], "decision": report["candidate_origin"]["decision"]}, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "report_id": report["report_id"],
+                    "decision": report["candidate_origin"]["decision"],
+                },
+                sort_keys=True,
+            )
+        )
         return 0
     except (OSError, TrustEvidenceError, json.JSONDecodeError) as exc:
         print(f"Trust-evidence report generation failed: {exc}", file=sys.stderr)

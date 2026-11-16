@@ -103,12 +103,16 @@ def _origin(decision="verified"):
 
 def _write_inputs(tmp_path, *, decision="verified", origin=True):
     result_path = tmp_path / generator.RESULT_FILENAME
-    result_path.write_text(json.dumps(_result(), sort_keys=True) + "\n", encoding="utf-8")
+    result_path.write_text(
+        json.dumps(_result(), sort_keys=True) + "\n", encoding="utf-8"
+    )
     evidence_dir = tmp_path / "origin-evidence"
     evidence_dir.mkdir()
     signature = b'{"verified":true}\n'
     attestation = b'{"statement":"verified"}\n'
-    (evidence_dir / "candidate-origin-signature-verification.json").write_bytes(signature)
+    (evidence_dir / "candidate-origin-signature-verification.json").write_bytes(
+        signature
+    )
     (evidence_dir / "candidate-origin-attestation.json").write_bytes(attestation)
     origin_path = None
     if origin:
@@ -138,9 +142,10 @@ def test_verified_report_binds_exact_result_and_candidate_origin_evidence(tmp_pa
     assert report["correlation_id"] == CORRELATION_ID
     assert report["result_binding"]["result_id"] == f"ndf-{RUN_ID}-{ATTEMPT}"
     assert report["result_binding"]["result_file"] == generator.RESULT_FILENAME
-    assert report["result_binding"]["result_sha256"] == hashlib.sha256(
-        result_path.read_bytes()
-    ).hexdigest()
+    assert (
+        report["result_binding"]["result_sha256"]
+        == hashlib.sha256(result_path.read_bytes()).hexdigest()
+    )
     assert report["workflow"] == {
         "repository": "NdfTechLabs/frappe_docker",
         "run_id": RUN_ID,
@@ -148,7 +153,9 @@ def test_verified_report_binds_exact_result_and_candidate_origin_evidence(tmp_pa
         "source_commit": SOURCE_COMMIT,
     }
     assert report["candidate_origin"]["decision"] == "verified"
-    assert {item["kind"] for item in report["candidate_origin"]["evidence_references"]} == {
+    assert {
+        item["kind"] for item in report["candidate_origin"]["evidence_references"]
+    } == {
         "cosign_signature",
         "candidate_origin_attestation",
     }
@@ -259,9 +266,10 @@ def test_result_bytes_are_hashed_without_json_reserialization(tmp_path):
         origin_evidence_dir=evidence_dir,
         schema_path=SCHEMAS / "deployment-build-trust-evidence-v1.schema.json",
     )
-    assert report["result_binding"]["result_sha256"] == hashlib.sha256(
-        result_path.read_bytes()
-    ).hexdigest()
+    assert (
+        report["result_binding"]["result_sha256"]
+        == hashlib.sha256(result_path.read_bytes()).hexdigest()
+    )
 
 
 def test_cli_refuses_to_overwrite_existing_report(tmp_path):
