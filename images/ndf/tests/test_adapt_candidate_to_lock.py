@@ -341,7 +341,8 @@ def test_candidate_adapter_accepts_missing_optional_requested_version(
     frappe = next(
         item for item in lock_data["applications"] if item["name"] == "frappe"
     )
-    assert frappe["requested_version"]
+    assert frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
+    assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
     composition = json.loads(result["mapping_path"].read_text(encoding="utf-8"))
     mapped_app = next(
         item
