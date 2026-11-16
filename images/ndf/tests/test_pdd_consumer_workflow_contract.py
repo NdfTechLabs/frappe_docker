@@ -199,8 +199,8 @@ def test_consumer_correlates_verified_envelopes_and_observes_both_fulcio_certifi
     assert "observe_fulcio_certificate.py" in step
     assert "--verified-envelope" in step
     assert "--artifact-reference" in step
-    assert "--identity-id \"product-pdd-publication\"" in step
-    assert "--identity-id \"product-image-publication\"" in step
+    assert '--identity-id "product-pdd-publication"' in step
+    assert '--identity-id "product-image-publication"' in step
     assert "pdd-fulcio-certificate-observation.json" in step
     assert "image-fulcio-certificate-observation.json" in step
     assert "pdd-verified-attestation.json" in workflow

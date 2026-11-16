@@ -16,7 +16,6 @@ if TESTS_DIR not in sys.path:
 
 from scripts import observe_fulcio_certificate as observer  # noqa: E402
 
-
 PDD_PREDICATE = "https://ndftechlabs.com/attestations/pdd-image-binding/v1"
 IMAGE_PREDICATE = "https://slsa.dev/provenance/v1"
 REPOSITORY = "ghcr.io/ndftechlabs/dalali"
@@ -229,9 +228,13 @@ def test_extracts_legacy_and_generic_fulcio_claims_and_preserves_extensions(tmp_
 def test_rejects_bundle_without_exact_verified_envelope_match(tmp_path):
     bundles, verified = _fixture(
         tmp_path,
-        envelope_mutation=lambda value: value.update(payloadType="application/attacker"),
+        envelope_mutation=lambda value: value.update(
+            payloadType="application/attacker"
+        ),
     )
-    with pytest.raises(observer.CertificateObservationError, match="exactly one bundle"):
+    with pytest.raises(
+        observer.CertificateObservationError, match="exactly one bundle"
+    ):
         observer.observe_certificate(
             bundles,
             verified,
@@ -304,11 +307,15 @@ def test_rejects_non_utf8_legacy_claim():
 def test_rejects_duplicate_json_keys_in_bundle(tmp_path):
     path = tmp_path / "bundles.jsonl"
     path.write_text('{"mediaType":"one","mediaType":"two"}' + chr(10), encoding="utf-8")
-    with pytest.raises(observer.CertificateObservationError, match="Duplicate JSON key"):
+    with pytest.raises(
+        observer.CertificateObservationError, match="Duplicate JSON key"
+    ):
         observer._read_jsonl(path)
 
 
-def test_rejects_certificate_that_does_not_verify_the_verified_envelope_signature(tmp_path):
+def test_rejects_certificate_that_does_not_verify_the_verified_envelope_signature(
+    tmp_path,
+):
     bundles, verified = _fixture(tmp_path, certificate_key_mismatch=True)
     with pytest.raises(
         observer.CertificateObservationError,

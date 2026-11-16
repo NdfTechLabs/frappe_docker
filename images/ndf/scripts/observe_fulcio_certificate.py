@@ -80,7 +80,9 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
             path.read_text(encoding="utf-8"),
             object_pairs_hook=_unique_object,
             parse_constant=lambda token: (_ for _ in ()).throw(
-                CertificateObservationError(f"Invalid JSON constant in {label}: {token}")
+                CertificateObservationError(
+                    f"Invalid JSON constant in {label}: {token}"
+                )
             ),
         )
     except CertificateObservationError:
@@ -112,9 +114,13 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
                 ),
             )
         except (json.JSONDecodeError, CertificateObservationError) as exc:
-            raise CertificateObservationError(f"Invalid bundle JSON on line {number}: {exc}") from exc
+            raise CertificateObservationError(
+                f"Invalid bundle JSON on line {number}: {exc}"
+            ) from exc
         if not isinstance(value, dict):
-            raise CertificateObservationError(f"Bundle line {number} must be an object.")
+            raise CertificateObservationError(
+                f"Bundle line {number} must be an object."
+            )
         entries.append(value)
     if not entries:
         raise CertificateObservationError("Bundle file contains no bundle objects.")
@@ -124,7 +130,9 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 def _decode_der_utf8_string(raw: bytes, oid: str) -> str:
     """Decode one complete DER UTF8String, rejecting malformed/trailing bytes."""
     if len(raw) < 2 or raw[0] != 0x0C:
-        raise CertificateObservationError(f"Fulcio extension {oid} is not a DER UTF8String.")
+        raise CertificateObservationError(
+            f"Fulcio extension {oid} is not a DER UTF8String."
+        )
     first = raw[1]
     if first < 0x80:
         length = first
@@ -132,19 +140,29 @@ def _decode_der_utf8_string(raw: bytes, oid: str) -> str:
     else:
         count = first & 0x7F
         if count == 0 or count > 4 or len(raw) < 2 + count:
-            raise CertificateObservationError(f"Fulcio extension {oid} has invalid DER length.")
+            raise CertificateObservationError(
+                f"Fulcio extension {oid} has invalid DER length."
+            )
         if raw[2] == 0:
-            raise CertificateObservationError(f"Fulcio extension {oid} has non-minimal DER length.")
+            raise CertificateObservationError(
+                f"Fulcio extension {oid} has non-minimal DER length."
+            )
         length = int.from_bytes(raw[2 : 2 + count], "big")
         if length < 0x80:
-            raise CertificateObservationError(f"Fulcio extension {oid} has non-minimal DER length.")
+            raise CertificateObservationError(
+                f"Fulcio extension {oid} has non-minimal DER length."
+            )
         offset = 2 + count
     if offset + length != len(raw):
-        raise CertificateObservationError(f"Fulcio extension {oid} has truncated or trailing DER data.")
+        raise CertificateObservationError(
+            f"Fulcio extension {oid} has truncated or trailing DER data."
+        )
     try:
         return raw[offset:].decode("utf-8", errors="strict")
     except UnicodeDecodeError as exc:
-        raise CertificateObservationError(f"Fulcio extension {oid} is not valid UTF-8.") from exc
+        raise CertificateObservationError(
+            f"Fulcio extension {oid} is not valid UTF-8."
+        ) from exc
 
 
 def _certificate_from_bundle(bundle: dict[str, Any]) -> bytes:
@@ -158,15 +176,21 @@ def _certificate_from_bundle(bundle: dict[str, Any]) -> bytes:
         chain = material.get("x509CertificateChain")
         certificates = chain.get("certificates") if isinstance(chain, dict) else None
         if not isinstance(certificates, list) or not certificates:
-            raise CertificateObservationError("Bundle contains no supported leaf certificate.")
+            raise CertificateObservationError(
+                "Bundle contains no supported leaf certificate."
+            )
         leaf = certificates[0]
         encoded = leaf.get("rawBytes") if isinstance(leaf, dict) else None
     if not isinstance(encoded, str) or not encoded:
-        raise CertificateObservationError("Bundle leaf certificate rawBytes is missing.")
+        raise CertificateObservationError(
+            "Bundle leaf certificate rawBytes is missing."
+        )
     try:
         return base64.b64decode(encoded, validate=True)
     except (ValueError, base64.binascii.Error) as exc:
-        raise CertificateObservationError("Bundle leaf certificate is not valid base64.") from exc
+        raise CertificateObservationError(
+            "Bundle leaf certificate is not valid base64."
+        ) from exc
 
 
 def _statement_from_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
@@ -176,8 +200,15 @@ def _statement_from_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
     try:
         raw = base64.b64decode(payload, validate=True)
         statement = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object)
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError, CertificateObservationError) as exc:
-        raise CertificateObservationError(f"DSSE payload is not valid base64-encoded JSON: {exc}") from exc
+    except (
+        ValueError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        CertificateObservationError,
+    ) as exc:
+        raise CertificateObservationError(
+            f"DSSE payload is not valid base64-encoded JSON: {exc}"
+        ) from exc
     if not isinstance(statement, dict):
         raise CertificateObservationError("DSSE statement must be a JSON object.")
     return statement
@@ -193,12 +224,16 @@ def _verify_dsse_signature(
     if not isinstance(payload_type, str) or not isinstance(payload_encoded, str):
         raise CertificateObservationError("DSSE envelope payload fields are invalid.")
     if not isinstance(signatures, list) or len(signatures) != 1:
-        raise CertificateObservationError("Expected exactly one DSSE signature for certificate correlation.")
+        raise CertificateObservationError(
+            "Expected exactly one DSSE signature for certificate correlation."
+        )
     try:
         payload = base64.b64decode(payload_encoded, validate=True)
         signature = base64.b64decode(signatures[0]["sig"], validate=True)
     except (KeyError, TypeError, ValueError, base64.binascii.Error) as exc:
-        raise CertificateObservationError("DSSE signature or payload is not valid base64.") from exc
+        raise CertificateObservationError(
+            "DSSE signature or payload is not valid base64."
+        ) from exc
 
     payload_type_bytes = payload_type.encode("utf-8")
     pae = (
@@ -213,9 +248,13 @@ def _verify_dsse_signature(
     )
     public_key = certificate.public_key()
     if not isinstance(public_key, ec.EllipticCurvePublicKey):
-        raise CertificateObservationError("Fulcio certificate key is not an ECDSA public key.")
+        raise CertificateObservationError(
+            "Fulcio certificate key is not an ECDSA public key."
+        )
     if not isinstance(public_key.curve, ec.SECP256R1):
-        raise CertificateObservationError("Fulcio certificate key is not on the P-256 curve.")
+        raise CertificateObservationError(
+            "Fulcio certificate key is not on the P-256 curve."
+        )
     try:
         public_key.verify(signature, pae, ec.ECDSA(hashes.SHA256()))
     except Exception as exc:
@@ -252,22 +291,29 @@ def observe_certificate(
         artifact_reference,
     )
     if match is None:
-        raise CertificateObservationError("Artifact reference must be immutable repository@sha256.")
+        raise CertificateObservationError(
+            "Artifact reference must be immutable repository@sha256."
+        )
     repository = match.group("repository")
     digest = match.group("digest")
 
     verified_envelope = _read_json(verified_envelope_path, "verified DSSE envelope")
     required_envelope_keys = {"payload", "payloadType", "signatures"}
     if set(verified_envelope) != required_envelope_keys:
-        raise CertificateObservationError("Verified DSSE envelope has an unexpected shape.")
-    if not isinstance(verified_envelope["signatures"], list) or not verified_envelope["signatures"]:
-        raise CertificateObservationError("Verified DSSE envelope contains no signatures.")
+        raise CertificateObservationError(
+            "Verified DSSE envelope has an unexpected shape."
+        )
+    if (
+        not isinstance(verified_envelope["signatures"], list)
+        or not verified_envelope["signatures"]
+    ):
+        raise CertificateObservationError(
+            "Verified DSSE envelope contains no signatures."
+        )
 
     bundles = _read_jsonl(bundles_path)
     matching = [
-        bundle
-        for bundle in bundles
-        if bundle.get("dsseEnvelope") == verified_envelope
+        bundle for bundle in bundles if bundle.get("dsseEnvelope") == verified_envelope
     ]
     if len(matching) != 1:
         raise CertificateObservationError(
@@ -280,16 +326,24 @@ def observe_certificate(
         )
 
     if verified_envelope["payloadType"] != "application/vnd.in-toto+json":
-        raise CertificateObservationError("Verified DSSE envelope has an unexpected payload type.")
+        raise CertificateObservationError(
+            "Verified DSSE envelope has an unexpected payload type."
+        )
     statement = _statement_from_envelope(verified_envelope)
     if statement.get("predicateType") != predicate_type:
-        raise CertificateObservationError("Verified statement predicate type does not match the requested type.")
+        raise CertificateObservationError(
+            "Verified statement predicate type does not match the requested type."
+        )
     subjects = statement.get("subject")
     if not isinstance(subjects, list) or len(subjects) != 1:
-        raise CertificateObservationError("Verified statement must contain exactly one subject.")
+        raise CertificateObservationError(
+            "Verified statement must contain exactly one subject."
+        )
     subject = subjects[0]
     if subject.get("name") != repository:
-        raise CertificateObservationError("Verified statement subject repository mismatch.")
+        raise CertificateObservationError(
+            "Verified statement subject repository mismatch."
+        )
     if subject.get("digest") != {"sha256": digest}:
         raise CertificateObservationError("Verified statement subject digest mismatch.")
 
@@ -297,7 +351,9 @@ def observe_certificate(
     try:
         cert = x509.load_der_x509_certificate(certificate_der)
     except ValueError as exc:
-        raise CertificateObservationError(f"Bundle leaf certificate DER is invalid: {exc}") from exc
+        raise CertificateObservationError(
+            f"Bundle leaf certificate DER is invalid: {exc}"
+        ) from exc
 
     _verify_dsse_signature(verified_envelope, cert)
 
@@ -306,7 +362,9 @@ def observe_certificate(
     for extension in cert.extensions:
         oid = extension.oid.dotted_string
         if oid in raw_extensions:
-            raise CertificateObservationError(f"Certificate contains duplicate extension OID {oid}.")
+            raise CertificateObservationError(
+                f"Certificate contains duplicate extension OID {oid}."
+            )
         raw_value = getattr(extension.value, "value", None)
         if raw_value is None:
             # Parsed standard extensions expose their DER value through
@@ -332,7 +390,9 @@ def observe_certificate(
             fulcio_claims[name] = value
 
     try:
-        san = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME).value
+        san = cert.extensions.get_extension_for_oid(
+            ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+        ).value
         san_uris = san.get_values_for_type(x509.UniformResourceIdentifier)
     except x509.ExtensionNotFound:
         san_uris = []
@@ -357,7 +417,9 @@ def observe_certificate(
         fulcio_claims["run_attempt"] = int(invocation_match.group(2))
 
     try:
-        eku = cert.extensions.get_extension_for_oid(ExtensionOID.EXTENDED_KEY_USAGE).value
+        eku = cert.extensions.get_extension_for_oid(
+            ExtensionOID.EXTENDED_KEY_USAGE
+        ).value
         eku_oids = [oid.dotted_string for oid in eku]
     except x509.ExtensionNotFound:
         eku_oids = []
@@ -368,8 +430,13 @@ def observe_certificate(
     except x509.ExtensionNotFound:
         digital_signature = False
 
-    if not digital_signature or ExtendedKeyUsageOID.CODE_SIGNING.dotted_string not in eku_oids:
-        raise CertificateObservationError("Fulcio certificate lacks code-signing key usage.")
+    if (
+        not digital_signature
+        or ExtendedKeyUsageOID.CODE_SIGNING.dotted_string not in eku_oids
+    ):
+        raise CertificateObservationError(
+            "Fulcio certificate lacks code-signing key usage."
+        )
 
     legacy_generic_pairs = {
         "iss": "issuer",
@@ -385,12 +452,18 @@ def observe_certificate(
                 )
     source_uri = fulcio_claims.get("source_repository_uri")
     if source_uri and fulcio_claims.get("repository"):
-        if source_uri.removeprefix("https://github.com/") != fulcio_claims["repository"]:
+        if (
+            source_uri.removeprefix("https://github.com/")
+            != fulcio_claims["repository"]
+        ):
             raise CertificateObservationError(
                 "Legacy repository and generic source repository URI claims disagree."
             )
     for uri_claim in ("build_signer_uri", "build_config_uri"):
-        if uri_claim in fulcio_claims and fulcio_claims[uri_claim] != certificate_identity:
+        if (
+            uri_claim in fulcio_claims
+            and fulcio_claims[uri_claim] != certificate_identity
+        ):
             raise CertificateObservationError(
                 f"Fulcio {uri_claim} does not match the certificate URI SAN."
             )
@@ -437,7 +510,9 @@ def observe_certificate(
         "policy_observation": {
             "identity_id": policy_observation["identity_id"],
             "policy_status": policy_observation["policy_status"],
-            "identity_claims_validated": policy_observation["identity_claims_validated"],
+            "identity_claims_validated": policy_observation[
+                "identity_claims_validated"
+            ],
             "cryptographic_signature_verified": False,
             "transparency_log_verified": False,
             "trust_decision": "not_evaluated",
@@ -492,8 +567,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Fulcio certificate observation failed: {exc}", file=sys.stderr)
         return 1
     print(
-        f"Fulcio certificate observation passed: "
-        f"{result['certificate']['sha256']}"
+        f"Fulcio certificate observation passed: " f"{result['certificate']['sha256']}"
     )
     return 0
 
