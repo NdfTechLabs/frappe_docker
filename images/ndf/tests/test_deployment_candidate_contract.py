@@ -450,9 +450,7 @@ def test_candidate_id_accepts_maximum_length_and_rejects_overflow():
 
 
 def test_origin_predicate_requires_canonical_uuid_correlation_id():
-    schema = load(
-        SCHEMAS / "deployment-candidate-origin-predicate-v1.schema.json"
-    )
+    schema = load(SCHEMAS / "deployment-candidate-origin-predicate-v1.schema.json")
     assert schema["properties"]["correlation_id"] == {
         "type": "string",
         "format": "uuid",
