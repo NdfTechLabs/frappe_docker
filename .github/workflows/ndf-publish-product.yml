@@ -490,7 +490,9 @@ jobs:
             --image-ref "$IMAGE_REF" \
             --result-output "$RESULT" \
             --attestation-output "$ATTESTATION_OUTPUT" \
-            --self-contained > "$VERIFY_LOG" 2>&1
+            --self-contained \
+            --expected-product-id "$IMAGE_ID" \
+            --expected-source-commit "$GITHUB_SHA" > "$VERIFY_LOG" 2>&1
           VERIFY_STATUS=$?
           set -e
 
