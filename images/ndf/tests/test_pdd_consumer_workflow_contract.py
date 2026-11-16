@@ -109,7 +109,7 @@ def test_consumer_workflow_requires_artifact_decisions_to_match_exit_policy():
     workflow = read_workflow()
     step = workflow.split("name: Independently verify PDD and source image trust", 1)[
         1
-    ].split("\\n      - name:", 1)[0]
+    ].split("\n      - name:", 1)[0]
     for contract in (
         'pdd_decision == "trusted"',
         'image_decision == "trusted"',
