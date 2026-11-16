@@ -363,11 +363,6 @@ def verify_candidate_origin(
                     "sha256": hashlib.sha256(attestation_bytes).hexdigest(),
                 }
             )
-        if len(evidence) != 2:
-            raise CandidateOriginTrustError(
-                "PREDICATE_INVALID",
-                "Both signature-verification and attestation evidence output paths are required.",
-            )
         return {
             "schema_version": "1.0.0",
             "decision": "verified",
@@ -390,9 +385,15 @@ def verify_candidate_origin(
         raise
     except cosign.CosignTrustError as exc:
         message = str(exc)
-        reason = "REKOR_EVIDENCE_INVALID" if any(
-            token in message.lower() for token in ("rekor", "transparency", "tlog")
-        ) else "SIGNATURE_INVALID"
+        lowered = message.lower()
+        if any(token in lowered for token in ("rekor", "transparency", "tlog")):
+            reason = "REKOR_EVIDENCE_INVALID"
+        elif "issuer" in lowered or "oidc" in lowered:
+            reason = "OIDC_ISSUER_REJECTED"
+        elif any(token in lowered for token in ("identity", "certificate", "workflow")):
+            reason = "SIGNER_IDENTITY_REJECTED"
+        else:
+            reason = "SIGNATURE_INVALID"
         raise CandidateOriginTrustError(reason, message) from exc
 
 
