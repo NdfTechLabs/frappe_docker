@@ -245,6 +245,14 @@ def _validate_pair(
     if report_workflow != expected_workflow:
         raise EvidenceBundleError("Trust report workflow identity differs from result.")
 
+    candidate_origin = report.get("candidate_origin")
+    if not isinstance(candidate_origin, dict):
+        raise EvidenceBundleError("Trust report candidate-origin decision is missing.")
+    if result.get("status") == "succeeded" and candidate_origin.get("decision") != "verified":
+        raise EvidenceBundleError(
+            "A successful deployment build result requires verified candidate origin."
+        )
+
     binding = report.get("result_binding")
     expected_hash = hashlib.sha256(result_bytes).hexdigest()
     if not isinstance(binding, dict):
