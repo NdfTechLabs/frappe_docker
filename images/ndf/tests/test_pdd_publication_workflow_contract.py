@@ -109,6 +109,10 @@ def test_signer_job_is_dependent_isolated_and_uses_immutable_receipt_digest():
     assert "cosign-release: v3.1.4" in sign_job
     assert "6f9f17788090df1f26f669e9d70d6ae9567deba6" in sign_job
     assert "IDENTITY_POLICY_PROVISIONAL" in sign_job
+    assert "pdd-publication-record-v1.schema.json" in sign_job
+    assert "PDD cryptographic verification passed, but signer identity policy is provisional; result is rejected." in sign_job
+    assert "pdd-trust-verification-result.json" in sign_job
+    assert "pdd-verified-attestation.json" in sign_job
 
 
 def test_other_product_and_consumer_trust_workflows_are_not_changed_by_pdd_scope():
