@@ -485,6 +485,21 @@ def _verify_independent_consumer_trust(
     """Verify PDD and source-image trust using only second-pass registry attestations."""
     pdd_ref = receipt["artifact"]["immutable_reference"]
     pdd_repository, pdd_digest = cosign_pdd_trust.parse_pdd_reference(pdd_ref)
+    policy = artifact_trust.load_identity_policy()
+    policy_path = artifact_trust.POLICY_PATH
+    policy_file_sha256 = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    pdd_identity_matches = [
+        item for item in policy["identities"]
+        if item["id"] == cosign_pdd_trust.IDENTITY_ID and "pdd" in item["artifact_kinds"]
+    ]
+    image_identity_matches = [
+        item for item in policy["identities"]
+        if item["id"] == cosign_image_trust.IDENTITY_ID and "product_image" in item["artifact_kinds"]
+    ]
+    if len(pdd_identity_matches) != 1 or len(image_identity_matches) != 1:
+        raise PDDRetrievalError("Consumer signer identities are missing or ambiguous in the shared policy.")
+    pdd_identity = pdd_identity_matches[0]
+    image_identity = image_identity_matches[0]
     pdd_result_path = output_dir / "pdd-trust-result.json"
     pdd_attestation_path = output_dir / "pdd-verified-attestation.json"
     image_result_path = output_dir / "image-trust-result.json"
@@ -497,6 +512,7 @@ def _verify_independent_consumer_trust(
             result_output=pdd_result_path,
             attestation_output=pdd_attestation_path,
             cosign_binary=cosign_bin,
+            policy_path=policy_path,
             self_contained=True,
         )
     except cosign_pdd_trust.PDDCosignTrustError:
@@ -511,8 +527,8 @@ def _verify_independent_consumer_trust(
         digest=pdd_digest,
         immutable_reference=pdd_ref,
         predicate_type=cosign_pdd_trust.PREDICATE_TYPE,
-        expected_identity=cosign_pdd_trust._load_identity(cosign_pdd_trust.POLICY_PATH)[1],
-        policy=artifact_trust.load_identity_policy(),
+        expected_identity=pdd_identity,
+        policy=policy,
     )
     pdd_statement = cosign_image_trust.extract_verified_statement(
         pdd_attestation_path.read_text(encoding="utf-8")
@@ -565,13 +581,13 @@ def _verify_independent_consumer_trust(
     if pdd_predicate["lock_sha256"] != lock_sha:
         raise PDDRetrievalError("PDD binding lock hash does not match the published lock-v2 evidence.")
 
-    policy = artifact_trust.load_identity_policy()
     try:
         cosign_image_trust.verify_image(
             image_ref=image_ref,
             result_output=image_result_path,
             attestation_output=image_attestation_path,
             cosign_binary=cosign_bin,
+            policy_path=policy_path,
             self_contained=True,
         )
     except cosign_image_trust.CosignTrustError:
@@ -584,9 +600,11 @@ def _verify_independent_consumer_trust(
         digest=image_digest,
         immutable_reference=image_ref,
         predicate_type=cosign_image_trust.PREDICATE_TYPE,
-        expected_identity=cosign_image_trust._load_product_identity()[1],
+        expected_identity=image_identity,
         policy=policy,
     )
+    if hashlib.sha256(policy_path.read_bytes()).hexdigest() != policy_file_sha256:
+        raise PDDRetrievalError("Artifact trust identity policy changed during consumer verification.")
     if pdd_result["decision"]["status"] != image_result["decision"]["status"]:
         raise PDDRetrievalError("PDD and image trust decisions are mixed; refusing to infer a combined decision.")
     if policy["status"] == PROVISIONAL_POLICY_STATUS and (
