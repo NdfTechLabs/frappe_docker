@@ -1,8 +1,9 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[3]
-WORKFLOW = ROOT / ".github" / "workflows" / "ndf-fetch-product-deployment-descriptor.yml"
+WORKFLOW = (
+    ROOT / ".github" / "workflows" / "ndf-fetch-product-deployment-descriptor.yml"
+)
 
 
 def read_workflow() -> str:
@@ -12,7 +13,9 @@ def read_workflow() -> str:
 def test_consumer_workflow_retains_read_only_permissions():
     workflow = read_workflow()
     top_level = workflow.split("\njobs:\n", 1)[0]
-    assert "permissions:\n  actions: read\n  contents: read\n  packages: read" in top_level
+    assert (
+        "permissions:\n  actions: read\n  contents: read\n  packages: read" in top_level
+    )
     assert "id-token: write" not in workflow
     assert "packages: write" not in workflow
     assert "contents: write" not in workflow
@@ -21,9 +24,9 @@ def test_consumer_workflow_retains_read_only_permissions():
 
 def test_consumer_invokes_full_trust_verification_with_explicit_evidence_paths():
     workflow = read_workflow()
-    step = workflow.split("name: Independently verify PDD and source image trust", 1)[1].split(
-        "\n      - name:", 1
-    )[0]
+    step = workflow.split("name: Independently verify PDD and source image trust", 1)[
+        1
+    ].split("\n      - name:", 1)[0]
     assert "fetch_product_deployment_descriptor.py" in step
     assert "--publication-record" in step
     assert "--output-dir" in step
@@ -37,20 +40,20 @@ def test_consumer_invokes_full_trust_verification_with_explicit_evidence_paths()
 
 def test_consumer_workflow_distinguishes_exit_two_from_technical_failure():
     workflow = read_workflow()
-    step = workflow.split("name: Independently verify PDD and source image trust", 1)[1].split(
-        "\n      - name:", 1
-    )[0]
-    assert 'verification_status=$?' in step
+    step = workflow.split("name: Independently verify PDD and source image trust", 1)[
+        1
+    ].split("\n      - name:", 1)[0]
+    assert "verification_status=$?" in step
     assert '"$verification_status" -ne 0 && "$verification_status" -ne 2' in step
     assert 'exit "$verification_status"' in step
-    assert 'if exit_code == 0:' in step
+    assert "if exit_code == 0:" in step
     assert 'outcome = "trusted"' in step
     assert 'outcome = "provisional_rejected"' in step
     assert 'policy_status == "confirmed"' in step
     assert 'policy_status == "provisional_until_live_certificate_observation"' in step
     assert 'expected_reason = ["IDENTITY_POLICY_PROVISIONAL"]' in step
     assert 'report.get("deployment_authorization") != "not_granted"' in step
-    assert 'required_stages = (' in step
+    assert "required_stages = (" in step
     assert '"signature_verified"' in step
     assert '"signer_verified"' in step
     assert '"transparency_verified"' in step
@@ -59,9 +62,9 @@ def test_consumer_workflow_distinguishes_exit_two_from_technical_failure():
 
 def test_consumer_workflow_requires_complete_report_and_all_second_pass_outputs():
     workflow = read_workflow()
-    step = workflow.split("name: Independently verify PDD and source image trust", 1)[1].split(
-        "\n      - name:", 1
-    )[0]
+    step = workflow.split("name: Independently verify PDD and source image trust", 1)[
+        1
+    ].split("\n      - name:", 1)[0]
     for output in (
         "pdd-consumer-verification-report.json",
         "pdd-trust-result.json",
@@ -79,9 +82,9 @@ def test_consumer_workflow_requires_complete_report_and_all_second_pass_outputs(
 
 def test_consumer_artifact_upload_runs_even_after_verification_failure():
     workflow = read_workflow()
-    upload = workflow.split("name: Upload retrieved PDD and independent trust evidence", 1)[1].split(
-        "\n      - name:", 1
-    )[0]
+    upload = workflow.split(
+        "name: Upload retrieved PDD and independent trust evidence", 1
+    )[1].split("\n      - name:", 1)[0]
     assert "if: always()" in upload
     assert "${{ env.RECEIPT_DIR }}" in upload
     assert "${{ env.OUTPUT_DIR }}" in upload
@@ -97,5 +100,7 @@ def test_consumer_summary_explicitly_labels_provisional_rejection_and_no_authori
     assert 'decision["status"] == "rejected"' in summary
     assert "REJECTED — cryptographic and evidence checks completed" in summary
     assert "This result is not trusted and does not authorize deployment." in summary
-    assert "Deployment authorization: **{report['deployment_authorization']}**" in summary
+    assert (
+        "Deployment authorization: **{report['deployment_authorization']}**" in summary
+    )
     assert "remains not granted by this workflow" in summary
