@@ -106,9 +106,9 @@ def _read_nonempty(path: Path, label: str) -> bytes:
 def _verify_attestation(raw: bytes, statement_v1: dict[str, Any]) -> None:
     try:
         verified = cosign_image_trust.extract_verified_statement(raw.decode("utf-8"))
-    except (UnicodeError, Exception) as exc:
+    except Exception as exc:
         raise PDDTrustEvidenceError(
-            f"Unable to parse the verified Cosign attestation output: {exc}"
+            f"Raw verified Cosign attestation output is invalid: {exc}"
         ) from exc
     if verified.get("_type") != "https://in-toto.io/Statement/v0.1":
         raise PDDTrustEvidenceError("Verified Cosign envelope is not Statement v0.1.")
@@ -326,14 +326,38 @@ def correlate_evidence(
     return manifest
 
 
+def verify_evidence_manifest(evidence_dir: Path) -> dict[str, Any]:
+    """Recompute every evidence-file digest against the durable manifest."""
+    root = evidence_dir.resolve(strict=True)
+    if evidence_dir.is_symlink() or not root.is_dir():
+        raise PDDTrustEvidenceError("Evidence directory must be a real directory.")
+    manifest = _strict_json(root / MANIFEST_NAME, "PDD trust evidence manifest")
+    _validate(manifest, MANIFEST_SCHEMA, "PDD trust evidence manifest")
+    if set(manifest["files"]) != set(REQUIRED_FILES):
+        raise PDDTrustEvidenceError("Evidence manifest file inventory is incomplete or unexpected.")
+    for filename, expected in manifest["files"].items():
+        raw = _read_nonempty(root / filename, filename)
+        if len(raw) != expected["size_bytes"]:
+            raise PDDTrustEvidenceError(f"Evidence file size changed after manifest creation: {filename}")
+        actual_hash = hashlib.sha256(raw).hexdigest()
+        if actual_hash != expected["sha256"]:
+            raise PDDTrustEvidenceError(f"Evidence file hash changed after manifest creation: {filename}")
+    return manifest
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence-dir", required=True, type=Path)
     parser.add_argument("--source-build-run-id", required=True)
     parser.add_argument("--source-build-attempt", required=True, type=int)
     parser.add_argument("--signing-input-artifact", required=True)
+    parser.add_argument("--verify-manifest", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.verify_manifest:
+            manifest = verify_evidence_manifest(args.evidence_dir)
+            print(json.dumps({"status": "passed", "manifest": str(args.evidence_dir / MANIFEST_NAME)}, sort_keys=True))
+            return 0
         manifest = correlate_evidence(
             evidence_dir=args.evidence_dir,
             source_build_run_id=args.source_build_run_id,
