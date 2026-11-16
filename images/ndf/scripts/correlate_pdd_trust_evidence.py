@@ -203,7 +203,9 @@ def correlate_evidence(
     for filename in REQUIRED_FILES:
         _read_nonempty(root / filename, filename)
 
-    receipt = _strict_json(root / "pdd-publication-record.json", "PDD publication receipt")
+    receipt = _strict_json(
+        root / "pdd-publication-record.json", "PDD publication receipt"
+    )
     statement = _strict_json(
         root / "pdd-image-binding-statement.json", "PDD binding Statement"
     )
@@ -222,7 +224,9 @@ def correlate_evidence(
     if artifact["immutable_reference"] != immutable_reference:
         raise PDDTrustEvidenceError("Receipt immutable reference is inconsistent.")
     if statement["subject"][0]["name"] != artifact["repository"]:
-        raise PDDTrustEvidenceError("Statement subject repository differs from receipt.")
+        raise PDDTrustEvidenceError(
+            "Statement subject repository differs from receipt."
+        )
     statement_digest = "sha256:" + statement["subject"][0]["digest"]["sha256"]
     if statement_digest != artifact["digest"]:
         raise PDDTrustEvidenceError("Statement subject digest differs from receipt.")
@@ -233,11 +237,20 @@ def correlate_evidence(
     ):
         raise PDDTrustEvidenceError("Canonical predicate bytes do not match.")
     if predicate["descriptor"]["id"] != receipt["descriptor"]["id"]:
-        raise PDDTrustEvidenceError("PDD descriptor ID differs between receipt and predicate.")
-    if predicate["descriptor"]["content_sha256"] != receipt["descriptor"]["content_sha256"]:
-        raise PDDTrustEvidenceError("PDD content hash differs between receipt and predicate.")
+        raise PDDTrustEvidenceError(
+            "PDD descriptor ID differs between receipt and predicate."
+        )
+    if (
+        predicate["descriptor"]["content_sha256"]
+        != receipt["descriptor"]["content_sha256"]
+    ):
+        raise PDDTrustEvidenceError(
+            "PDD content hash differs between receipt and predicate."
+        )
     if predicate["subject_image"] != receipt["subject_image"]:
-        raise PDDTrustEvidenceError("Subject image claims differ between receipt and predicate.")
+        raise PDDTrustEvidenceError(
+            "Subject image claims differ between receipt and predicate."
+        )
 
     result_artifact = result["artifact"]
     if (
@@ -253,10 +266,14 @@ def correlate_evidence(
         or result["transparency"]["verified"] is not True
         or result["transparency"]["log_entry_verified"] is not True
     ):
-        raise PDDTrustEvidenceError("Cryptographic signature, signer or Rekor checks failed.")
+        raise PDDTrustEvidenceError(
+            "Cryptographic signature, signer or Rekor checks failed."
+        )
     attestations = result["attestations"]
     if len(attestations) != 1:
-        raise PDDTrustEvidenceError("Exactly one verified PDD binding attestation is required.")
+        raise PDDTrustEvidenceError(
+            "Exactly one verified PDD binding attestation is required."
+        )
     attestation = attestations[0]
     predicate_hash = hashlib.sha256(
         cosign_image_trust._canonical_json(predicate)
@@ -267,17 +284,23 @@ def correlate_evidence(
         or attestation["subject_digest"] != artifact["digest"]
         or attestation.get("predicate_sha256") != predicate_hash
     ):
-        raise PDDTrustEvidenceError("Verified attestation does not match the PDD predicate.")
+        raise PDDTrustEvidenceError(
+            "Verified attestation does not match the PDD predicate."
+        )
     expected_decision = {
         "status": "rejected",
         "reason_codes": [cosign_pdd_trust.PROVISIONAL_REASON],
     }
     if result["decision"] != expected_decision:
-        raise PDDTrustEvidenceError("Trust decision is not the exact provisional-policy rejection.")
+        raise PDDTrustEvidenceError(
+            "Trust decision is not the exact provisional-policy rejection."
+        )
 
     log_raw = (root / "pdd-verify.log").read_bytes()
     if EXPECTED_PROVISIONAL_MESSAGE.encode("utf-8") not in log_raw:
-        raise PDDTrustEvidenceError("Verifier log lacks the exact provisional rejection.")
+        raise PDDTrustEvidenceError(
+            "Verifier log lacks the exact provisional rejection."
+        )
     attestation_raw = (root / "pdd-verified-attestation.json").read_bytes()
     _verify_attestation(attestation_raw, statement)
 
@@ -352,18 +375,26 @@ def verify_evidence_manifest(evidence_dir: Path) -> dict[str, Any]:
     manifest = _strict_json(root / MANIFEST_NAME, "PDD trust evidence manifest")
     _validate(manifest, MANIFEST_SCHEMA, "PDD trust evidence manifest")
     if set(manifest["files"]) != set(REQUIRED_FILES):
-        raise PDDTrustEvidenceError("Evidence manifest file inventory is incomplete or unexpected.")
+        raise PDDTrustEvidenceError(
+            "Evidence manifest file inventory is incomplete or unexpected."
+        )
     expected_entries = set(REQUIRED_FILES) | {MANIFEST_NAME}
     actual_entries = {item.name for item in root.iterdir()}
     if actual_entries != expected_entries:
-        raise PDDTrustEvidenceError("Evidence directory contains missing or unexpected files.")
+        raise PDDTrustEvidenceError(
+            "Evidence directory contains missing or unexpected files."
+        )
     for filename, expected in manifest["files"].items():
         raw = _read_nonempty(root / filename, filename)
         if len(raw) != expected["size_bytes"]:
-            raise PDDTrustEvidenceError(f"Evidence file size changed after manifest creation: {filename}")
+            raise PDDTrustEvidenceError(
+                f"Evidence file size changed after manifest creation: {filename}"
+            )
         actual_hash = hashlib.sha256(raw).hexdigest()
         if actual_hash != expected["sha256"]:
-            raise PDDTrustEvidenceError(f"Evidence file hash changed after manifest creation: {filename}")
+            raise PDDTrustEvidenceError(
+                f"Evidence file hash changed after manifest creation: {filename}"
+            )
     return manifest
 
 
@@ -378,7 +409,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.verify_manifest:
             manifest = verify_evidence_manifest(args.evidence_dir)
-            print(json.dumps({"status": "passed", "manifest": str(args.evidence_dir / MANIFEST_NAME)}, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "status": "passed",
+                        "manifest": str(args.evidence_dir / MANIFEST_NAME),
+                    },
+                    sort_keys=True,
+                )
+            )
             return 0
         if (
             args.source_build_run_id is None

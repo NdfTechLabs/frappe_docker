@@ -192,9 +192,7 @@ def test_correlates_valid_evidence_and_hashes_exact_files(tmp_path):
         PDD_REPOSITORY + "@" + PDD_DIGEST
     )
     assert manifest["verification"]["decision"] == "rejected"
-    assert manifest["verification"]["reason_codes"] == [
-        "IDENTITY_POLICY_PROVISIONAL"
-    ]
+    assert manifest["verification"]["reason_codes"] == ["IDENTITY_POLICY_PROVISIONAL"]
     for name, record in manifest["files"].items():
         raw = (root / name).read_bytes()
         assert record["sha256"] == hashlib.sha256(raw).hexdigest()
@@ -206,17 +204,56 @@ def test_correlates_valid_evidence_and_hashes_exact_files(tmp_path):
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda r, s, p, t: r["artifact"].update(digest="sha256:" + "0" * 64), "immutable reference"),
-        (lambda r, s, p, t: s["subject"][0]["digest"].update(sha256="0" * 64), "subject digest"),
-        (lambda r, s, p, t: p["descriptor"].update(content_sha256="0" * 64), "Predicate file differs"),
+        (
+            lambda r, s, p, t: r["artifact"].update(digest="sha256:" + "0" * 64),
+            "immutable reference",
+        ),
+        (
+            lambda r, s, p, t: s["subject"][0]["digest"].update(sha256="0" * 64),
+            "subject digest",
+        ),
+        (
+            lambda r, s, p, t: p["descriptor"].update(content_sha256="0" * 64),
+            "Predicate file differs",
+        ),
         (lambda r, s, p, t: t["artifact"].update(kind="product_image"), "Trust result"),
-        (lambda r, s, p, t: t["signature"].update(verified=False), "Cryptographic signature"),
-        (lambda r, s, p, t: t["signer"].update(verified=False), "Cryptographic signature"),
-        (lambda r, s, p, t: t["transparency"].update(log_entry_verified=False), "Cryptographic signature"),
-        (lambda r, s, p, t: t["attestations"][0].update(subject_digest="sha256:" + "0" * 64), "attestation"),
-        (lambda r, s, p, t: t["attestations"][0].update(predicate_sha256="0" * 64), "attestation"),
-        (lambda r, s, p, t: t.update(decision={"status":"trusted","reason_codes":[]}), "exact provisional"),
-        (lambda r, s, p, t: t.update(decision={"status":"rejected","reason_codes":["IDENTITY_POLICY_PROVISIONAL","OTHER"]}), "exact provisional"),
+        (
+            lambda r, s, p, t: t["signature"].update(verified=False),
+            "Cryptographic signature",
+        ),
+        (
+            lambda r, s, p, t: t["signer"].update(verified=False),
+            "Cryptographic signature",
+        ),
+        (
+            lambda r, s, p, t: t["transparency"].update(log_entry_verified=False),
+            "Cryptographic signature",
+        ),
+        (
+            lambda r, s, p, t: t["attestations"][0].update(
+                subject_digest="sha256:" + "0" * 64
+            ),
+            "attestation",
+        ),
+        (
+            lambda r, s, p, t: t["attestations"][0].update(predicate_sha256="0" * 64),
+            "attestation",
+        ),
+        (
+            lambda r, s, p, t: t.update(
+                decision={"status": "trusted", "reason_codes": []}
+            ),
+            "exact provisional",
+        ),
+        (
+            lambda r, s, p, t: t.update(
+                decision={
+                    "status": "rejected",
+                    "reason_codes": ["IDENTITY_POLICY_PROVISIONAL", "OTHER"],
+                }
+            ),
+            "exact provisional",
+        ),
     ],
 )
 def test_rejects_cross_file_mismatches(tmp_path, mutate, message):
@@ -263,9 +300,7 @@ def test_rejects_wrong_signing_artifact_source_run(tmp_path):
 def test_rejects_statement_workflow_run_attempt_mismatch(tmp_path):
     root = _bundle(tmp_path)
 
-    statement = json.loads(
-        (root / "pdd-image-binding-statement.json").read_text()
-    )
+    statement = json.loads((root / "pdd-image-binding-statement.json").read_text())
     predicate = statement["predicate"]
     predicate["workflow"]["run_attempt"] = 1
 
@@ -273,9 +308,7 @@ def test_rejects_statement_workflow_run_attempt_mismatch(tmp_path):
     _write_json(root / "pdd-image-binding-predicate.json", predicate)
 
     # Keep the normalized trust result consistent with the modified predicate.
-    trust_result = json.loads(
-        (root / "pdd-trust-verification-result.json").read_text()
-    )
+    trust_result = json.loads((root / "pdd-trust-verification-result.json").read_text())
     trust_result["attestations"][0]["predicate_sha256"] = hashlib.sha256(
         cosign_image_trust._canonical_json(predicate)
     ).hexdigest()
@@ -382,7 +415,9 @@ def test_manifest_verifier_rejects_missing_evidence_file(tmp_path):
     root = _bundle(tmp_path)
     _correlate(root)
     (root / "pdd-verified-attestation.json").unlink()
-    with pytest.raises(evidence.PDDTrustEvidenceError, match="missing or unexpected files"):
+    with pytest.raises(
+        evidence.PDDTrustEvidenceError, match="missing or unexpected files"
+    ):
         evidence.verify_evidence_manifest(root)
 
 
@@ -416,7 +451,9 @@ def test_rejects_wrong_statement_predicate_type(tmp_path):
     statement["predicateType"] = "https://example.invalid/wrong"
     _write_json(root / "pdd-image-binding-statement.json", statement)
     _write_json(root / "pdd-image-binding-predicate.json", statement["predicate"])
-    with pytest.raises(evidence.PDDTrustEvidenceError, match="Statement schema validation"):
+    with pytest.raises(
+        evidence.PDDTrustEvidenceError, match="Statement schema validation"
+    ):
         _correlate(root)
 
 
@@ -445,7 +482,9 @@ def test_atomic_manifest_write_failure_does_not_leave_partial_output(
     root = _bundle(tmp_path)
 
     def fail_write(*args, **kwargs):
-        raise evidence.cosign_image_trust.CosignTrustError("simulated atomic write failure")
+        raise evidence.cosign_image_trust.CosignTrustError(
+            "simulated atomic write failure"
+        )
 
     monkeypatch.setattr(evidence.cosign_image_trust, "_atomic_write", fail_write)
     with pytest.raises(evidence.PDDTrustEvidenceError, match="atomically write"):

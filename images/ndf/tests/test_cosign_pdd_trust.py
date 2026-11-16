@@ -287,8 +287,7 @@ def test_verify_rejects_provisional_policy_and_writes_normalized_result(tmp_path
     }
     assert attestation_path.is_file()
     assert (
-        attestation_path.read_text(encoding="utf-8")
-        == runner.exact_attestation_output
+        attestation_path.read_text(encoding="utf-8") == runner.exact_attestation_output
     )
     checks = [
         call

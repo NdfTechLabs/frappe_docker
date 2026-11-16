@@ -59,11 +59,7 @@
     "source_build": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id",
-        "run_attempt",
-        "signing_input_artifact"
-      ],
+      "required": ["run_id", "run_attempt", "signing_input_artifact"],
       "properties": {
         "run_id": {
           "type": "string",
@@ -134,9 +130,7 @@
         },
         "reason_codes": {
           "type": "array",
-          "const": [
-            "IDENTITY_POLICY_PROVISIONAL"
-          ]
+          "const": ["IDENTITY_POLICY_PROVISIONAL"]
         }
       }
     },
@@ -178,10 +172,7 @@
     "file": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "sha256",
-        "size_bytes"
-      ],
+      "required": ["sha256", "size_bytes"],
       "properties": {
         "sha256": {
           "type": "string",
