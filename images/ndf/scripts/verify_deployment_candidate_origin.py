@@ -264,6 +264,17 @@ def verify_candidate_origin(
         ) from exc
     policy = _load_policy(policy_path)
     identity = _identity(policy)
+    if signature_output is None or attestation_output is None:
+        raise CandidateOriginTrustError(
+            "PREDICATE_INVALID",
+            "Signature-verification and attestation evidence output paths are both required.",
+        )
+    for output_path in (signature_output, attestation_output):
+        if output_path.exists() or output_path.is_symlink():
+            raise CandidateOriginTrustError(
+                "PREDICATE_INVALID",
+                f"Refusing to overwrite existing candidate-origin evidence: {output_path.name}",
+            )
 
     try:
         cosign._require_cosign_version(runner=runner, cosign_binary=cosign_binary)
