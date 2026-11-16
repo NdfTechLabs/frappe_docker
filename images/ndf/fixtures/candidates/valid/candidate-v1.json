@@ -38,16 +38,12 @@
       "minimum_version": "24"
     }
   },
-  "target_platforms": [
-    "linux/amd64"
-  ],
+  "target_platforms": ["linux/amd64"],
   "approved_build_parameters": {
     "build_profile": "production",
     "build_options": {
       "assets": true
     }
   },
-  "provenance_refs": [
-    "https://github.com/NdfTechLabs/dt_master/actions/runs/123456"
-  ]
+  "provenance_refs": ["https://github.com/NdfTechLabs/dt_master/actions/runs/123456"]
 }
