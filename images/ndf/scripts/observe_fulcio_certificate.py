@@ -14,12 +14,12 @@ import hashlib
 import json
 import re
 import sys
-from datetime import timezone
 from pathlib import Path
 from typing import Any
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import ExtendedKeyUsageOID, ExtensionOID
 
 try:
@@ -175,6 +175,47 @@ def _statement_from_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
     return statement
 
 
+def _verify_dsse_signature(
+    envelope: dict[str, Any], certificate: x509.Certificate
+) -> None:
+    """Verify the DSSE PAE signature with the exact certificate in the matched bundle."""
+    payload_type = envelope.get("payloadType")
+    payload_encoded = envelope.get("payload")
+    signatures = envelope.get("signatures")
+    if not isinstance(payload_type, str) or not isinstance(payload_encoded, str):
+        raise CertificateObservationError("DSSE envelope payload fields are invalid.")
+    if not isinstance(signatures, list) or len(signatures) != 1:
+        raise CertificateObservationError("Expected exactly one DSSE signature for certificate correlation.")
+    try:
+        payload = base64.b64decode(payload_encoded, validate=True)
+        signature = base64.b64decode(signatures[0]["sig"], validate=True)
+    except (KeyError, TypeError, ValueError, base64.binascii.Error) as exc:
+        raise CertificateObservationError("DSSE signature or payload is not valid base64.") from exc
+
+    payload_type_bytes = payload_type.encode("utf-8")
+    pae = (
+        b"DSSEv1 "
+        + str(len(payload_type_bytes)).encode("ascii")
+        + b" "
+        + payload_type_bytes
+        + b" "
+        + str(len(payload)).encode("ascii")
+        + b" "
+        + payload
+    )
+    public_key = certificate.public_key()
+    if not isinstance(public_key, ec.EllipticCurvePublicKey):
+        raise CertificateObservationError("Fulcio certificate key is not an ECDSA public key.")
+    if not isinstance(public_key.curve, ec.SECP256R1):
+        raise CertificateObservationError("Fulcio certificate key is not on the P-256 curve.")
+    try:
+        public_key.verify(signature, pae, ec.ECDSA(hashes.SHA256()))
+    except Exception as exc:
+        raise CertificateObservationError(
+            "The matched bundle certificate does not verify the exact DSSE envelope signature."
+        ) from exc
+
+
 def _claim_value(extensions: dict[str, bytes], suffix: str, *, der: bool) -> str | None:
     raw = extensions.get(FULCIO_OID_PREFIX + suffix)
     if raw is None:
@@ -247,6 +288,8 @@ def observe_certificate(
         cert = x509.load_der_x509_certificate(certificate_der)
     except ValueError as exc:
         raise CertificateObservationError(f"Bundle leaf certificate DER is invalid: {exc}") from exc
+
+    _verify_dsse_signature(verified_envelope, cert)
 
     raw_extensions: dict[str, bytes] = {}
     extension_inventory = []
@@ -370,6 +413,8 @@ def observe_certificate(
             "bundle_count": len(bundles),
             "matching_bundle_count": 1,
             "verified_envelope_match": True,
+            "certificate_signature_verified": True,
+            "signature_algorithm": "ecdsa-sha256",
             "verified_envelope_payload_type": verified_envelope["payloadType"],
             "verified_envelope_signature_count": len(verified_envelope["signatures"]),
             "predicate_type": predicate_type,
