@@ -250,6 +250,71 @@ jobs:
           PY
           cat "$CLI_OUTPUT"
 
+      - name: Download raw Sigstore attestation bundles for certificate observation
+        id: certificate_bundles
+        shell: bash
+        env:
+          PDD_BUNDLES: ${{ env.OUTPUT_DIR }}/pdd-sigstore-bundles.jsonl
+          IMAGE_BUNDLES: ${{ env.OUTPUT_DIR }}/image-sigstore-bundles.jsonl
+        run: |
+          set -euo pipefail
+          REPORT_PATH="$OUTPUT_DIR/pdd-consumer-verification-report.json"
+          PDD_REF="$(python -c 'import json; print(json.load(open("'"$REPORT_PATH"'"))["pdd"]["immutable_reference"])')"
+          IMAGE_REF="$(python -c 'import json; print(json.load(open("'"$REPORT_PATH"'"))["source_image"]["immutable_reference"])')"
+
+          cosign download attestation "$PDD_REF" --predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1" > "$PDD_BUNDLES"
+          cosign download attestation "$IMAGE_REF" --predicate-type "https://slsa.dev/provenance/v1" > "$IMAGE_BUNDLES"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          for variable, label in (("PDD_BUNDLES", "PDD"), ("IMAGE_BUNDLES", "source image")):
+              path = Path(os.environ[variable])
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"{label} Sigstore bundle download is empty.")
+              entries = []
+              for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  if not line.strip():
+                      continue
+                  try:
+                      value = json.loads(line)
+                  except json.JSONDecodeError as exc:
+                      raise SystemExit(f"{label} bundle line {number} is not JSON: {exc}")
+                  if not isinstance(value, dict):
+                      raise SystemExit(f"{label} bundle line {number} is not an object.")
+                  entries.append(value)
+              if not entries:
+                  raise SystemExit(f"{label} download returned no bundle objects.")
+              print(f"{label}: retained {len(entries)} raw Sigstore bundle object(s).")
+          PY
+
+      - name: Observe Fulcio certificates from independently verified bundles
+        id: fulcio_observation
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPORT_PATH="$OUTPUT_DIR/pdd-consumer-verification-report.json"
+          PDD_REF="$(python -c 'import json; print(json.load(open("'"$REPORT_PATH"'"))["pdd"]["immutable_reference"])')"
+          IMAGE_REF="$(python -c 'import json; print(json.load(open("'"$REPORT_PATH"'"))["source_image"]["immutable_reference"])')"
+
+          python images/ndf/scripts/observe_fulcio_certificate.py \
+            --bundles "$OUTPUT_DIR/pdd-sigstore-bundles.jsonl" \
+            --verified-envelope "$OUTPUT_DIR/pdd-verified-attestation.json" \
+            --artifact-reference "$PDD_REF" \
+            --predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1" \
+            --identity-id "product-pdd-publication" \
+            --output "$OUTPUT_DIR/pdd-fulcio-certificate-observation.json"
+
+          python images/ndf/scripts/observe_fulcio_certificate.py \
+            --bundles "$OUTPUT_DIR/image-sigstore-bundles.jsonl" \
+            --verified-envelope "$OUTPUT_DIR/image-verified-attestation.json" \
+            --artifact-reference "$IMAGE_REF" \
+            --predicate-type "https://slsa.dev/provenance/v1" \
+            --identity-id "product-image-publication" \
+            --output "$OUTPUT_DIR/image-fulcio-certificate-observation.json"
+
       - name: Upload retrieved PDD and independent trust evidence
         if: always()
         uses: actions/upload-artifact@v7

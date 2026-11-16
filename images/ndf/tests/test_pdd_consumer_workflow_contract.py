@@ -24,7 +24,10 @@ def test_consumer_workflow_retains_read_only_permissions():
 
 def test_consumer_workflow_installs_the_pinned_cosign_cli():
     workflow = read_workflow()
-    assert "uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in workflow
+    assert (
+        "uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
+        in workflow
+    )
     assert "cosign-release: v3.1.4" in workflow
     assert "cosign version" in workflow
 
@@ -156,3 +159,49 @@ def test_consumer_fetch_preserves_retrieved_bundle_before_verification():
     )
     assert "_validate_image_source_identity(descriptor, workflow)" in script
     assert '"image_source_sha_verified": True' in script
+
+
+def test_consumer_downloads_raw_sigstore_bundles_after_independent_verification():
+    workflow = read_workflow()
+    verify = workflow.index("name: Independently verify PDD and source image trust")
+    download = workflow.index(
+        "name: Download raw Sigstore attestation bundles for certificate observation"
+    )
+    upload = workflow.index("name: Upload retrieved PDD and independent trust evidence")
+    step = workflow[download:upload]
+    assert verify < download < upload
+    assert 'cosign download attestation "$PDD_REF"' in step
+    assert 'cosign download attestation "$IMAGE_REF"' in step
+    assert (
+        '--predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1"'
+        in step
+    )
+    assert '--predicate-type "https://slsa.dev/provenance/v1"' in step
+    assert "pdd-sigstore-bundles.jsonl" in step
+    assert "image-sigstore-bundles.jsonl" in step
+    assert '["pdd"]["immutable_reference"]' in step
+    assert '["source_image"]["immutable_reference"]' in step
+    assert "raw Sigstore bundle object(s)" in step
+    assert "id: certificate_bundles" in step
+
+
+def test_consumer_correlates_verified_envelopes_and_observes_both_fulcio_certificates():
+    workflow = read_workflow()
+    bundle_download = workflow.index(
+        "name: Download raw Sigstore attestation bundles for certificate observation"
+    )
+    observe = workflow.index(
+        "name: Observe Fulcio certificates from independently verified bundles"
+    )
+    upload = workflow.index("name: Upload retrieved PDD and independent trust evidence")
+    step = workflow[observe:upload]
+    assert bundle_download < observe < upload
+    assert "observe_fulcio_certificate.py" in step
+    assert "--verified-envelope" in step
+    assert "--artifact-reference" in step
+    assert '--identity-id "product-pdd-publication"' in step
+    assert '--identity-id "product-image-publication"' in step
+    assert "pdd-fulcio-certificate-observation.json" in step
+    assert "image-fulcio-certificate-observation.json" in step
+    assert "pdd-verified-attestation.json" in workflow
+    assert "image-verified-attestation.json" in workflow
