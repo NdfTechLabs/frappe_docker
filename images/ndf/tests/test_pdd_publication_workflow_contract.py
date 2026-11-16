@@ -149,7 +149,7 @@ def test_signer_correlates_and_publishes_complete_attempt_scoped_trust_evidence(
     assert "Cryptographic signature, signer, Rekor and binding-attestation checks passed" in sign_job
     assert 'BUILD_ARTIFACT_NAME: ${{ inputs.build_artifact_name }}' in sign_job
     assert 'SOURCE_BUILD_ATTEMPT="${BASH_REMATCH[3]}"' in sign_job
-    assert "source_build_attempt:" not in workflow.split("\\n    outputs:\\n", 1)[1].split("\\n    env:\\n", 1)[0]
+    assert "source_build_attempt: ${{ steps.source.outputs.source_build_attempt }}" not in workflow
     assert "id-token: write" in sign_job
     assert sign_job.count("id-token: write") == 1
 
