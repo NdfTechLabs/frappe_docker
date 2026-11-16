@@ -8,8 +8,8 @@ TESTS_DIR = str(Path(__file__).resolve().parent)
 if TESTS_DIR not in sys.path:
     sys.path.insert(0, TESTS_DIR)
 
-from scripts import artifact_trust
-from scripts.artifact_trust import ArtifactTrustError
+from scripts import artifact_trust  # noqa: E402
+from scripts.artifact_trust import ArtifactTrustError  # noqa: E402
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -77,7 +77,7 @@ def test_candidate_origin_predicate_schema_rejects_malformed_claims(path, value)
 def test_candidate_origin_predicate_schema_rejects_unknown_fields():
     predicate = _predicate()
     predicate["ndf_signed_by"] = "NDF"
-    with pytest.raises(Exception):
+    with pytest.raises(ArtifactTrustError):
         artifact_trust._validate_schema(
             predicate, SCHEMA_PATH, "deployment candidate origin predicate"
         )
