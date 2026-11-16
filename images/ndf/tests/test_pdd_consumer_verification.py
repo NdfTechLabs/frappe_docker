@@ -310,11 +310,11 @@ def test_consumer_report_schema_rejects_legacy_source_workflow_field():
         / "pdd-consumer-verification-report-v1.schema.json"
     )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    from jsonschema import Draft202012Validator
+    from jsonschema import Draft202012Validator, ValidationError
 
     report = _consumer_report_fixture()
     report["correlation"]["source_workflow_sha_matches_binding"] = True
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         Draft202012Validator(schema).validate(report)
 
 
