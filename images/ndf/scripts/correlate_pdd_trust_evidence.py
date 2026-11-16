@@ -187,6 +187,14 @@ def correlate_evidence(
             "Signing-input artifact name does not match the source build run."
         )
 
+    expected_entries = set(REQUIRED_FILES)
+    actual_entries = {item.name for item in root.iterdir()}
+    if actual_entries != expected_entries:
+        missing = sorted(expected_entries - actual_entries)
+        unexpected = sorted(actual_entries - expected_entries)
+        raise PDDTrustEvidenceError(
+            f"Evidence directory inventory mismatch; missing={missing}, unexpected={unexpected}."
+        )
     for filename in REQUIRED_FILES:
         _read_nonempty(root / filename, filename)
 
@@ -335,6 +343,10 @@ def verify_evidence_manifest(evidence_dir: Path) -> dict[str, Any]:
     _validate(manifest, MANIFEST_SCHEMA, "PDD trust evidence manifest")
     if set(manifest["files"]) != set(REQUIRED_FILES):
         raise PDDTrustEvidenceError("Evidence manifest file inventory is incomplete or unexpected.")
+    expected_entries = set(REQUIRED_FILES) | {MANIFEST_NAME}
+    actual_entries = {item.name for item in root.iterdir()}
+    if actual_entries != expected_entries:
+        raise PDDTrustEvidenceError("Evidence directory contains missing or unexpected files.")
     for filename, expected in manifest["files"].items():
         raw = _read_nonempty(root / filename, filename)
         if len(raw) != expected["size_bytes"]:
