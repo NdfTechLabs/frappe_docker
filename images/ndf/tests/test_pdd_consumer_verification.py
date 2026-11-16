@@ -397,3 +397,33 @@ def test_rejects_adversarial_trust_result_mutations(tmp_path, policy, mutation, 
             policy=policy,
         )
 
+def test_accepts_image_source_identity_matching_pdd_build():
+    descriptor = {
+        "build": {
+            "source_commit": "a" * 40,
+            "workflow_run_id": "123456789",
+        }
+    }
+    workflow = {"source_commit": "a" * 40, "run_id": "123456789"}
+
+    consumer._validate_image_source_identity(descriptor, workflow)
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [
+        {"source_commit": "b" * 40, "run_id": "123456789"},
+        {"source_commit": "a" * 40, "run_id": "987654321"},
+    ],
+)
+def test_rejects_image_source_identity_not_matching_pdd_build(workflow):
+    descriptor = {
+        "build": {
+            "source_commit": "a" * 40,
+            "workflow_run_id": "123456789",
+        }
+    }
+
+    with pytest.raises(consumer.PDDRetrievalError, match="source commit/run ID"):
+        consumer._validate_image_source_identity(descriptor, workflow)
+
