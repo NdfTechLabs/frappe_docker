@@ -18,7 +18,8 @@ def section(source: str, start: str, end: str | None = None) -> str:
 def test_candidate_pipeline_has_a_fail_closed_stage_dependency_chain():
     entry = workflow("ndf-build-candidate.yml")
 
-    assert "needs: dispatch-gate" in section(entry, "  prepare-candidate:")
+    prepare = section(entry, "  prepare-candidate:")
+    assert "needs: [dispatch-gate, verify-candidate-origin]" in prepare
     assert "needs: prepare-candidate" in section(entry, "  build-candidate:")
     pdd = section(entry, "  publish-candidate-pdd:", "  publish-candidate-result:")
     assert "needs: [prepare-candidate, build-candidate]" in pdd
@@ -27,6 +28,7 @@ def test_candidate_pipeline_has_a_fail_closed_stage_dependency_chain():
     assert "if: always()" in result
     for dependency in (
         "- dispatch-gate",
+        "- verify-candidate-origin",
         "- prepare-candidate",
         "- build-candidate",
         "- publish-candidate-pdd",
