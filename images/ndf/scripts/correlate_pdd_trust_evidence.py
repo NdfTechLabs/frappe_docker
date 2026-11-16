@@ -348,9 +348,9 @@ def verify_evidence_manifest(evidence_dir: Path) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence-dir", required=True, type=Path)
-    parser.add_argument("--source-build-run-id", required=True)
-    parser.add_argument("--source-build-attempt", required=True, type=int)
-    parser.add_argument("--signing-input-artifact", required=True)
+    parser.add_argument("--source-build-run-id")
+    parser.add_argument("--source-build-attempt", type=int)
+    parser.add_argument("--signing-input-artifact")
     parser.add_argument("--verify-manifest", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -358,6 +358,15 @@ def main(argv: list[str] | None = None) -> int:
             manifest = verify_evidence_manifest(args.evidence_dir)
             print(json.dumps({"status": "passed", "manifest": str(args.evidence_dir / MANIFEST_NAME)}, sort_keys=True))
             return 0
+        if (
+            args.source_build_run_id is None
+            or args.source_build_attempt is None
+            or args.signing_input_artifact is None
+        ):
+            parser.error(
+                "correlation requires --source-build-run-id, --source-build-attempt "
+                "and --signing-input-artifact"
+            )
         manifest = correlate_evidence(
             evidence_dir=args.evidence_dir,
             source_build_run_id=args.source_build_run_id,
