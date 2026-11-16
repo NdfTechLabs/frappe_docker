@@ -50,7 +50,7 @@
     "product": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id","release"],
+      "required": ["id", "release"],
       "properties": {
         "id": {
           "type": "string",
@@ -67,7 +67,7 @@
       "minLength": 1
     },
     "base_deployment": {
-      "type": ["string","null"]
+      "type": ["string", "null"]
     },
     "composition_hash": {
       "$ref": "#/$defs/hash"
@@ -127,7 +127,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "enum": ["linux/amd64","linux/arm64"]
+        "enum": ["linux/amd64", "linux/arm64"]
       }
     },
     "approved_build_parameters": {
@@ -140,7 +140,7 @@
         "build_options": {
           "type": "object",
           "additionalProperties": {
-            "type": ["string","integer","boolean"]
+            "type": ["string", "integer", "boolean"]
           }
         }
       }
@@ -216,7 +216,7 @@
         "change_action": {
           "type": "string",
           "minLength": 1,
-          "enum": ["Keep","Add","Upgrade","Remove"]
+          "enum": ["Keep", "Add", "Upgrade", "Remove"]
         }
       }
     }
