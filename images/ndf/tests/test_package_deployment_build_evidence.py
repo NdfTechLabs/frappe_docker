@@ -149,6 +149,36 @@ def test_pack_includes_report_referenced_evidence(tmp_path):
     assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["file_count"] == 5
 
 
+def test_packer_rejects_missing_referenced_evidence(tmp_path):
+    result, report, evidence, _, _ = _inputs(tmp_path)
+    _add_verified_evidence(result, report, evidence)
+    (evidence / "attestation.json").unlink()
+    with pytest.raises(bundle.EvidenceBundleError, match="missing or escapes"):
+        bundle.pack_bundle(
+            result_path=result,
+            report_path=report,
+            evidence_root=evidence,
+            schema_dir=SCHEMAS,
+            output_dir=tmp_path / "bundle",
+        )
+
+
+def test_packer_rejects_unsafe_evidence_reference(tmp_path):
+    result, report_path, evidence, _, _ = _inputs(tmp_path)
+    _add_verified_evidence(result, report_path, evidence)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["candidate_origin"]["evidence_references"][0]["reference"] = "../outside.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(bundle.EvidenceBundleError, match="safe relative path"):
+        bundle.pack_bundle(
+            result_path=result,
+            report_path=report_path,
+            evidence_root=evidence,
+            schema_dir=SCHEMAS,
+            output_dir=tmp_path / "bundle",
+        )
+
+
 def test_packer_rejects_evidence_hash_mismatch(tmp_path):
     result, report, evidence, _, _ = _inputs(tmp_path)
     _add_verified_evidence(result, report, evidence)
