@@ -330,8 +330,9 @@ def test_manifest_verifier_detects_post_generation_tampering(tmp_path):
     root = _bundle(tmp_path)
     _correlate(root)
     evidence.verify_evidence_manifest(root)
-    with (root / "pdd-verify.log").open("a", encoding="utf-8") as stream:
-        stream.write("tampered")
+    log_path = root / "pdd-verify.log"
+    original = log_path.read_bytes()
+    log_path.write_bytes(original.replace(b"passed", b"failed"))
     with pytest.raises(evidence.PDDTrustEvidenceError, match="hash changed"):
         evidence.verify_evidence_manifest(root)
 
@@ -340,7 +341,7 @@ def test_manifest_verifier_rejects_missing_evidence_file(tmp_path):
     root = _bundle(tmp_path)
     _correlate(root)
     (root / "pdd-verified-attestation.json").unlink()
-    with pytest.raises(evidence.PDDTrustEvidenceError, match="missing or unsafe"):
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="missing or unexpected files"):
         evidence.verify_evidence_manifest(root)
 
 
