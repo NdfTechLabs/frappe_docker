@@ -369,15 +369,43 @@ def test_refuses_to_preserve_bundle_containing_symlink(tmp_path):
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
-        (lambda result: result["signature"].update(verified=False), "signature"),
-        (lambda result: result["signer"].update(oidc_issuer="https://attacker.invalid"), "signer identity"),
-        (lambda result: result["transparency"].update(verified=False), "transparency"),
-        (lambda result: result["attestations"][0].update(predicate_type="https://attacker.invalid/predicate"), "attestation result"),
-        (lambda result: result["attestations"].append(dict(result["attestations"][0])), "exactly one"),
-        (lambda result: result["decision"].update(status="trusted", reason_codes=[]), "exact provisional rejection"),
+        (
+            lambda result: result["signature"].update(verified=False),
+            "signature",
+        ),
+        (
+            lambda result: result["signer"].update(
+                oidc_issuer="https://attacker.invalid"
+            ),
+            "signer identity",
+        ),
+        (
+            lambda result: result["transparency"].update(verified=False),
+            "transparency",
+        ),
+        (
+            lambda result: result["attestations"][0].update(
+                predicate_type="https://attacker.invalid/predicate"
+            ),
+            "attestation result",
+        ),
+        (
+            lambda result: result["attestations"].append(
+                dict(result["attestations"][0])
+            ),
+            "exactly one",
+        ),
+        (
+            lambda result: result["decision"].update(
+                status="trusted", reason_codes=[]
+            ),
+            "exact provisional rejection",
+        ),
     ],
 )
-def test_rejects_adversarial_trust_result_mutations(tmp_path, policy, mutation, message):
+def test_rejects_adversarial_trust_result_mutations(
+    tmp_path, policy, mutation, message
+):
     result = _trust_result(policy)
     mutation(result)
     path = _write_result(tmp_path, result)
@@ -396,6 +424,7 @@ def test_rejects_adversarial_trust_result_mutations(tmp_path, policy, mutation, 
             expected_identity=identity,
             policy=policy,
         )
+
 
 def test_accepts_image_source_identity_matching_pdd_build():
     descriptor = {
