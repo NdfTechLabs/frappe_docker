@@ -1,5 +1,5 @@
-from pathlib import Path
 import re
+from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -8,7 +8,7 @@ WORKFLOWS = REPOSITORY_ROOT / ".github" / "workflows"
 
 def _job_block(workflow: str, job_name: str) -> str:
     match = re.search(
-        rf"(?ms)^  {re.escape(job_name)}:\\n(.*?)(?=^  [a-z][a-z0-9-]*:\\n|\\Z)",
+        rf"(?ms)^  {re.escape(job_name)}:\n(.*?)(?=^  [a-z][a-z0-9-]*:\n|\\Z)",
         workflow,
     )
     assert match is not None, f"Missing workflow job: {job_name}"
