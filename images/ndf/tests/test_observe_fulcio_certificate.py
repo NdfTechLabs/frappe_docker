@@ -131,8 +131,9 @@ def _fixture(tmp_path, *, envelope_mutation=None, bundle_count=1, include_certif
         ).decode(),
         "signatures": [{"sig": "c2lnbmF0dXJl", "keyid": ""}],
     }
+    bundle_envelope = json.loads(json.dumps(envelope))
     if envelope_mutation:
-        envelope_mutation(envelope)
+        envelope_mutation(bundle_envelope)
     bundle = {
         "mediaType": observer.BUNDLE_MEDIA_TYPE,
         "verificationMaterial": {
@@ -143,7 +144,7 @@ def _fixture(tmp_path, *, envelope_mutation=None, bundle_count=1, include_certif
             ),
             "tlogEntries": [{"logIndex": "123"}],
         },
-        "dsseEnvelope": envelope,
+        "dsseEnvelope": bundle_envelope,
     }
     bundles = [bundle for _ in range(bundle_count)]
     bundle_path = tmp_path / "bundles.jsonl"
@@ -162,6 +163,7 @@ def test_extracts_legacy_and_generic_fulcio_claims_and_preserves_extensions(tmp_
         verified,
         artifact_reference=ARTIFACT_REFERENCE,
         predicate_type=PDD_PREDICATE,
+        identity_id="product-image-publication",
     )
 
     assert result["observation"]["verified_envelope_match"] is True
