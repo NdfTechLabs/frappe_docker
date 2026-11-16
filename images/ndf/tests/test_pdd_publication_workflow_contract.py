@@ -68,13 +68,47 @@ def test_existing_publication_receipt_artifact_contract_is_preserved():
     assert "retention-days: 90" in workflow
 
 
-def test_pdd_publication_remains_manual_main_only_and_does_not_gain_oidc():
+def test_pdd_publication_remains_manual_main_only_and_only_signer_receives_oidc():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
+    publish_job = workflow.split("\n  publish:\n", 1)[1].split("\n  sign-pdd:\n", 1)[0]
+    sign_job = workflow.split("\n  sign-pdd:\n", 1)[1]
     assert "workflow_dispatch:" in workflow
     assert '[[ "$GITHUB_REF" == "refs/heads/main" ]]' in workflow
-    assert "id-token: write" not in workflow
+    assert "id-token: write" not in publish_job
+    assert "id-token: write" in sign_job
     assert "--insecure-ignore-tlog" not in workflow
     assert "--check-claims=false" not in workflow
+
+
+def test_binding_generation_emits_statement_and_predicate_after_publication():
+    workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
+    publish_job = workflow.split("\n  publish:\n", 1)[1].split("\n  sign-pdd:\n", 1)[0]
+    publish_step = publish_job.index("name: Publish PDD and verified evidence bundle")
+    binding_step = publish_job.index("name: Generate deterministic PDD binding statement and predicate")
+    upload_step = publish_job.index("name: Upload PDD signing inputs")
+    assert publish_step < binding_step < upload_step
+    assert "--statement-output" in publish_job
+    assert "--predicate-output" in publish_job
+    assert "pdd-publication-record.json" in publish_job
+    assert "pdd-image-binding-statement.json" in publish_job
+    assert "pdd-image-binding-predicate.json" in publish_job
+    assert "signing_input_artifact:" in publish_job
+
+
+def test_signer_job_is_dependent_isolated_and_uses_immutable_receipt_digest():
+    workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
+    sign_job = workflow.split("\n  sign-pdd:\n", 1)[1]
+    assert "needs: publish" in sign_job
+    assert "id-token: write" in sign_job
+    assert "packages: write" in sign_job
+    assert "actions/download-artifact@v7" in sign_job
+    assert "needs.publish.outputs.signing_input_artifact" in sign_job
+    assert "artifact.immutable_reference" in sign_job
+    assert "cosign_pdd_trust.py sign" in sign_job
+    assert "cosign_pdd_trust.py verify" in sign_job
+    assert "cosign-release: v3.1.4" in sign_job
+    assert "6f9f17788090df1f26f669e9d70d6ae9567deba6" in sign_job
+    assert "IDENTITY_POLICY_PROVISIONAL" in sign_job
 
 
 def test_other_product_and_consumer_trust_workflows_are_not_changed_by_pdd_scope():
