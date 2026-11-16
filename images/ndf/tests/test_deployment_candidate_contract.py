@@ -463,3 +463,20 @@ def test_origin_predicate_requires_canonical_uuid_correlation_id():
 def test_trust_evidence_report_schema_is_valid():
     schema = load(SCHEMAS / "deployment-build-trust-evidence-v1.schema.json")
     Draft202012Validator.check_schema(schema)
+
+
+def test_product_release_is_required_by_dt_master_candidate_contract():
+    schema = load(SCHEMAS / "deployment-candidate-v1.schema.json")
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["product"].pop("release")
+    assert list(Draft202012Validator(schema).iter_errors(candidate))
+
+
+def test_optional_master_projection_fields_use_empty_values_not_fabricated_data():
+    schema = load(SCHEMAS / "deployment-candidate-v1.schema.json")
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["optional_capabilities"] = []
+    candidate["runtime_constraints"] = {}
+    candidate["approved_build_parameters"] = {}
+    candidate["provenance_refs"] = []
+    assert not list(Draft202012Validator(schema).iter_errors(candidate))
