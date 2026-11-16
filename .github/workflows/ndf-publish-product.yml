@@ -78,8 +78,8 @@ jobs:
           ')
           echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
 
-  publish:
-    name: Publish ${{ matrix.image }}
+  build-validate:
+    name: Build and validate ${{ matrix.image }}
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -262,35 +262,8 @@ jobs:
             --predicate-output "$BUILD_OUTPUT/image-provenance-predicate.json" \
             --statement-output "$BUILD_OUTPUT/image-provenance-statement.json"
 
-      - name: Promote verified digest to official source tag
-        if: ${{ inputs.publish }}
-        env:
-          PUBLICATION_REF: ${{ steps.image.outputs.image_ref }}
-          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
-          EXPECTED_DIGEST: ${{ steps.digest.outputs.digest }}
-        run: |
-          set -euo pipefail
-          INSPECT_OUTPUT=""
-          if INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF" 2>&1)"; then
-            echo "Official immutable source tag appeared during the build: $PUBLICATION_REF" >&2
-            exit 1
-          fi
-          if ! grep -Eqi 'not found|manifest unknown|404' <<< "$INSPECT_OUTPUT"; then
-            echo "Unable to prove official source tag is absent: $PUBLICATION_REF" >&2
-            echo "$INSPECT_OUTPUT" >&2
-            exit 1
-          fi
-          docker buildx imagetools create --tag "$PUBLICATION_REF" "$IMAGE_REPOSITORY@$EXPECTED_DIGEST"
-          INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF")"
-          ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
-          if [[ "$ACTUAL_DIGEST" != "$EXPECTED_DIGEST" ]]; then
-            echo "Official publication digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
-            exit 1
-          fi
-
-      - name: Record staging-only result
-        if: ${{ !inputs.publish }}
-        run: echo "Verification gate passed. Official publication was not requested; no official product tag was created." >> "$GITHUB_STEP_SUMMARY"
+      - name: Record build and validation result
+        run: echo "Build and validation completed. Official promotion, when requested, is handled by a separate trust-gated job." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write publishing summary
         env:
@@ -298,12 +271,12 @@ jobs:
           IMAGE_DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
           {
-            echo "## NDF product image verification and publication"
+            echo "## NDF product image build and validation"
             echo
             echo "- Staging image: ${{ steps.image.outputs.candidate_ref }}"
             echo "- Validated digest: $IMAGE_DIGEST"
             echo "- Official source tag: ${{ steps.image.outputs.image_ref }}"
-            echo "- Official publication requested: ${{ inputs.publish }}"
+            echo "- Official publication requested: ${{ inputs.publish }}"\n            echo "- Official promotion: handled by a separate trust-gated job"
             echo "- Source commit: $GITHUB_SHA"
             echo "- Platforms: $TARGET_PLATFORMS"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -317,13 +290,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-  # M4.2.8.3.4: staging-only live interoperability observation.
-  # The signing job alone receives GitHub OIDC permission. It is skipped for
-  # official publication runs; it never creates or promotes an official tag.
+  # Signing is isolated from build, verification and promotion. Only this job
+  # receives OIDC authority; it never promotes an image.
   sign-trust:
-    name: Live Cosign trust check for ${{ matrix.image }}
-    if: ${{ inputs.publish == false && inputs.product != 'all' && github.ref == 'refs/heads/main' }}
-    needs: [prepare, publish]
+    name: Sign product image \${{ matrix.image }}
+    if: \${{ github.ref == 'refs/heads/main' }}
+    needs: [prepare, build-validate]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -332,7 +304,7 @@ jobs:
       id-token: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+      matrix: \${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -352,8 +324,8 @@ jobs:
       - name: Download build evidence from this run attempt
         uses: actions/download-artifact@v7
         with:
-          name: ndf-publish-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .ndf-build/${{ matrix.image }}
+          name: ndf-publish-\${{ matrix.image }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: .ndf-build/\${{ matrix.image }}
 
       - name: Install pinned Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
@@ -364,13 +336,13 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: \${{ github.actor }}
+          password: \${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve immutable image reference from validated evidence
         id: subject
         env:
-          IMAGE_ID: ${{ matrix.image }}
+          IMAGE_ID: \${{ matrix.image }}
         run: |
           set -euo pipefail
           python - <<'PY' >> "$GITHUB_OUTPUT"
@@ -393,81 +365,287 @@ jobs:
           print(f"image_ref={repository}@{digest}")
           PY
 
-      - name: Sign immutable staging digest and SLSA provenance
+      - name: Sign immutable image digest and SLSA provenance
         env:
-          IMAGE_REF: ${{ steps.subject.outputs.image_ref }}
-          IMAGE_ID: ${{ matrix.image }}
+          IMAGE_REF: \${{ steps.subject.outputs.image_ref }}
+          IMAGE_ID: \${{ matrix.image }}
         run: |
           set -euo pipefail
           OUTPUT=".ndf-build/$IMAGE_ID"
           python images/ndf/scripts/cosign_image_trust.py sign \
             --image-ref "$IMAGE_REF" \
             --predicate "$OUTPUT/image-provenance-predicate.json" \
-            --statement "$OUTPUT/image-provenance-statement.json"
+            --statement "$OUTPUT/image-provenance-statement.json" \
+            | tee "$OUTPUT/cosign-sign-result.json"
 
-      - name: Independently verify signature and attestation
+      - name: Upload signing evidence
+        if: \${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-cosign-sign-\${{ matrix.image }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: |
+            .ndf-build/\${{ matrix.image }}/cosign-sign-result.json
+            .ndf-build/\${{ matrix.image }}/image-provenance-predicate.json
+            .ndf-build/\${{ matrix.image }}/image-provenance-statement.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  # This is an independent consumer job: it has no OIDC permission and does
+  # not rely on the producer's local expected-predicate file for verification.
+  verify-trust:
+    name: Independently verify product trust for \${{ matrix.image }}
+    if: \${{ always() && needs.build-validate.result == 'success' && needs.sign-trust.result == 'success' && github.ref == 'refs/heads/main' }}
+    needs: [prepare, build-validate, sign-trust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix: \${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install trust utility dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Download build evidence from this run attempt
+        uses: actions/download-artifact@v7
+        with:
+          name: ndf-publish-\${{ matrix.image }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: .ndf-build/\${{ matrix.image }}
+
+      - name: Download signing evidence from this run attempt
+        uses: actions/download-artifact@v7
+        with:
+          name: ndf-cosign-sign-\${{ matrix.image }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: .ndf-build/\${{ matrix.image }}/signing-evidence
+
+      - name: Install pinned Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
+        with:
+          cosign-release: v3.1.4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: \${{ github.actor }}
+          password: \${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve and correlate immutable image reference
+        id: subject
         env:
-          IMAGE_REF: ${{ steps.subject.outputs.image_ref }}
-          IMAGE_ID: ${{ matrix.image }}
+          IMAGE_ID: \${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path(".ndf-build") / os.environ["IMAGE_ID"]
+          metadata = json.loads((root / "build-metadata.json").read_text(encoding="utf-8"))
+          result = json.loads((root / "build-result.json").read_text(encoding="utf-8"))
+          signed = json.loads((root / "signing-evidence" / "cosign-sign-result.json").read_text(encoding="utf-8"))
+          repository = metadata.get("image", {}).get("repository")
+          digest = result.get("digest")
+          if not isinstance(repository, str) or not repository.startswith("ghcr.io/"):
+              raise SystemExit("Build evidence does not identify an NDF GHCR image repository.")
+          if not isinstance(digest, str) or re.fullmatch(r"sha256:[a-f0-9]{64}", digest) is None:
+              raise SystemExit("Build evidence does not contain an immutable SHA-256 digest.")
+          image_ref = f"{repository}@{digest}"
+          if signed.get("status") != "signed" or signed.get("image_repository") != repository or signed.get("image_digest") != digest:
+              raise SystemExit("Signing evidence does not match the exact build image digest.")
+          print(f"image_ref={image_ref}")
+          PY
+
+      - name: Independently verify signature, provenance and signer policy
+        env:
+          IMAGE_REF: \${{ steps.subject.outputs.image_ref }}
+          IMAGE_ID: \${{ matrix.image }}
+          PUBLISH_REQUESTED: \${{ inputs.publish }}
         shell: bash
         run: |
           set -euo pipefail
           OUTPUT=".ndf-build/$IMAGE_ID"
-          VERIFY_LOG="$OUTPUT/cosign-live-verification.log"
-          RESULT="$OUTPUT/cosign-live-verification-result.json"
-          ATTESTATION_OUTPUT="$OUTPUT/cosign-verified-attestation-output.json"
+          VERIFY_LOG="$OUTPUT/cosign-independent-verification.log"
+          RESULT="$OUTPUT/cosign-independent-verification-result.json"
+          ATTESTATION_OUTPUT="$OUTPUT/cosign-independent-verified-attestation.json"
 
           set +e
           python images/ndf/scripts/cosign_image_trust.py verify \
             --image-ref "$IMAGE_REF" \
             --result-output "$RESULT" \
             --attestation-output "$ATTESTATION_OUTPUT" \
-            --expected-predicate "$OUTPUT/image-provenance-predicate.json" > "$VERIFY_LOG" 2>&1
+            --self-contained > "$VERIFY_LOG" 2>&1
           VERIFY_STATUS=$?
           set -e
 
-          if [[ "$VERIFY_STATUS" -eq 0 ]]; then
-            echo "The provisional policy unexpectedly returned trusted; review policy state." >&2
-            exit 1
-          fi
-          if ! grep -Fq "Cryptographic verification passed, but signer identity policy is provisional" "$VERIFY_LOG"; then
-            cat "$VERIFY_LOG" >&2
-            echo "Cosign verification failed for a reason other than the expected provisional-policy rejection." >&2
-            exit 1
-          fi
-
-          python - "$RESULT" "$IMAGE_REF" <<'PY'
+          python - "$RESULT" "$IMAGE_REF" "$PUBLISH_REQUESTED" "$VERIFY_STATUS" <<'PY'
           import json
           import sys
           from pathlib import Path
 
-          result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          if result.get("artifact", {}).get("immutable_reference") != sys.argv[2]:
-              raise SystemExit("Normalized result is not bound to the requested immutable image reference.")
-          if result.get("signature", {}).get("verified") is not True:
-              raise SystemExit("Image signature verification did not pass.")
-          if result.get("signer", {}).get("verified") is not True:
-              raise SystemExit("Signer identity verification did not pass.")
-          if result.get("transparency", {}).get("verified") is not True:
-              raise SystemExit("Transparency verification did not pass.")
-          if result.get("attestations", [{}])[0].get("verified") is not True:
-              raise SystemExit("SLSA attestation verification did not pass.")
-          if result.get("decision", {}).get("status") != "rejected":
-              raise SystemExit("Provisional policy must not produce a trusted decision.")
-          if result.get("decision", {}).get("reason_codes") != ["IDENTITY_POLICY_PROVISIONAL"]:
-              raise SystemExit("Unexpected rejection reason; expected provisional identity policy only.")
+          result_path = Path(sys.argv[1])
+          image_ref, publish_requested = sys.argv[2], sys.argv[3] == "true"
+          verify_status = int(sys.argv[4])
+          if not result_path.is_file():
+              raise SystemExit("Independent verifier did not produce a normalized trust result.")
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          if result.get("artifact", {}).get("immutable_reference") != image_ref:
+              raise SystemExit("Trust result is not bound to the exact build digest.")
+          for section in ("signature", "signer", "transparency"):
+              if result.get(section, {}).get("verified") is not True:
+                  raise SystemExit(f"{section} verification did not pass.")
+          attestations = result.get("attestations")
+          if not isinstance(attestations, list) or len(attestations) != 1 or attestations[0].get("verified") is not True:
+              raise SystemExit("SLSA provenance attestation verification did not pass.")
+          decision = result.get("decision", {})
+          if decision.get("status") == "trusted" and verify_status == 0:
+              raise SystemExit(0)
+          provisional = (
+              decision.get("status") == "rejected"
+              and decision.get("reason_codes") == ["IDENTITY_POLICY_PROVISIONAL"]
+              and verify_status != 0
+          )
+          if provisional and not publish_requested:
+              print("Cryptographic verification passed; identity policy remains provisional. No promotion is permitted.")
+              raise SystemExit(0)
+          if provisional:
+              raise SystemExit("Official promotion is blocked while signer identity policy remains provisional.")
+          raise SystemExit("Trust verification failed or returned an unexpected decision.")
           PY
 
-      - name: Upload live Cosign observation evidence
-        if: ${{ always() }}
+      - name: Upload independent trust verification evidence
+        if: \${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: ndf-cosign-live-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ndf-cosign-verify-\${{ matrix.image }}-\${{ github.run_id }}-\${{ github.run_attempt }}
           path: |
-            .ndf-build/${{ matrix.image }}/image-provenance-predicate.json
-            .ndf-build/${{ matrix.image }}/image-provenance-statement.json
-            .ndf-build/${{ matrix.image }}/cosign-live-verification.log
-            .ndf-build/${{ matrix.image }}/cosign-verified-attestation-output.json
-            .ndf-build/${{ matrix.image }}/cosign-live-verification-result.json
+            .ndf-build/\${{ matrix.image }}/cosign-independent-verification.log
+            .ndf-build/\${{ matrix.image }}/cosign-independent-verification-result.json
+            .ndf-build/\${{ matrix.image }}/cosign-independent-verified-attestation.json
           if-no-files-found: warn
           retention-days: 90
+
+  # Promotion has no OIDC authority and is reachable only after independent
+  # verification accepts the exact image digest under a confirmed signer policy.
+  promote:
+    name: Promote trusted product image \${{ matrix.image }}
+    if: \${{ always() && inputs.publish && needs.build-validate.result == 'success' && needs.verify-trust.result == 'success' }}
+    needs: [prepare, build-validate, verify-trust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: \${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Download build evidence from this run attempt
+        uses: actions/download-artifact@v7
+        with:
+          name: ndf-publish-\${{ matrix.image }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: .ndf-build/\${{ matrix.image }}
+
+      - name: Download independent trust result from this run attempt
+        uses: actions/download-artifact@v7
+        with:
+          name: ndf-cosign-verify-\${{ matrix.image }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          path: .ndf-build/\${{ matrix.image }}/trust-evidence
+
+      - name: Validate trusted decision and exact digest
+        id: subject
+        env:
+          IMAGE_ID: \${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path(".ndf-build") / os.environ["IMAGE_ID"]
+          metadata = json.loads((root / "build-metadata.json").read_text(encoding="utf-8"))
+          build = json.loads((root / "build-result.json").read_text(encoding="utf-8"))
+          trust = json.loads((root / "trust-evidence" / "cosign-independent-verification-result.json").read_text(encoding="utf-8"))
+          repository = metadata.get("image", {}).get("repository")
+          digest = build.get("digest")
+          if not isinstance(repository, str) or not repository.startswith("ghcr.io/"):
+              raise SystemExit("Build evidence does not identify an NDF GHCR image repository.")
+          if not isinstance(digest, str) or re.fullmatch(r"sha256:[a-f0-9]{64}", digest) is None:
+              raise SystemExit("Build evidence does not contain a valid SHA-256 digest.")
+          image_ref = f"{repository}@{digest}"
+          if trust.get("artifact", {}).get("immutable_reference") != image_ref:
+              raise SystemExit("Trust result refers to a different image digest.")
+          if trust.get("decision", {}).get("status") != "trusted":
+              raise SystemExit("Only an independently trusted image may be promoted.")
+          if trust.get("signature", {}).get("verified") is not True or trust.get("attestations", [{}])[0].get("verified") is not True:
+              raise SystemExit("Required signature or provenance verification is missing.")
+          print(f"image_repository={repository}")
+          print(f"image_digest={digest}")
+          PY
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: \${{ github.actor }}
+          password: \${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Promote only the independently trusted digest
+        env:
+          IMAGE_REPOSITORY: \${{ steps.subject.outputs.image_repository }}
+          EXPECTED_DIGEST: \${{ steps.subject.outputs.image_digest }}
+        run: |
+          set -euo pipefail
+          PUBLICATION_REF="\${IMAGE_REPOSITORY}:v16-\${GITHUB_SHA,,}"
+          INSPECT_OUTPUT=""
+          if INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF" 2>&1)"; then
+            echo "Official immutable source tag already exists: $PUBLICATION_REF" >&2
+            exit 1
+          fi
+          if ! grep -Eqi 'not found|manifest unknown|404' <<< "$INSPECT_OUTPUT"; then
+            echo "Unable to prove official source tag is absent: $PUBLICATION_REF" >&2
+            echo "$INSPECT_OUTPUT" >&2
+            exit 1
+          fi
+          docker buildx imagetools create --tag "$PUBLICATION_REF" "\${IMAGE_REPOSITORY}@\${EXPECTED_DIGEST}"
+          INSPECT_OUTPUT="$(docker buildx imagetools inspect "$PUBLICATION_REF")"
+          ACTUAL_DIGEST="$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')"
+          if [[ "$ACTUAL_DIGEST" != "$EXPECTED_DIGEST" ]]; then
+            echo "Official publication digest mismatch: expected $EXPECTED_DIGEST, got $ACTUAL_DIGEST" >&2
+            exit 1
+          fi
+
+      - name: Write promotion summary
+        env:
+          IMAGE_REPOSITORY: \${{ steps.subject.outputs.image_repository }}
+          IMAGE_DIGEST: \${{ steps.subject.outputs.image_digest }}
+        run: |
+          {
+            echo "## NDF trusted product image promotion"
+            echo
+            echo "- Product: \${{ matrix.image }}"
+            echo "- Official source tag: \${IMAGE_REPOSITORY}:v16-\${GITHUB_SHA,,}"
+            echo "- Immutable digest: \${IMAGE_DIGEST}"
+            echo "- Independent trust decision: trusted"
+          } >> "$GITHUB_STEP_SUMMARY"
