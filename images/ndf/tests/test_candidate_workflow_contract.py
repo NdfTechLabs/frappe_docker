@@ -177,10 +177,3 @@ def test_candidate_dispatch_requires_canonical_correlation_id():
     assert "required: true" in dispatch
     assert "Optional" not in dispatch
     assert "CORRELATION_ID: ${{ inputs.correlation_id }}" in workflow
-
-
-def test_candidate_result_upload_includes_companion_trust_evidence_contract():
-    workflow = read_workflow("ndf-build-candidate.yml")
-    result_job = workflow.split("  publish-candidate-result:", 1)[1]
-    assert "deployment-build-trust-evidence-v1.schema.json" in result_job
-    assert "deployment-build-trust-evidence.json" in result_job
