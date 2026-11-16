@@ -141,4 +141,3 @@ def test_consumer_fetch_preserves_retrieved_bundle_before_verification():
     )
     assert "_validate_image_source_identity(descriptor, workflow)" in script
     assert '"image_source_sha_verified": True' in script
-

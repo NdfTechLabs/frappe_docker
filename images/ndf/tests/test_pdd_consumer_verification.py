@@ -331,6 +331,7 @@ def test_consumer_report_schema_is_valid():
 
     Draft202012Validator.check_schema(schema)
 
+
 def test_preserves_retrieved_bundle_before_later_verification(tmp_path):
     pulled = tmp_path / "pulled"
     output = tmp_path / "output"
@@ -400,9 +401,7 @@ def test_refuses_to_preserve_bundle_containing_symlink(tmp_path):
             "exactly one",
         ),
         (
-            lambda result: result["decision"].update(
-                status="trusted", reason_codes=[]
-            ),
+            lambda result: result["decision"].update(status="trusted", reason_codes=[]),
             "exact provisional rejection",
         ),
     ],
@@ -459,4 +458,3 @@ def test_rejects_image_source_identity_not_matching_pdd_build(workflow):
 
     with pytest.raises(consumer.PDDRetrievalError, match="source commit/run ID"):
         consumer._validate_image_source_identity(descriptor, workflow)
-

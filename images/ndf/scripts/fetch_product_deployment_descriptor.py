@@ -454,10 +454,9 @@ def _validate_image_source_identity(
     build = descriptor.get("build")
     if not isinstance(build, dict):
         raise PDDRetrievalError("PDD descriptor has no valid build identity.")
-    if (
-        image_workflow.get("source_commit") != build.get("source_commit")
-        or image_workflow.get("run_id") != build.get("workflow_run_id")
-    ):
+    if image_workflow.get("source_commit") != build.get(
+        "source_commit"
+    ) or image_workflow.get("run_id") != build.get("workflow_run_id"):
         raise PDDRetrievalError(
             "Verified image provenance source commit/run ID does not match "
             "the PDD build identity."
