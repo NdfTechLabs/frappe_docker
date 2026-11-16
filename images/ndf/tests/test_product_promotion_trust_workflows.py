@@ -30,9 +30,13 @@ def test_product_publication_separates_build_sign_verify_and_promotion():
     assert "--self-contained" in verify
     assert "--expected-product-id" in verify
     assert "--expected-source-commit" in verify
+    assert "log_entry_verified" in verify
+    assert "https://slsa.dev/provenance/v1" in verify
     assert "imagetools create" not in verify
     assert "needs: [prepare, build-validate, verify-trust]" in promote
     assert "decision" in promote and '"trusted"' in promote
+    assert "log_entry_verified" in promote
+    assert "https://slsa.dev/provenance/v1" in promote
     assert "packages: write" in promote
     assert "id-token: write" not in promote
 
