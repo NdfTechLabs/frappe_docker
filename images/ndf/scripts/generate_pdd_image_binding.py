@@ -180,16 +180,14 @@ def _validate_publication_receipt(
         raise PDDBindingGenerationError(
             "Publication receipt subject image does not match the PDD artifact."
         )
-    if (
-        artifact["repository"] != pdd_artifact["repository"]
-        or artifact["digest"] == pdd_artifact["digest"]
-    ):
-        # PDD and image may share a registry repository only in unusual setups,
-        # but their artifact digests must never be conflated.
-        if artifact["digest"] == pdd_artifact["digest"]:
-            raise PDDBindingGenerationError(
-                "PDD OCI artifact digest must differ from the subject image digest."
-            )
+    if artifact["repository"] != pdd_artifact["repository"]:
+        raise PDDBindingGenerationError(
+            "PDD OCI artifact repository must match the descriptor image repository."
+        )
+    if artifact["digest"] == pdd_artifact["digest"]:
+        raise PDDBindingGenerationError(
+            "PDD OCI artifact digest must differ from the subject image digest."
+        )
 
 
 def _validate_source_image_trust(
