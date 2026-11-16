@@ -516,10 +516,10 @@ def _verify_independent_consumer_trust(
             self_contained=True,
         )
     except cosign_pdd_trust.PDDCosignTrustError:
-        # Only a complete, schema-valid, correlated provisional result is an
-        # expected negative trust decision. Every other exception fails closed.
-        if not pdd_result_path.is_file():
-            raise PDDRetrievalError("PDD Cosign verification failed without a result file.")
+        # The only expected exception is the primitive's provisional-policy
+        # rejection, which is meaningful only under the provisional policy.
+        if policy["status"] != PROVISIONAL_POLICY_STATUS or not pdd_result_path.is_file():
+            raise PDDRetrievalError("PDD Cosign verification failed unexpectedly.")
     pdd_result = _load_trust_result(
         pdd_result_path,
         kind="pdd",
@@ -530,6 +530,8 @@ def _verify_independent_consumer_trust(
         expected_identity=pdd_identity,
         policy=policy,
     )
+    if pdd_attestation_path.is_symlink() or not pdd_attestation_path.is_file():
+        raise PDDRetrievalError("PDD second-pass verified attestation output is missing or unsafe.")
     pdd_statement = cosign_image_trust.extract_verified_statement(
         pdd_attestation_path.read_text(encoding="utf-8")
     )
@@ -591,8 +593,8 @@ def _verify_independent_consumer_trust(
             self_contained=True,
         )
     except cosign_image_trust.CosignTrustError:
-        if not image_result_path.is_file():
-            raise PDDRetrievalError("Image Cosign verification failed without a result file.")
+        if policy["status"] != PROVISIONAL_POLICY_STATUS or not image_result_path.is_file():
+            raise PDDRetrievalError("Image Cosign verification failed unexpectedly.")
     image_result = _load_trust_result(
         image_result_path,
         kind="product_image",
@@ -613,6 +615,8 @@ def _verify_independent_consumer_trust(
     ):
         raise PDDRetrievalError("Both artifacts must have the exact provisional rejection.")
 
+    if image_attestation_path.is_symlink() or not image_attestation_path.is_file():
+        raise PDDRetrievalError("Image second-pass verified attestation output is missing or unsafe.")
     image_statement = cosign_image_trust.extract_verified_statement(
         image_attestation_path.read_text(encoding="utf-8")
     )
