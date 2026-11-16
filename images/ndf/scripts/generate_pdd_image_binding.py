@@ -18,6 +18,7 @@ from jsonschema import Draft202012Validator, ValidationError
 try:
     from .artifact_trust import (
         ArtifactTrustError,
+        validate_image_provenance_statement,
         validate_trust_verification_result,
     )
     from .validate_product_deployment_descriptor import (
@@ -25,7 +26,11 @@ try:
         validate_descriptor,
     )
 except ImportError:
-    from artifact_trust import ArtifactTrustError, validate_trust_verification_result
+    from artifact_trust import (
+        ArtifactTrustError,
+        validate_image_provenance_statement,
+        validate_trust_verification_result,
+    )
     from validate_product_deployment_descriptor import (
         DescriptorValidationError,
         validate_descriptor,
@@ -237,6 +242,23 @@ def _validate_source_image_trust(
         raise PDDBindingGenerationError(
             "Source image SLSA attestation is not verified for the exact image digest."
         )
+    source_statement = {
+        "_type": "https://in-toto.io/Statement/v1",
+        "subject": [
+            {
+                "name": image["repository"],
+                "digest": {"sha256": image["digest"].removeprefix("sha256:")},
+            }
+        ],
+        "predicateType": PREDICATE_TYPE,
+        "predicate": predicate,
+    }
+    try:
+        validate_image_provenance_statement(source_statement, image["digest"])
+    except ArtifactTrustError as exc:
+        raise PDDBindingGenerationError(
+            f"Source image provenance predicate is invalid: {exc}"
+        ) from exc
     actual_hash = _sha256(_canonical_json(predicate))
     if attestation.get("predicate_sha256") != actual_hash:
         raise PDDBindingGenerationError(
