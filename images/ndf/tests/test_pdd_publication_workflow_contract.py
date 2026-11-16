@@ -55,7 +55,8 @@ def test_existing_publication_receipt_artifact_contract_is_preserved():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
     assert 'pdd-publication-record.json' in workflow
     assert 'name: ndf-pdd-publication-${{ inputs.build_run_id }}-${{ github.run_attempt }}' in workflow
-    assert '"images/ndf/schemas/pdd-publication-record-v1.schema.json"' not in workflow
+    assert 'path: ${{ runner.temp }}/pdd-publication-record.json' in workflow
+    assert 'retention-days: 90' in workflow
 
 
 def test_pdd_publication_remains_manual_main_only_and_does_not_gain_oidc():
