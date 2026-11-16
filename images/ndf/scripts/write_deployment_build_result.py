@@ -22,6 +22,10 @@ CANDIDATE_REF = re.compile(
 HASH = re.compile(r"^[a-f0-9]{64}$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 SAFE_FAILURES = {
+    "verify-candidate-origin": (
+        "CANDIDATE_ORIGIN_TRUST_FAILED",
+        "Candidate-origin signature, identity or attestation verification failed.",
+    ),
     "dispatch-gate": (
         "DISPATCH_NOT_AUTHORIZED",
         "Candidate dispatch authorization failed.",
@@ -74,6 +78,7 @@ def main() -> int:
         raise ValueError("Candidate payload SHA-256 is invalid.")
 
     outcomes = {
+        "verify-candidate-origin": required_env("ORIGIN_VERIFY_RESULT"),
         "dispatch-gate": required_env("DISPATCH_GATE_RESULT"),
         "prepare-candidate": required_env("PREPARE_RESULT"),
         "build-candidate": required_env("BUILD_RESULT"),
