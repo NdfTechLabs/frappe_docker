@@ -40,6 +40,8 @@ jobs:
     outputs:
       pdd_reference: ${{ steps.binding.outputs.pdd_reference }}
       signing_input_artifact: ${{ steps.binding.outputs.signing_input_artifact }}
+      source_image_id: ${{ steps.source.outputs.source_image_id }}
+      source_build_attempt: ${{ steps.source.outputs.source_build_attempt }}
     env:
       BUILD_RUN_ID: ${{ inputs.build_run_id }}
       BUILD_ARTIFACT_NAME: ${{ inputs.build_artifact_name }}
@@ -402,4 +404,56 @@ jobs:
               "reason_codes": ["IDENTITY_POLICY_PROVISIONAL"],
           }:
               raise SystemExit("PDD verification rejection is not the expected provisional identity-policy result.")
+          PY
+
+      - name: Assemble and correlate PDD trust evidence
+        shell: bash
+        env:
+          SOURCE_BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          SOURCE_BUILD_ATTEMPT: ${{ needs.publish.outputs.source_build_attempt }}
+          SIGNING_INPUT_ARTIFACT: ${{ needs.publish.outputs.signing_input_artifact }}
+        run: |
+          set -euo pipefail
+          EVIDENCE_DIR="$RUNNER_TEMP/pdd-trust-evidence"
+          mkdir -p "$EVIDENCE_DIR"
+          cp "$RUNNER_TEMP/pdd-signing-input/pdd-publication-record.json" "$EVIDENCE_DIR/"
+          cp "$RUNNER_TEMP/pdd-signing-input/pdd-image-binding-statement.json" "$EVIDENCE_DIR/"
+          cp "$RUNNER_TEMP/pdd-signing-input/pdd-image-binding-predicate.json" "$EVIDENCE_DIR/"
+          cp "$RUNNER_TEMP/pdd-trust-verification-result.json" "$EVIDENCE_DIR/"
+          cp "$RUNNER_TEMP/pdd-verified-attestation.json" "$EVIDENCE_DIR/"
+          cp "$RUNNER_TEMP/pdd-verify.log" "$EVIDENCE_DIR/"
+          python images/ndf/scripts/correlate_pdd_trust_evidence.py \
+            --evidence-dir "$EVIDENCE_DIR" \
+            --source-build-run-id "$SOURCE_BUILD_RUN_ID" \
+            --source-build-attempt "$SOURCE_BUILD_ATTEMPT" \
+            --signing-input-artifact "$SIGNING_INPUT_ARTIFACT"
+
+      - name: Upload correlated PDD trust evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-pdd-trust-evidence-${{ inputs.build_run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pdd-trust-evidence/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Write PDD trust evidence summary
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"], "pdd-trust-evidence")
+          receipt = json.loads((root / "pdd-publication-record.json").read_text())
+          result = json.loads((root / "pdd-trust-verification-result.json").read_text())
+          print("## PDD OCI Trust Evidence")
+          print()
+          print(f"- Descriptor: `{receipt['descriptor']['id']}`")
+          print(f"- Immutable PDD reference: `{receipt['artifact']['immutable_reference']}`")
+          print(f"- Evidence artifact: `ndf-pdd-trust-evidence-${{ inputs.build_run_id }}-${{ github.run_attempt }}`")
+          print(f"- Verified at: {result['verified_at']}")
+          print("- Decision: **REJECTED: IDENTITY_POLICY_PROVISIONAL**")
+          print()
+          print("Cryptographic signature, signer, Rekor and binding-attestation checks passed. The signer identity policy remains provisional; this evidence does not establish a trusted decision.")
           PY
