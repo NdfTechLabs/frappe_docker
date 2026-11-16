@@ -25,11 +25,23 @@ except ImportError:
     import intake_deployment_candidate as intake
 
 NDF_DIR = Path(__file__).resolve().parents[1]
-POLICY_PATH = NDF_DIR / "policies" / "dt-master-candidate-origin-identity-policy-v1.json"
-POLICY_SCHEMA_PATH = NDF_DIR / "schemas" / "dt-master-candidate-origin-identity-policy-v1.schema.json"
-PREDICATE_SCHEMA_PATH = NDF_DIR / "schemas" / "deployment-candidate-origin-predicate-v1.schema.json"
-STATEMENT_SCHEMA_PATH = NDF_DIR / "schemas" / "cosign-deployment-candidate-origin-statement-v0.1.schema.json"
-RESULT_SCHEMA_PATH = NDF_DIR / "schemas" / "candidate-origin-verification-result-v1.schema.json"
+POLICY_PATH = (
+    NDF_DIR / "policies" / "dt-master-candidate-origin-identity-policy-v1.json"
+)
+POLICY_SCHEMA_PATH = (
+    NDF_DIR / "schemas" / "dt-master-candidate-origin-identity-policy-v1.schema.json"
+)
+PREDICATE_SCHEMA_PATH = (
+    NDF_DIR / "schemas" / "deployment-candidate-origin-predicate-v1.schema.json"
+)
+STATEMENT_SCHEMA_PATH = (
+    NDF_DIR
+    / "schemas"
+    / "cosign-deployment-candidate-origin-statement-v0.1.schema.json"
+)
+RESULT_SCHEMA_PATH = (
+    NDF_DIR / "schemas" / "candidate-origin-verification-result-v1.schema.json"
+)
 COSIGN_VERSION = "v3.1.4"
 PREDICATE_TYPE = "https://ndftechlabs.com/attestations/deployment-candidate/v1"
 CANDIDATE_REPOSITORY = "ghcr.io/ndftechlabs/dt-master-deployment-candidates"
@@ -100,7 +112,8 @@ def _load_policy(path: Path) -> dict[str, Any]:
     policy = _strict_json(raw, "candidate-origin identity policy")
     if not isinstance(policy, dict):
         raise CandidateOriginTrustError(
-            "SIGNER_IDENTITY_REJECTED", "Candidate-origin policy root must be an object."
+            "SIGNER_IDENTITY_REJECTED",
+            "Candidate-origin policy root must be an object.",
         )
     try:
         artifact_trust._validate_schema(
@@ -108,11 +121,13 @@ def _load_policy(path: Path) -> dict[str, Any]:
         )
     except Exception as exc:
         raise CandidateOriginTrustError(
-            "SIGNER_IDENTITY_REJECTED", f"Candidate-origin identity policy is invalid: {exc}"
+            "SIGNER_IDENTITY_REJECTED",
+            f"Candidate-origin identity policy is invalid: {exc}",
         ) from exc
     if policy.get("issuer") != GITHUB_OIDC_ISSUER:
         raise CandidateOriginTrustError(
-            "OIDC_ISSUER_REJECTED", "Candidate-origin policy has an unapproved OIDC issuer."
+            "OIDC_ISSUER_REJECTED",
+            "Candidate-origin policy has an unapproved OIDC issuer.",
         )
     return policy
 
@@ -180,14 +195,16 @@ def _validate_statement(
         )
     except Exception as exc:
         raise CandidateOriginTrustError(
-            "PREDICATE_INVALID", f"Candidate-origin Statement or predicate is invalid: {exc}"
+            "PREDICATE_INVALID",
+            f"Candidate-origin Statement or predicate is invalid: {exc}",
         ) from exc
 
     digest = intake.parse_candidate_reference(artifact_reference)
     subject = statement["subject"][0]
-    if subject["name"] != CANDIDATE_REPOSITORY or (
-        "sha256:" + subject["digest"]["sha256"]
-    ) != digest:
+    if (
+        subject["name"] != CANDIDATE_REPOSITORY
+        or ("sha256:" + subject["digest"]["sha256"]) != digest
+    ):
         raise CandidateOriginTrustError(
             "SUBJECT_DIGEST_MISMATCH",
             "Verified attestation subject does not match the exact candidate OCI repository and digest.",
@@ -239,7 +256,8 @@ def verify_candidate_origin(
     """
     if not CANDIDATE_ID_RE.fullmatch(candidate_id or ""):
         raise CandidateOriginTrustError(
-            "PREDICATE_INVALID", "Candidate ID violates the shared 140-character contract."
+            "PREDICATE_INVALID",
+            "Candidate ID violates the shared 140-character contract.",
         )
     if not SHA256_RE.fullmatch(payload_sha256 or ""):
         raise CandidateOriginTrustError(
@@ -288,7 +306,14 @@ def verify_candidate_origin(
         )[:-2]
 
         signature_first = cosign._run(
-            [cosign_binary, "verify", "--output", "json", *initial_args, artifact_reference],
+            [
+                cosign_binary,
+                "verify",
+                "--output",
+                "json",
+                *initial_args,
+                artifact_reference,
+            ],
             runner=runner,
         )
         cosign._parse_signature_output(signature_first.stdout)
@@ -319,7 +344,14 @@ def verify_candidate_origin(
             cosign_policy, identity_entry, predicate["producer"]["source_commit"]
         )
         signature_exact = cosign._run(
-            [cosign_binary, "verify", "--output", "json", *exact_args, artifact_reference],
+            [
+                cosign_binary,
+                "verify",
+                "--output",
+                "json",
+                *exact_args,
+                artifact_reference,
+            ],
             runner=runner,
         )
         cosign._parse_signature_output(signature_exact.stdout)
@@ -412,9 +444,9 @@ def validate_result(result: dict[str, Any]) -> None:
     schema = json.loads(RESULT_SCHEMA_PATH.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     errors = sorted(
-        Draft202012Validator(
-            schema, format_checker=FormatChecker()
-        ).iter_errors(result),
+        Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(
+            result
+        ),
         key=lambda error: (list(map(str, error.absolute_path)), error.message),
     )
     if errors:
@@ -430,7 +462,8 @@ def _write_result(path: Path, result: dict[str, Any]) -> None:
     validate_result(result)
     if path.exists() or path.is_symlink():
         raise CandidateOriginTrustError(
-            "PREDICATE_INVALID", "Refusing to overwrite an existing candidate-origin result."
+            "PREDICATE_INVALID",
+            "Refusing to overwrite an existing candidate-origin result.",
         )
     _atomic_write(path, _canonical_json(result))
 
@@ -472,7 +505,11 @@ def main(argv: list[str] | None = None) -> int:
             "candidate_id": args.candidate_id,
             "correlation_id": args.correlation_id,
             "subject": {"repository": CANDIDATE_REPOSITORY, "digest": digest},
-            "payload_sha256": args.payload_sha256 if SHA256_RE.fullmatch(args.payload_sha256 or "") else None,
+            "payload_sha256": (
+                args.payload_sha256
+                if SHA256_RE.fullmatch(args.payload_sha256 or "")
+                else None
+            ),
             "producer": None,
             "evidence_references": [],
             "error": str(exc),
@@ -480,7 +517,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             _write_result(args.result_output, result)
         except Exception as write_error:
-            print(json.dumps({"status": "failed", "error": str(write_error)}), file=sys.stderr)
+            print(
+                json.dumps({"status": "failed", "error": str(write_error)}),
+                file=sys.stderr,
+            )
             return 2
         print(json.dumps(result, sort_keys=True))
         return 1

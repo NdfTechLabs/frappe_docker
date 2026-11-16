@@ -51,9 +51,7 @@ def _predicate():
 def _statement():
     return {
         "_type": "https://in-toto.io/Statement/v0.1",
-        "subject": [
-            {"name": REPOSITORY, "digest": {"sha256": "a" * 64}}
-        ],
+        "subject": [{"name": REPOSITORY, "digest": {"sha256": "a" * 64}}],
         "predicateType": verifier.PREDICATE_TYPE,
         "predicate": _predicate(),
     }
@@ -68,10 +66,14 @@ def _policy(status="confirmed"):
         "verification": {
             "required_repository": "NdfTechLabs/dt_master",
             "required_ref": "refs/heads/main",
-            "required_event_name": "workflow_dispatch" if status == "confirmed" else None,
+            "required_event_name": (
+                "workflow_dispatch" if status == "confirmed" else None
+            ),
         },
         "identity": {
-            "certificate_identity": CERTIFICATE_IDENTITY if status == "confirmed" else None,
+            "certificate_identity": (
+                CERTIFICATE_IDENTITY if status == "confirmed" else None
+            ),
             "workflow_path": WORKFLOW_PATH if status == "confirmed" else None,
             "workflow_ref": WORKFLOW_REF if status == "confirmed" else None,
         },
@@ -93,9 +95,7 @@ class FakeCosign:
     def __call__(self, command, **kwargs):
         self.calls.append(command)
         if command[1] == "version":
-            return subprocess.CompletedProcess(
-                command, 0, "GitVersion: v3.1.4\n", ""
-            )
+            return subprocess.CompletedProcess(command, 0, "GitVersion: v3.1.4\n", "")
         if command[1] == "verify":
             return subprocess.CompletedProcess(command, 0, '[{"critical":{}}]', "")
         if command[1] == "verify-attestation":
@@ -119,12 +119,16 @@ def _verify(tmp_path, runner, policy_path=None, statement=None):
 
 
 def test_provisional_policy_rejects_before_cosign_or_candidate_intake(tmp_path):
-    policy = _write_policy(tmp_path, status="provisional_until_live_certificate_observation")
+    policy = _write_policy(
+        tmp_path, status="provisional_until_live_certificate_observation"
+    )
     calls = []
 
     def runner(command, **kwargs):
         calls.append(command)
-        raise AssertionError("Cosign must not run under an unconfirmed producer identity.")
+        raise AssertionError(
+            "Cosign must not run under an unconfirmed producer identity."
+        )
 
     with pytest.raises(verifier.CandidateOriginTrustError) as error:
         verifier.verify_candidate_origin(
@@ -167,7 +171,9 @@ def test_confirmed_policy_verifies_exact_candidate_origin_and_writes_evidence(tm
         for command in commands[1:]
     )
     assert all(
-        not any("insecure-ignore" in arg or "check-claims=false" in arg for arg in command)
+        not any(
+            "insecure-ignore" in arg or "check-claims=false" in arg for arg in command
+        )
         for command in commands
     )
     assert SOURCE_COMMIT in commands[3]
@@ -179,7 +185,11 @@ def test_confirmed_policy_verifies_exact_candidate_origin_and_writes_evidence(tm
     [
         ("candidate_id", "other-candidate", "PAYLOAD_DIGEST_MISMATCH"),
         ("candidate_payload_sha256", "d" * 64, "PAYLOAD_DIGEST_MISMATCH"),
-        ("correlation_id", "11111111-1111-4111-8111-111111111111", "PAYLOAD_DIGEST_MISMATCH"),
+        (
+            "correlation_id",
+            "11111111-1111-4111-8111-111111111111",
+            "PAYLOAD_DIGEST_MISMATCH",
+        ),
     ],
 )
 def test_signed_predicate_must_match_dispatch_values(tmp_path, field, value, reason):
@@ -215,9 +225,9 @@ def test_wrong_predicate_type_is_rejected(tmp_path):
 
 def test_wrong_producer_workflow_is_rejected(tmp_path):
     statement = _statement()
-    statement["predicate"]["producer"]["workflow_path"] = (
-        ".github/workflows/unapproved.yml"
-    )
+    statement["predicate"]["producer"][
+        "workflow_path"
+    ] = ".github/workflows/unapproved.yml"
 
     with pytest.raises(verifier.CandidateOriginTrustError) as error:
         _verify(tmp_path, FakeCosign(statement))
@@ -237,7 +247,9 @@ def test_attestation_must_remain_identical_after_source_sha_verification(tmp_pat
                 statement = _statement()
                 if self.attestation_count == 2:
                     statement["predicate"]["candidate_id"] = "changed"
-                return subprocess.CompletedProcess(command, 0, json.dumps(statement), "")
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps(statement), ""
+                )
             return super().__call__(command, **kwargs)
 
     with pytest.raises(verifier.CandidateOriginTrustError) as error:
@@ -270,6 +282,7 @@ def test_identity_policy_rejects_noncanonical_certificate_identity(tmp_path):
         _verify(tmp_path, FakeCosign(), policy_path=path)
 
     assert error.value.reason_code == "SIGNER_IDENTITY_REJECTED"
+
 
 def test_cli_writes_attempt_scoped_rejection_for_provisional_identity(tmp_path):
     policy = _write_policy(

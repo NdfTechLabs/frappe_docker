@@ -16,8 +16,8 @@
     "evidence_references"
   ],
   "properties": {
-    "schema_version": {"const": "1.0.0"},
-    "decision": {"enum": ["verified", "rejected"]},
+    "schema_version": { "const": "1.0.0" },
+    "decision": { "enum": ["verified", "rejected"] },
     "reason_code": {
       "enum": [
         "CANDIDATE_ORIGIN_VERIFIED",
@@ -47,22 +47,40 @@
       "additionalProperties": false,
       "required": ["repository", "digest"],
       "properties": {
-        "repository": {"const": "ghcr.io/ndftechlabs/dt-master-deployment-candidates"},
-        "digest": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"}
+        "repository": {
+          "const": "ghcr.io/ndftechlabs/dt-master-deployment-candidates"
+        },
+        "digest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
       }
     },
-    "payload_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "payload_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "producer": {
       "type": ["object", "null"],
       "additionalProperties": false,
-      "required": ["repository", "workflow_path", "workflow_ref", "source_commit", "run_id", "run_attempt"],
+      "required": [
+        "repository",
+        "workflow_path",
+        "workflow_ref",
+        "source_commit",
+        "run_id",
+        "run_attempt"
+      ],
       "properties": {
-        "repository": {"type": "string", "const": "NdfTechLabs/dt_master"},
-        "workflow_path": {"type": "string", "pattern": "^\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml$"},
-        "workflow_ref": {"type": "string", "minLength": 1},
-        "source_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
-        "run_id": {"type": "string", "pattern": "^[0-9]+$"},
-        "run_attempt": {"type": "integer", "minimum": 1}
+        "repository": { "type": "string", "const": "NdfTechLabs/dt_master" },
+        "workflow_path": {
+          "type": "string",
+          "pattern": "^\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml$"
+        },
+        "workflow_ref": { "type": "string", "minLength": 1 },
+        "source_commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "run_id": { "type": "string", "pattern": "^[0-9]+$" },
+        "run_attempt": { "type": "integer", "minimum": 1 }
       }
     },
     "evidence_references": {
@@ -72,32 +90,40 @@
         "additionalProperties": false,
         "required": ["kind", "reference", "sha256"],
         "properties": {
-          "kind": {"enum": ["cosign_signature", "candidate_origin_attestation"]},
-          "reference": {"type": "string", "minLength": 1, "maxLength": 2048},
-          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          "kind": {
+            "enum": ["cosign_signature", "candidate_origin_attestation"]
+          },
+          "reference": { "type": "string", "minLength": 1, "maxLength": 2048 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
         }
       }
     },
-    "error": {"type": "string", "maxLength": 2000}
+    "error": { "type": "string", "maxLength": 2000 }
   },
   "allOf": [
     {
-      "if": {"properties": {"decision": {"const": "verified"}}, "required": ["decision"]},
+      "if": {
+        "properties": { "decision": { "const": "verified" } },
+        "required": ["decision"]
+      },
       "then": {
         "properties": {
-          "reason_code": {"const": "CANDIDATE_ORIGIN_VERIFIED"},
-          "subject": {"properties": {"digest": {"type": "string"}}},
-          "payload_sha256": {"type": "string"},
-          "producer": {"type": "object"},
-          "evidence_references": {"minItems": 2, "maxItems": 2}
+          "reason_code": { "const": "CANDIDATE_ORIGIN_VERIFIED" },
+          "subject": { "properties": { "digest": { "type": "string" } } },
+          "payload_sha256": { "type": "string" },
+          "producer": { "type": "object" },
+          "evidence_references": { "minItems": 2, "maxItems": 2 }
         }
       }
     },
     {
-      "if": {"properties": {"decision": {"const": "rejected"}}, "required": ["decision"]},
+      "if": {
+        "properties": { "decision": { "const": "rejected" } },
+        "required": ["decision"]
+      },
       "then": {
         "properties": {
-          "reason_code": {"not": {"const": "CANDIDATE_ORIGIN_VERIFIED"}}
+          "reason_code": { "not": { "const": "CANDIDATE_ORIGIN_VERIFIED" } }
         }
       }
     }
