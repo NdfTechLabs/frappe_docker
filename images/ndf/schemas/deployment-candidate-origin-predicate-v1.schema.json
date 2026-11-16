@@ -21,12 +21,16 @@
     "candidate_id": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 200
+      "maxLength": 140,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$"
     },
     "candidate_artifact": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "digest"],
+      "required": [
+        "repository",
+        "digest"
+      ],
       "properties": {
         "repository": {
           "type": "string",
@@ -75,7 +79,10 @@
     "workflow_run": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["run_id", "run_attempt"],
+      "required": [
+        "run_id",
+        "run_attempt"
+      ],
       "properties": {
         "run_id": {
           "type": "string",
@@ -88,8 +95,8 @@
       }
     },
     "correlation_id": {
-      "type": ["string", "null"],
-      "maxLength": 200
+      "type": "string",
+      "format": "uuid"
     }
   }
 }
