@@ -45,5 +45,7 @@
       "assets": true
     }
   },
-  "provenance_refs": ["https://github.com/NdfTechLabs/dt_master/actions/runs/123456"]
+  "provenance_refs": [
+    "https://github.com/NdfTechLabs/dt_master/actions/runs/123456"
+  ]
 }
