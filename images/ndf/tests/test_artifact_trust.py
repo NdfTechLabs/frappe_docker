@@ -246,12 +246,11 @@ def test_validates_pdd_binding_and_exact_subjects():
     assert report["pdd_subject_digest"] == "sha256:" + "f" * 64
 
 
-
 def test_pdd_binding_requires_source_provenance_predicate_hash():
     statement = _pdd_statement()
-    statement["predicate"]["source_provenance"]["attestation_sha256"] = (
-        statement["predicate"]["source_provenance"].pop("predicate_sha256")
-    )
+    statement["predicate"]["source_provenance"]["attestation_sha256"] = statement[
+        "predicate"
+    ]["source_provenance"].pop("predicate_sha256")
     with pytest.raises(ArtifactTrustError, match="schema validation failed"):
         trust.validate_pdd_binding_statement(
             statement,
