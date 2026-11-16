@@ -397,10 +397,39 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
         "verify_product_deployment_binding",
         lambda *args, **kwargs: binding_payload,
     )
+    consumer_report = {
+        "execution": {"status": "completed"},
+        "evidence": {"binding_status": "passed"},
+        "trust_decision": {
+            "status": "rejected",
+            "reason_codes": ["IDENTITY_POLICY_PROVISIONAL"],
+        },
+        "deployment_authorization": "not_granted",
+    }
+    trust_calls = []
+
+    def fake_independent_trust_verification(**kwargs):
+        trust_calls.append(kwargs)
+        return consumer_report
+
+    monkeypatch.setattr(
+        retriever,
+        "_verify_independent_consumer_trust",
+        fake_independent_trust_verification,
+    )
     output_dir = tmp_path / "retrieved"
     report = fetch_product_deployment_descriptor(receipt_path, output_dir)
-    assert report["status"] == "verified"
-    assert report["evidence_binding_verified"] is True
+    assert report is consumer_report
+    assert report["execution"]["status"] == "completed"
+    assert report["evidence"]["binding_status"] == "passed"
+    assert report["trust_decision"]["reason_codes"] == [
+        "IDENTITY_POLICY_PROVISIONAL"
+    ]
+    assert report["deployment_authorization"] == "not_granted"
+    assert len(trust_calls) == 1
+    assert trust_calls[0]["receipt"] == receipt
+    assert trust_calls[0]["output_dir"] == output_dir
+    assert trust_calls[0]["pulled_dir"].is_dir()
     assert (output_dir / "product-deployment.json").read_bytes() == pdd_bytes
 
 
