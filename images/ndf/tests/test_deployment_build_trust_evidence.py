@@ -64,3 +64,9 @@ def test_trust_report_has_no_dt_master_verification_outcome_fields():
     assert "master_image_verification" not in report
     assert "master_descriptor_verification" not in report
     assert "deployment_authorized" not in report
+
+
+def test_correlation_id_requires_canonical_lowercase_uuid():
+    report = load_json(FIXTURE)
+    report["correlation_id"] = report["correlation_id"].upper()
+    assert list(validator().iter_errors(report))
