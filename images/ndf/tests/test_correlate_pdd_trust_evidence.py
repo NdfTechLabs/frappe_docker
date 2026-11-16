@@ -285,7 +285,7 @@ def test_rejects_statement_workflow_run_attempt_mismatch(tmp_path):
     # the first failing correlation check.
     attestation_path = root / "pdd-verified-attestation.json"
     attestation_text = attestation_path.read_text(encoding="utf-8")
-    envelope_text = attestation_text.split("--\\n", 1)[1].strip()
+    envelope_text = attestation_text.split("--\n", 1)[1].strip()
     envelope = json.loads(envelope_text)
 
     verified_statement = json.loads(
@@ -300,7 +300,7 @@ def test_rejects_statement_workflow_run_attempt_mismatch(tmp_path):
     ).decode("ascii")
 
     attestation_path.write_text(
-        "Verification for PDD --\\n" + json.dumps(envelope) + "\\n",
+        "Verification for PDD --\n" + json.dumps(envelope) + "\\n",
         encoding="utf-8",
     )
 
