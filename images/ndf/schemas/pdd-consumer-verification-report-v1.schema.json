@@ -44,11 +44,12 @@
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["policy_id", "schema_version", "status"],
+      "required": ["policy_id", "schema_version", "status", "policy_sha256"],
       "properties": {
         "policy_id": { "const": "ndf-artifact-trust-identity-policy-v1" },
         "schema_version": { "const": "1.0.0" },
-        "status": { "enum": ["provisional_until_live_certificate_observation", "confirmed"] }
+        "status": { "enum": ["provisional_until_live_certificate_observation", "confirmed"] },
+        "policy_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
     "pdd": { "$ref": "#/$defs/artifact" },
