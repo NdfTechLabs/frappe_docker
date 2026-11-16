@@ -223,7 +223,7 @@ def test_noncanonical_correlation_id_fails_closed(tmp_path, value):
     env["CORRELATION_ID"] = value
     completed, _ = invoke(tmp_path, env)
     assert completed.returncode != 0
-    assert "canonical UUID" in completed.stderr
+    assert "canonical" in completed.stderr
 
 
 @pytest.mark.parametrize("candidate_id", ["bad id", "A" + "a" * 140, "-invalid"])

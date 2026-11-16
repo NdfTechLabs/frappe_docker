@@ -28,7 +28,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 140,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$"
     },
     "candidate_code": {
       "type": "string",
