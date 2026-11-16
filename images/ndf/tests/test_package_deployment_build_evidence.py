@@ -242,7 +242,8 @@ def test_failed_result_with_not_evaluated_origin_remains_packagable(tmp_path):
         schema_dir=SCHEMAS,
         output_dir=output,
     )
-    assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["transport_integrity"] == "verified"
+    verified = bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
+    assert verified["transport_integrity"] == "verified"
 
 
 def test_verifier_independently_rejects_success_with_not_evaluated_origin(tmp_path):
