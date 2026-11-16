@@ -243,6 +243,7 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
         predicate
     )
     assert result["status"] == "passed"
+    assert result["predicate_sha256"] == _hash(statement["predicate"])
     first_bytes = output.read_bytes()
 
     second = tmp_path / "binding-statement-second.json"
@@ -258,3 +259,55 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
     )
     assert second.read_bytes() == first_bytes
     assert second_predicate.read_bytes() == predicate_output.read_bytes()
+
+
+
+def test_generator_rejects_same_statement_and_predicate_output_path(tmp_path, monkeypatch):
+    descriptor, receipt, trust_result, predicate, env = _inputs()
+    descriptor_path = _write(tmp_path / "product-deployment.json", descriptor)
+    receipt_path = _write(tmp_path / "publication.json", receipt)
+    trust_path = _write(tmp_path / "trust-result.json", trust_result)
+    predicate_path = _write(tmp_path / "source-predicate.json", predicate)
+    output = tmp_path / "binding.json"
+    monkeypatch.setattr(
+        generator, "validate_descriptor", lambda path: {"status": "passed"}
+    )
+    with pytest.raises(generator.PDDBindingGenerationError, match="distinct paths"):
+        generator.generate_pdd_image_binding(
+            descriptor_path=descriptor_path,
+            publication_record_path=receipt_path,
+            source_trust_result_path=trust_path,
+            source_predicate_path=predicate_path,
+            statement_output=output,
+            predicate_output=output,
+            env=env,
+        )
+    assert not output.exists()
+
+
+def test_generator_rejects_symlink_predicate_output(tmp_path, monkeypatch):
+    descriptor, receipt, trust_result, predicate, env = _inputs()
+    descriptor_path = _write(tmp_path / "product-deployment.json", descriptor)
+    receipt_path = _write(tmp_path / "publication.json", receipt)
+    trust_path = _write(tmp_path / "trust-result.json", trust_result)
+    predicate_path = _write(tmp_path / "source-predicate.json", predicate)
+    output = tmp_path / "binding-statement.json"
+    target = tmp_path / "target.json"
+    target.write_text("{}", encoding="utf-8")
+    symlink = tmp_path / "binding-predicate.json"
+    symlink.symlink_to(target)
+    monkeypatch.setattr(
+        generator, "validate_descriptor", lambda path: {"status": "passed"}
+    )
+    with pytest.raises(generator.PDDBindingGenerationError, match="symlink"):
+        generator.generate_pdd_image_binding(
+            descriptor_path=descriptor_path,
+            publication_record_path=receipt_path,
+            source_trust_result_path=trust_path,
+            source_predicate_path=predicate_path,
+            statement_output=output,
+            predicate_output=symlink,
+            env=env,
+        )
+    assert not output.exists()
+    assert target.read_text(encoding="utf-8") == "{}"
