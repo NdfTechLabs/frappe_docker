@@ -222,3 +222,12 @@ def test_noncanonical_correlation_id_fails_closed(tmp_path, value):
     completed, _ = invoke(tmp_path, env)
     assert completed.returncode != 0
     assert "canonical UUID" in completed.stderr
+
+
+@pytest.mark.parametrize("candidate_id", ["bad id", "A" + "a" * 140, "-invalid"])
+def test_candidate_id_must_match_shared_contract(tmp_path, candidate_id):
+    env = base_env()
+    env["CANDIDATE_ID"] = candidate_id
+    completed, _ = invoke(tmp_path, env)
+    assert completed.returncode != 0
+    assert "shared 140-character contract" in completed.stderr
