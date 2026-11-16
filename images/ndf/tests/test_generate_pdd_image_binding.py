@@ -219,6 +219,7 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
     trust_path = _write(tmp_path / "trust-result.json", trust_result)
     predicate_path = _write(tmp_path / "predicate.json", predicate)
     output = tmp_path / "binding-statement.json"
+    predicate_output = tmp_path / "binding-predicate.json"
     monkeypatch.setattr(
         generator, "validate_descriptor", lambda path: {"status": "passed"}
     )
@@ -229,9 +230,13 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
         source_trust_result_path=trust_path,
         source_predicate_path=predicate_path,
         statement_output=output,
+        predicate_output=predicate_output,
         env=env,
     )
     statement = json.loads(output.read_text(encoding="utf-8"))
+    generated_predicate = json.loads(predicate_output.read_text(encoding="utf-8"))
+    assert generated_predicate == statement["predicate"]
+    assert predicate_output.read_bytes() == generator._canonical_json(generated_predicate)
     assert statement["_type"] == "https://in-toto.io/Statement/v1"
     assert statement["subject"][0]["digest"]["sha256"] == "b" * 64
     assert statement["predicate"]["source_provenance"]["predicate_sha256"] == _hash(
@@ -241,12 +246,15 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
     first_bytes = output.read_bytes()
 
     second = tmp_path / "binding-statement-second.json"
+    second_predicate = tmp_path / "binding-predicate-second.json"
     generator.generate_pdd_image_binding(
         descriptor_path=descriptor_path,
         publication_record_path=receipt_path,
         source_trust_result_path=trust_path,
         source_predicate_path=predicate_path,
         statement_output=second,
+        predicate_output=second_predicate,
         env=env,
     )
     assert second.read_bytes() == first_bytes
+    assert second_predicate.read_bytes() == predicate_output.read_bytes()
