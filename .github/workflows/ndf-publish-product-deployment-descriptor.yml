@@ -23,7 +23,6 @@ on:
 permissions:
   actions: read
   contents: read
-  packages: write
 
 concurrency:
   group: ndf-pdd-publication
@@ -34,6 +33,10 @@ jobs:
     name: Publish verified PDD OCI artifact
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      packages: write
     env:
       BUILD_RUN_ID: ${{ inputs.build_run_id }}
       BUILD_ARTIFACT_NAME: ${{ inputs.build_artifact_name }}
@@ -42,6 +45,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       EVIDENCE_DIR: ${{ github.workspace }}/.ndf-pdd-publication-evidence
       VERIFICATION_DIR: ${{ github.workspace }}/.ndf-pdd-verification
+      SOURCE_TRUST_DIR: ${{ github.workspace }}/.ndf-source-image-trust
     steps:
       - name: Checkout publication code
         uses: actions/checkout@v7
@@ -69,6 +73,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Validate source runs and artifact ownership
+        id: source
         shell: bash
         run: |
           set -euo pipefail
@@ -77,6 +82,7 @@ jobs:
           [[ "$VERIFICATION_RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid verification_run_id" >&2; exit 1; }
 
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/build-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/build-jobs.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFICATION_RUN_ID" > "$RUNNER_TEMP/verification-run.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/build-artifacts.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFICATION_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/verification-artifacts.json"
@@ -88,6 +94,7 @@ jobs:
           from pathlib import Path
 
           build = json.loads(Path(os.environ["RUNNER_TEMP"], "build-run.json").read_text())
+          build_jobs = json.loads(Path(os.environ["RUNNER_TEMP"], "build-jobs.json").read_text())
           verification = json.loads(Path(os.environ["RUNNER_TEMP"], "verification-run.json").read_text())
           build_artifacts = json.loads(Path(os.environ["RUNNER_TEMP"], "build-artifacts.json").read_text())
           verification_artifacts = json.loads(Path(os.environ["RUNNER_TEMP"], "verification-artifacts.json").read_text())
@@ -101,14 +108,27 @@ jobs:
               raise SystemExit("Source image build run must have completed successfully.")
           if build.get("path") != ".github/workflows/ndf-publish-product.yml":
               raise SystemExit("Source run is not NDF / Publish Product Images.")
+          if build.get("head_branch") != "main":
+              raise SystemExit("Source image build must have run from main.")
           if str(build.get("id")) != build_id:
               raise SystemExit("Source build run ID mismatch.")
-          build_match = re.fullmatch(r"ndf-publish-(.+)-(\d+)-(\d+)", build_name)
+          build_match = re.fullmatch(r"ndf-publish-(.+)-(\\d+)-(\\d+)", build_name)
           if not build_match or build_match.group(2) != build_id or int(build_match.group(3)) != build.get("run_attempt"):
               raise SystemExit("Build evidence artifact does not belong to the supplied build run/attempt.")
+          image_id = build_match.group(1)
+          build_attempt = int(build_match.group(3))
           build_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == build_name), None)
           if not build_artifact or build_artifact.get("expired"):
               raise SystemExit("Original build evidence artifact is missing or expired.")
+
+          trust_name = f"ndf-cosign-live-{image_id}-{build_id}-{build_attempt}"
+          trust_job_name = f"Live Cosign trust check for {image_id}"
+          trust_job = next((item for item in build_jobs.get("jobs", []) if item.get("name") == trust_job_name), None)
+          if not trust_job or trust_job.get("conclusion") != "success":
+              raise SystemExit(f"Successful source-image Cosign trust job not found: {trust_job_name}.")
+          trust_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == trust_name), None)
+          if not trust_artifact or trust_artifact.get("expired"):
+              raise SystemExit("Exact attempt-scoped source-image Cosign trust artifact is missing or expired.")
 
           if verification.get("status") != "completed" or verification.get("conclusion") != "success":
               raise SystemExit("PDD binding verification run must have completed successfully.")
@@ -126,19 +146,30 @@ jobs:
               raise SystemExit("Verified descriptor/report artifact is missing or expired.")
 
           print(f"Source image build: {build['html_url']}")
+          print(f"Source-image Cosign trust job: {trust_job_name}")
+          print(f"Source-image trust evidence: {trust_name}")
           print(f"Binding verification: {verification['html_url']}")
           print(f"Build evidence: {build_name}")
           print(f"Verified descriptor/report: {verification_name}")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"source_trust_artifact_name={trust_name}\\n")
+              output.write(f"source_image_id={image_id}\\n")
+              output.write(f"source_build_attempt={build_attempt}\\n")
           PY
 
       - name: Download original build evidence
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$EVIDENCE_DIR" "$VERIFICATION_DIR"
+          mkdir -p "$EVIDENCE_DIR" "$VERIFICATION_DIR" "$SOURCE_TRUST_DIR"
           gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$BUILD_ARTIFACT_NAME" --dir "$EVIDENCE_DIR"
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "${{ steps.source.outputs.source_trust_artifact_name }}" --dir "$SOURCE_TRUST_DIR"
           gh run download "$VERIFICATION_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$VERIFICATION_ARTIFACT_NAME" --dir "$VERIFICATION_DIR"
           test -s "$EVIDENCE_DIR/build-result.json"
+          test -s "$EVIDENCE_DIR/image-provenance-predicate.json"
+          test -s "$SOURCE_TRUST_DIR/image-provenance-predicate.json"
+          test -s "$SOURCE_TRUST_DIR/cosign-live-verification-result.json"
+          cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_TRUST_DIR/image-provenance-predicate.json"
           test -s "$VERIFICATION_DIR/product-deployment.json"
           test -s "$VERIFICATION_DIR/binding-verification.json"
           cp "$VERIFICATION_DIR/product-deployment.json" "$EVIDENCE_DIR/product-deployment.json"
