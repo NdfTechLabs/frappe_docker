@@ -339,3 +339,10 @@ def test_candidate_adapter_accepts_missing_optional_requested_version(
     lock_data = json.loads(result["lock_path"].read_text(encoding="utf-8"))
     assert lock_data["applications"]
     assert lock_data["applications"][0]["immutable_commit"]
+    composition = json.loads(result["mapping_path"].read_text(encoding="utf-8"))
+    mapped_app = next(
+        item
+        for item in composition["applications"]
+        if item["app_id"] == candidate["applications"][0]["app_id"]
+    )
+    assert "requested_version" not in mapped_app
