@@ -107,7 +107,14 @@ class FakeRunner:
             stdout = '[{"critical":{"identity":{"docker-reference":"'
             stdout += PDD_REPOSITORY + '"}}}]'
         elif args[1] == "verify-attestation":
-            stdout = self.attestation_output
+            attestation_calls = sum(
+                call[1] == "verify-attestation" for call in self.calls
+            )
+            stdout = (
+                self.attestation_output
+                if attestation_calls == 1
+                else self.exact_attestation_output
+            )
         else:
             stdout = ""
         return subprocess.CompletedProcess(args, 0, stdout, "")
@@ -274,7 +281,10 @@ def test_verify_rejects_provisional_policy_and_writes_normalized_result(tmp_path
         "reason_codes": [trust.PROVISIONAL_REASON],
     }
     assert attestation_path.is_file()
-    assert attestation_path.read_text(encoding="utf-8") == runner.attestation_output
+    assert (
+        attestation_path.read_text(encoding="utf-8")
+        == runner.exact_attestation_output
+    )
     checks = [
         call
         for call in runner.calls
