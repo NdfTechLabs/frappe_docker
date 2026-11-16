@@ -291,7 +291,7 @@ def test_rejects_wrong_subject_digest(tmp_path):
 
 def test_rejects_malformed_der_utf8_length():
     with pytest.raises(observer.CertificateObservationError, match="DER length"):
-        observer._decode_der_utf8_string(b"\\x0c\\x82\\x00", "1.2.3")
+        observer._decode_der_utf8_string(bytes([0x0C, 0x82, 0x00]), "1.2.3")
 
 
 def test_rejects_non_utf8_legacy_claim():
@@ -303,7 +303,7 @@ def test_rejects_non_utf8_legacy_claim():
 
 def test_rejects_duplicate_json_keys_in_bundle(tmp_path):
     path = tmp_path / "bundles.jsonl"
-    path.write_text('{"mediaType":"one","mediaType":"two"}\n', encoding="utf-8")
+    path.write_text('{"mediaType":"one","mediaType":"two"}' + chr(10), encoding="utf-8")
     with pytest.raises(observer.CertificateObservationError, match="Duplicate JSON key"):
         observer._read_jsonl(path)
 
