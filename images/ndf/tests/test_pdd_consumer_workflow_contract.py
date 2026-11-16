@@ -22,6 +22,13 @@ def test_consumer_workflow_retains_read_only_permissions():
     assert "actions: write" not in workflow
 
 
+def test_consumer_workflow_installs_the_pinned_cosign_cli():
+    workflow = read_workflow()
+    assert "uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in workflow
+    assert "cosign-release: v3.1.4" in workflow
+    assert "cosign version" in workflow
+
+
 def test_consumer_invokes_full_trust_verification_with_explicit_evidence_paths():
     workflow = read_workflow()
     step = workflow.split("name: Independently verify PDD and source image trust", 1)[
