@@ -275,7 +275,7 @@ jobs:
             echo
             echo "- Staging image: ${{ steps.image.outputs.candidate_ref }}"
             echo "- Validated digest: $IMAGE_DIGEST"
-            echo "- Official source tag: ${{ steps.image.outputs.image_ref }}"
+            echo "- Intended official source tag: ${{ steps.image.outputs.image_ref }}"
             echo "- Official publication requested: ${{ inputs.publish }}"\n            echo "- Official promotion: handled by a separate trust-gated job"
             echo "- Source commit: $GITHUB_SHA"
             echo "- Platforms: $TARGET_PLATFORMS"
@@ -597,8 +597,14 @@ jobs:
               raise SystemExit("Trust result refers to a different image digest.")
           if trust.get("decision", {}).get("status") != "trusted":
               raise SystemExit("Only an independently trusted image may be promoted.")
-          if trust.get("signature", {}).get("verified") is not True or trust.get("attestations", [{}])[0].get("verified") is not True:
-              raise SystemExit("Required signature or provenance verification is missing.")
+          for section in ("signature", "signer", "transparency"):
+              if trust.get(section, {}).get("verified") is not True:
+                  raise SystemExit(f"Required {section} verification is missing.")
+          attestations = trust.get("attestations")
+          if not isinstance(attestations, list) or len(attestations) != 1:
+              raise SystemExit("Exactly one verified SLSA provenance attestation is required.")
+          if attestations[0].get("verified") is not True or attestations[0].get("subject_digest") != digest:
+              raise SystemExit("SLSA provenance is not verified against the promoted digest.")
           print(f"image_repository={repository}")
           print(f"image_digest={digest}")
           PY
