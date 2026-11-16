@@ -377,7 +377,8 @@ def main() -> int:
     parser.add_argument("--pdd-trust-result-output", type=Path)
     parser.add_argument("--pdd-attestation-output", type=Path)
     parser.add_argument("--image-trust-result-output", type=Path)
-    parser.add_argument("--image-attestation-output", type=Path)    parser.add_argument("--consumer-report-output", type=Path)
+    parser.add_argument("--image-attestation-output", type=Path)
+    parser.add_argument("--consumer-report-output", type=Path)
     parser.add_argument(
         "--skip-image-binding",
         action="store_true",
@@ -583,7 +584,8 @@ def _verify_independent_consumer_trust(
     pdd_result_path = pdd_result_output or output_dir / "pdd-trust-result.json"
     pdd_attestation_path = (
         pdd_attestation_output or output_dir / "pdd-verified-attestation.json"
-    )    image_result_path = image_result_output or output_dir / "image-trust-result.json"
+    )
+    image_result_path = image_result_output or output_dir / "image-trust-result.json"
     image_attestation_path = (
         image_attestation_output or output_dir / "image-verified-attestation.json"
     )
@@ -772,7 +774,8 @@ def _verify_independent_consumer_trust(
         raise PDDRetrievalError(
             "Image attestation is not the supported Cosign Statement v0.1."
         )
-    normalized_image_statement = dict(image_statement)    normalized_image_statement["_type"] = "https://in-toto.io/Statement/v1"
+    normalized_image_statement = dict(image_statement)
+    normalized_image_statement["_type"] = "https://in-toto.io/Statement/v1"
     try:
         artifact_trust.validate_image_provenance_statement(
             normalized_image_statement, image_digest
