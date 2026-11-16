@@ -256,7 +256,12 @@ def verify_candidate_origin(
             "PREDICATE_INVALID", "Correlation ID must be a canonical lowercase UUID."
         )
 
-    digest = intake.parse_candidate_reference(artifact_reference)
+    try:
+        digest = intake.parse_candidate_reference(artifact_reference)
+    except Exception as exc:
+        raise CandidateOriginTrustError(
+            "SUBJECT_DIGEST_MISMATCH", f"Candidate artifact reference is invalid: {exc}"
+        ) from exc
     policy = _load_policy(policy_path)
     identity = _identity(policy)
 
@@ -447,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             digest = intake.parse_candidate_reference(args.artifact_reference)
         except Exception:
-            pass
+            digest = None
         result = {
             "schema_version": "1.0.0",
             "decision": "rejected",
@@ -455,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
             "candidate_id": args.candidate_id,
             "correlation_id": args.correlation_id,
             "subject": {"repository": CANDIDATE_REPOSITORY, "digest": digest},
-            "payload_sha256": args.payload_sha256,
+            "payload_sha256": args.payload_sha256 if SHA256_RE.fullmatch(args.payload_sha256 or "") else None,
             "producer": None,
             "evidence_references": [],
             "error": str(exc),
