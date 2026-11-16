@@ -62,7 +62,7 @@
         "image_repository_matches",
         "image_digest_matches",
         "image_platform_matches",
-        "source_workflow_sha_matches_binding",
+        "image_source_sha_verified",
         "predicate_hash_matches"
       ],
       "properties": {
