@@ -97,5 +97,5 @@ def test_consumer_summary_explicitly_labels_provisional_rejection_and_no_authori
     assert 'decision["status"] == "rejected"' in summary
     assert "REJECTED — cryptographic and evidence checks completed" in summary
     assert "This result is not trusted and does not authorize deployment." in summary
-    assert "Deployment authorization" in summary
-    assert "not_granted" in summary
+    assert "Deployment authorization: **{report['deployment_authorization']}**" in summary
+    assert "remains not granted by this workflow" in summary
