@@ -87,6 +87,44 @@ def _inputs(tmp_path: Path):
     return result_path, report_path, evidence_root, result, report
 
 
+def _mark_successful_result(result):
+    result["status"] = "succeeded"
+    result.pop("failure", None)
+    result.update(
+        {
+            "composition_hash": "c" * 64,
+            "resolved_lock_hash": "d" * 64,
+            "image": {
+                "repository": "ghcr.io/ndftechlabs/dalali",
+                "digest": "sha256:" + "e" * 64,
+                "immutable_reference": "ghcr.io/ndftechlabs/dalali@sha256:" + "e" * 64,
+            },
+            "descriptor": {
+                "reference": "ghcr.io/ndftechlabs/pdd/dalali@sha256:" + "f" * 64,
+                "digest": "sha256:" + "f" * 64,
+                "content_hash": "9" * 64,
+            },
+            "provenance_ref": "https://github.com/NdfTechLabs/frappe_docker/actions/runs/123456",
+        }
+    )
+    return result
+
+
+def _rebind_report(result_path: Path, report_path: Path, decision: str):
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["candidate_origin"]["decision"] = decision
+    report["candidate_origin"]["reason_code"] = {
+        "verified": "CANDIDATE_ORIGIN_VERIFIED",
+        "rejected": "IDENTITY_POLICY_PROVISIONAL",
+        "not_evaluated": "NOT_EVALUATED",
+    }[decision]
+    report["candidate_origin"]["evidence_references"] = []
+    report["result_binding"]["result_sha256"] = hashlib.sha256(
+        result_path.read_bytes()
+    ).hexdigest()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+
 def _add_verified_evidence(result_path: Path, report_path: Path, evidence_root: Path):
     signature = b'{"signature":"verified"}\\n'
     attestation = b'{"attestation":"verified"}\\n'
@@ -153,6 +191,91 @@ def test_pack_includes_report_referenced_evidence(tmp_path):
     assert (
         bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["file_count"] == 5
     )
+
+
+def test_successful_result_and_verified_origin_can_be_packaged(tmp_path):
+    result_path, report_path, evidence_root, result, _ = _inputs(tmp_path)
+    _mark_successful_result(result)
+    result_path.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
+    _add_verified_evidence(result_path, report_path, evidence_root)
+
+    output = tmp_path / "bundle"
+    bundle.pack_bundle(
+        result_path=result_path,
+        report_path=report_path,
+        evidence_root=evidence_root,
+        schema_dir=SCHEMAS,
+        output_dir=output,
+    )
+    assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["transport_integrity"] == "verified"
+
+
+@pytest.mark.parametrize("decision", ["rejected", "not_evaluated"])
+def test_packer_rejects_successful_result_without_verified_origin(tmp_path, decision):
+    result_path, report_path, evidence_root, result, _ = _inputs(tmp_path)
+    _mark_successful_result(result)
+    result_path.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
+    _rebind_report(result_path, report_path, decision)
+
+    with pytest.raises(
+        bundle.EvidenceBundleError,
+        match="successful deployment build result requires verified candidate origin",
+    ):
+        bundle.pack_bundle(
+            result_path=result_path,
+            report_path=report_path,
+            evidence_root=evidence_root,
+            schema_dir=SCHEMAS,
+            output_dir=tmp_path / "bundle",
+        )
+
+
+def test_failed_result_with_not_evaluated_origin_remains_packagable(tmp_path):
+    result_path, report_path, evidence_root, _, _ = _inputs(tmp_path)
+    _rebind_report(result_path, report_path, "not_evaluated")
+    output = tmp_path / "bundle"
+    bundle.pack_bundle(
+        result_path=result_path,
+        report_path=report_path,
+        evidence_root=evidence_root,
+        schema_dir=SCHEMAS,
+        output_dir=output,
+    )
+    assert bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)["transport_integrity"] == "verified"
+
+
+def test_verifier_independently_rejects_success_with_not_evaluated_origin(tmp_path):
+    output, manifest = _pack(tmp_path)
+    result_path = output / bundle.RESULT_FILENAME
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    _mark_successful_result(result)
+    result_bytes = (json.dumps(result, sort_keys=True) + "\n").encode()
+    result_path.write_bytes(result_bytes)
+
+    report_path = output / bundle.REPORT_FILENAME
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["candidate_origin"]["decision"] = "not_evaluated"
+    report["candidate_origin"]["reason_code"] = "NOT_EVALUATED"
+    report["result_binding"]["result_sha256"] = hashlib.sha256(result_bytes).hexdigest()
+    report_bytes = (json.dumps(report, sort_keys=True) + "\n").encode()
+    report_path.write_bytes(report_bytes)
+
+    for entry in manifest["files"]:
+        if entry["role"] == "result":
+            entry["size"] = len(result_bytes)
+            entry["sha256"] = hashlib.sha256(result_bytes).hexdigest()
+        elif entry["role"] == "trust_evidence":
+            entry["size"] = len(report_bytes)
+            entry["sha256"] = hashlib.sha256(report_bytes).hexdigest()
+    (output / bundle.MANIFEST_FILENAME).write_text(
+        json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    with pytest.raises(
+        bundle.EvidenceBundleError,
+        match="successful deployment build result requires verified candidate origin",
+    ):
+        bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
 
 
 def test_packer_rejects_missing_referenced_evidence(tmp_path):
