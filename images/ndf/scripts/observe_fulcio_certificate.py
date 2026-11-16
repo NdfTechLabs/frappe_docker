@@ -320,7 +320,6 @@ def observe_certificate(
         "iss": "issuer",
         "event_name": "build_trigger",
         "source_sha": "source_repository_digest",
-        "repository": "source_repository_uri",
         "ref": "source_repository_ref",
     }
     for legacy, generic in legacy_generic_pairs.items():
@@ -329,6 +328,26 @@ def observe_certificate(
                 raise CertificateObservationError(
                     f"Legacy and generic Fulcio claims disagree: {legacy} vs {generic}."
                 )
+    source_uri = fulcio_claims.get("source_repository_uri")
+    if source_uri and fulcio_claims.get("repository"):
+        if source_uri.removeprefix("https://github.com/") != fulcio_claims["repository"]:
+            raise CertificateObservationError(
+                "Legacy repository and generic source repository URI claims disagree."
+            )
+    for uri_claim in ("build_signer_uri", "build_config_uri"):
+        if uri_claim in fulcio_claims and fulcio_claims[uri_claim] != certificate_identity:
+            raise CertificateObservationError(
+                f"Fulcio {uri_claim} does not match the certificate URI SAN."
+            )
+    for digest_claim in ("build_signer_digest", "build_config_digest"):
+        if (
+            digest_claim in fulcio_claims
+            and "source_sha" in fulcio_claims
+            and fulcio_claims[digest_claim] != fulcio_claims["source_sha"]
+        ):
+            raise CertificateObservationError(
+                f"Fulcio {digest_claim} does not match the source commit claim."
+            )
 
     try:
         policy = artifact_trust.load_identity_policy(policy_path)
