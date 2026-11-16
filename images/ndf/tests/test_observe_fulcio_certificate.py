@@ -27,9 +27,9 @@ ARTIFACT_REFERENCE = f"{REPOSITORY}@sha256:{DIGEST}"
 def _der_utf8(value):
     encoded = value.encode("utf-8")
     if len(encoded) < 128:
-        return b"\\x0c" + bytes([len(encoded)]) + encoded
+        return b"\x0c" + bytes([len(encoded)]) + encoded
     length = len(encoded).to_bytes((len(encoded).bit_length() + 7) // 8, "big")
-    return b"\\x0c" + bytes([0x80 | len(length)]) + length + encoded
+    return b"\x0c" + bytes([0x80 | len(length)]) + length + encoded
 
 
 def _certificate_der():
@@ -206,6 +206,7 @@ def test_rejects_ambiguous_duplicate_matching_bundles(tmp_path):
             verified,
             artifact_reference=ARTIFACT_REFERENCE,
             predicate_type=PDD_PREDICATE,
+            identity_id="product-image-publication",
         )
 
 
@@ -217,6 +218,7 @@ def test_rejects_bundle_without_leaf_certificate(tmp_path):
             verified,
             artifact_reference=ARTIFACT_REFERENCE,
             predicate_type=PDD_PREDICATE,
+            identity_id="product-image-publication",
         )
 
 
@@ -240,6 +242,7 @@ def test_rejects_wrong_subject_digest(tmp_path):
             verified,
             artifact_reference=f"{REPOSITORY}@sha256:{'b' * 64}",
             predicate_type=PDD_PREDICATE,
+            identity_id="product-image-publication",
         )
 
 
@@ -251,12 +254,12 @@ def test_rejects_malformed_der_utf8_length():
 def test_rejects_non_utf8_legacy_claim():
     with pytest.raises(observer.CertificateObservationError, match="not UTF-8"):
         observer._claim_value(
-            {observer.FULCIO_OID_PREFIX + "1": b"\\xff"}, "1", der=False
+            {observer.FULCIO_OID_PREFIX + "1": b"\xff"}, "1", der=False
         )
 
 
 def test_rejects_duplicate_json_keys_in_bundle(tmp_path):
     path = tmp_path / "bundles.jsonl"
-    path.write_text('{"mediaType":"one","mediaType":"two"}\\n', encoding="utf-8")
+    path.write_text('{"mediaType":"one","mediaType":"two"}\n', encoding="utf-8")
     with pytest.raises(observer.CertificateObservationError, match="Duplicate JSON key"):
         observer._read_jsonl(path)
