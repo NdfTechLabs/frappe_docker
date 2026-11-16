@@ -497,9 +497,7 @@ def verify_image(
     _validate_cosign_statement(verified_statement, repository=repository, digest=digest)
     if attestation_output is not None:
         # Preserve the exact-source-SHA-constrained second verification pass.
-        _atomic_write(
-            attestation_output, attestation_result.stdout.encode("utf-8")
-        )
+        _atomic_write(attestation_output, attestation_result.stdout.encode("utf-8"))
 
     now = verified_at or datetime.now(timezone.utc)
     if now.tzinfo is None:

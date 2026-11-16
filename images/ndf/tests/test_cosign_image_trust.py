@@ -419,9 +419,13 @@ def test_verify_self_contained_mode_needs_no_expected_predicate(tmp_path):
         "status": "rejected",
         "reason_codes": ["IDENTITY_POLICY_PROVISIONAL"],
     }
-    assert attestation_output.read_text(encoding="utf-8") == runner.exact_attestation_output
+    assert (
+        attestation_output.read_text(encoding="utf-8")
+        == runner.exact_attestation_output
+    )
     checks = [
-        call for call in runner.calls
+        call
+        for call in runner.calls
         if len(call) > 1 and call[1] in ("verify", "verify-attestation")
     ]
     assert len(checks) == 4
