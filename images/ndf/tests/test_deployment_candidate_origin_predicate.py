@@ -40,7 +40,7 @@ def _predicate():
             "source_commit": "c" * 40,
         },
         "workflow_run": {"run_id": "123456789", "run_attempt": 1},
-        "correlation_id": None,
+        "correlation_id": "4f9b4c7e-2c10-4c9e-9e3d-8a0d5f2e7b61",
     }
 
 
