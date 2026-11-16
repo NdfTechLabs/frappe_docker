@@ -171,6 +171,24 @@ jobs:
               raise SystemExit("Consumer report must not grant deployment authorization.")
           if report.get("evidence", {}).get("binding_status") != "passed":
               raise SystemExit("Consumer report does not confirm evidence binding.")
+          required_stages = (
+              "pdd_retrieval",
+              "pdd_trust",
+              "image_trust",
+              "provenance_correlation",
+              "evidence_binding",
+          )
+          stages = report.get("execution", {}).get("stages", {})
+          if not all(stages.get(stage) == "passed" for stage in required_stages):
+              raise SystemExit("Consumer report does not record every required stage as passed.")
+          for artifact_name in ("pdd", "source_image"):
+              artifact = report.get(artifact_name, {})
+              if not all(artifact.get(key) is True for key in (
+                  "signature_verified",
+                  "signer_verified",
+                  "transparency_verified",
+              )):
+                  raise SystemExit(f"{artifact_name} cryptographic verification flags are incomplete.")
           if not all(report.get("correlation", {}).get(key) is True for key in (
               "pdd_subject_matches",
               "descriptor_matches",
@@ -195,6 +213,8 @@ jobs:
                   and pdd_decision == "trusted"
                   and image_decision == "trusted"
                   and reasons == []
+                  and report.get("pdd", {}).get("trust_reason_codes") == []
+                  and report.get("source_image", {}).get("trust_reason_codes") == []
               ):
                   raise SystemExit("Exit 0 did not correlate with two trusted identities under confirmed policy.")
               outcome = "trusted"
