@@ -12,8 +12,7 @@
     "correlation_id",
     "result_binding",
     "workflow",
-    "candidate_origin",
-    "ndf_artifacts"
+    "candidate_origin"
   ],
   "properties": {
     "schema_version": {
@@ -147,10 +146,6 @@
     "ndf_artifacts": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "image",
-        "descriptor"
-      ],
       "properties": {
         "image": {
           "$ref": "#/$defs/ndfImageEvidence"
