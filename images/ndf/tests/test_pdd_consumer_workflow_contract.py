@@ -104,3 +104,35 @@ def test_consumer_summary_explicitly_labels_provisional_rejection_and_no_authori
         "Deployment authorization: **{report['deployment_authorization']}**" in summary
     )
     assert "remains not granted by this workflow" in summary
+
+def test_consumer_workflow_requires_artifact_decisions_to_match_exit_policy():
+    workflow = read_workflow()
+    step = workflow.split("name: Independently verify PDD and source image trust", 1)[
+        1
+    ].split("\\n      - name:", 1)[0]
+    for contract in (
+        'pdd_decision == "trusted"',
+        'image_decision == "trusted"',
+        'pdd_decision == "rejected"',
+        'image_decision == "rejected"',
+        'report.get("pdd", {}).get("trust_reason_codes") == expected_reason',
+        'report.get("source_image", {}).get("trust_reason_codes") == expected_reason',
+        'policy_status == "confirmed"',
+        'policy_status == "provisional_until_live_certificate_observation"',
+        'report.get("deployment_authorization") != "not_granted"',
+    ):
+        assert contract in step
+
+
+def test_consumer_fetch_preserves_retrieved_bundle_before_verification():
+    script = (
+        ROOT / "images" / "ndf" / "scripts" / "fetch_product_deployment_descriptor.py"
+    ).read_text(encoding="utf-8")
+    pull = script.index('"ORAS artifact pull"')
+    preserve = script.index("_preserve_pulled_bundle(pulled_dir, output_dir)")
+    binding = script.index("verify_product_deployment_binding(")
+    trust = script.index("_verify_independent_consumer_trust(")
+    assert pull < preserve < binding < trust
+    assert "if item.is_symlink():" in script
+    assert "shutil.copytree(pulled_dir, output_dir, dirs_exist_ok=True, symlinks=False)" in script
+
