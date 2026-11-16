@@ -407,8 +407,14 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
         "deployment_authorization": "not_granted",
     }
     trust_calls = []
+    pulled_files_at_verification = []
 
     def fake_independent_trust_verification(**kwargs):
+        pulled_dir = kwargs["pulled_dir"]
+        assert pulled_dir.is_dir()
+        pulled_files_at_verification.extend(
+            sorted(item.relative_to(pulled_dir).as_posix() for item in pulled_dir.rglob("*"))
+        )
         trust_calls.append(kwargs)
         return consumer_report
 
@@ -429,7 +435,9 @@ def test_retriever_fetches_and_validates_digest_pinned_artifact(tmp_path, monkey
     assert len(trust_calls) == 1
     assert trust_calls[0]["receipt"] == receipt
     assert trust_calls[0]["output_dir"] == output_dir
-    assert trust_calls[0]["pulled_dir"].is_dir()
+    assert "product-deployment.json" in pulled_files_at_verification
+    assert "binding-verification.json" in pulled_files_at_verification
+    assert not trust_calls[0]["pulled_dir"].exists()  # TemporaryDirectory cleanup
     assert (output_dir / "product-deployment.json").read_bytes() == pdd_bytes
 
 
