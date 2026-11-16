@@ -200,7 +200,12 @@
     "ndfDescriptorEvidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference", "digest", "content_sha256", "evidence_references"],
+      "required": [
+        "reference",
+        "digest",
+        "content_sha256",
+        "evidence_references"
+      ],
       "properties": {
         "reference": {
           "type": "string",
