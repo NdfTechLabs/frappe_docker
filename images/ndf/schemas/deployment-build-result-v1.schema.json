@@ -13,7 +13,8 @@
     "workflow",
     "status",
     "started_at",
-    "candidate_payload_sha256"
+    "candidate_payload_sha256",
+    "correlation_id"
   ],
   "properties": {
     "schema_version": {
@@ -35,7 +36,8 @@
       "$ref": "#/$defs/digest"
     },
     "correlation_id": {
-      "type": "string"
+      "type": "string",
+      "format": "uuid"
     },
     "workflow": {
       "type": "object",
@@ -72,7 +74,13 @@
       }
     },
     "status": {
-      "enum": ["queued", "in_progress", "succeeded", "failed", "cancelled"]
+      "enum": [
+        "queued",
+        "in_progress",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ]
     },
     "composition_hash": {
       "$ref": "#/$defs/hash"
@@ -83,7 +91,10 @@
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "digest"],
+      "required": [
+        "repository",
+        "digest"
+      ],
       "properties": {
         "repository": {
           "type": "string"
@@ -100,7 +111,11 @@
     "descriptor": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference", "digest", "content_hash"],
+      "required": [
+        "reference",
+        "digest",
+        "content_hash"
+      ],
       "properties": {
         "reference": {
           "type": "string"
@@ -119,7 +134,10 @@
     "failure": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "summary"],
+      "required": [
+        "code",
+        "summary"
+      ],
       "properties": {
         "code": {
           "type": "string",
@@ -161,7 +179,9 @@
             "const": "succeeded"
           }
         },
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       },
       "then": {
         "required": [
@@ -178,13 +198,21 @@
       "if": {
         "properties": {
           "status": {
-            "enum": ["failed", "cancelled"]
+            "enum": [
+              "failed",
+              "cancelled"
+            ]
           }
         },
-        "required": ["status"]
+        "required": [
+          "status"
+        ]
       },
       "then": {
-        "required": ["failure", "completed_at"]
+        "required": [
+          "failure",
+          "completed_at"
+        ]
       }
     }
   ]
