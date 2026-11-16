@@ -324,3 +324,21 @@ def test_rejects_missing_expected_provisional_message(tmp_path):
     (root / "pdd-verify.log").write_text("other verifier error", encoding="utf-8")
     with pytest.raises(evidence.PDDTrustEvidenceError, match="exact provisional"):
         _correlate(root)
+
+
+def test_manifest_verifier_detects_post_generation_tampering(tmp_path):
+    root = _bundle(tmp_path)
+    _correlate(root)
+    evidence.verify_evidence_manifest(root)
+    with (root / "pdd-verify.log").open("a", encoding="utf-8") as stream:
+        stream.write("tampered")
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="hash changed"):
+        evidence.verify_evidence_manifest(root)
+
+
+def test_manifest_verifier_rejects_missing_evidence_file(tmp_path):
+    root = _bundle(tmp_path)
+    _correlate(root)
+    (root / "pdd-verified-attestation.json").unlink()
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="missing or unsafe"):
+        evidence.verify_evidence_manifest(root)
