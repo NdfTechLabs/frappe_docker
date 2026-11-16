@@ -179,6 +179,65 @@ def test_missing_origin_result_is_explicitly_not_evaluated(tmp_path):
     assert report["candidate_origin"]["evidence_references"] == []
 
 
+def _mark_successful_result(result):
+    result["status"] = "succeeded"
+    result.pop("failure", None)
+    result.update(
+        {
+            "composition_hash": "d" * 64,
+            "resolved_lock_hash": "e" * 64,
+            "image": {
+                "repository": "ghcr.io/ndftechlabs/dalali",
+                "digest": "sha256:" + "f" * 64,
+                "immutable_reference": "ghcr.io/ndftechlabs/dalali@sha256:" + "f" * 64,
+            },
+            "descriptor": {
+                "reference": "ghcr.io/ndftechlabs/pdd/dalali@sha256:" + "9" * 64,
+                "digest": "sha256:" + "9" * 64,
+                "content_hash": "8" * 64,
+            },
+            "provenance_ref": "https://github.com/NdfTechLabs/frappe_docker/actions/runs/123456",
+        }
+    )
+    return result
+
+
+@pytest.mark.parametrize(("origin_present", "decision"), [(False, None), (True, "rejected")])
+def test_successful_result_requires_verified_candidate_origin(
+    tmp_path, origin_present, decision
+):
+    result_path, origin_path, evidence_dir = _write_inputs(
+        tmp_path, decision=decision or "verified", origin=origin_present
+    )
+    result = _mark_successful_result(_result())
+    result_path.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(
+        generator.TrustEvidenceError,
+        match="successful deployment build result requires verified candidate origin",
+    ):
+        generator.generate_report(
+            result_path=result_path,
+            origin_result_path=origin_path,
+            origin_evidence_dir=evidence_dir,
+            schema_path=SCHEMAS / "deployment-build-trust-evidence-v1.schema.json",
+        )
+
+
+def test_successful_result_accepts_verified_candidate_origin(tmp_path):
+    result_path, origin_path, evidence_dir = _write_inputs()
+    result = _mark_successful_result(_result())
+    result_path.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
+
+    report = generator.generate_report(
+        result_path=result_path,
+        origin_result_path=origin_path,
+        origin_evidence_dir=evidence_dir,
+        schema_path=SCHEMAS / "deployment-build-trust-evidence-v1.schema.json",
+    )
+    assert report["candidate_origin"]["decision"] == "verified"
+
+
 @pytest.mark.parametrize("field", ["candidate_id", "correlation_id", "payload_sha256"])
 def test_origin_identity_must_match_terminal_result(tmp_path, field):
     _, origin_path, evidence_dir = _write_inputs(tmp_path)
