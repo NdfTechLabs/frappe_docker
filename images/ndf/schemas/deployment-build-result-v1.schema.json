@@ -13,8 +13,7 @@
     "workflow",
     "status",
     "started_at",
-    "candidate_payload_sha256",
-    "correlation_id"
+    "candidate_payload_sha256"
   ],
   "properties": {
     "schema_version": {
@@ -36,8 +35,7 @@
       "$ref": "#/$defs/digest"
     },
     "correlation_id": {
-      "type": "string",
-      "format": "uuid"
+      "type": "string"
     },
     "workflow": {
       "type": "object",
