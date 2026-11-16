@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   fetch:
-    name: Retrieve and independently verify published PDD
+    name: Retrieve PDD and record independent trust decision
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -119,42 +119,174 @@ jobs:
           set -euo pipefail
           printf '%s' "$GH_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
-      - name: Retrieve and independently verify PDD and evidence
+      - name: Independently verify PDD and source image trust
+        id: fetch_consumer
         shell: bash
         run: |
           set -euo pipefail
+          REPORT_PATH="$OUTPUT_DIR/pdd-consumer-verification-report.json"
+          PDD_RESULT_PATH="$OUTPUT_DIR/pdd-trust-result.json"
+          PDD_ATTESTATION_PATH="$OUTPUT_DIR/pdd-verified-attestation.json"
+          IMAGE_RESULT_PATH="$OUTPUT_DIR/image-trust-result.json"
+          IMAGE_ATTESTATION_PATH="$OUTPUT_DIR/image-verified-attestation.json"
+          CLI_OUTPUT="$RUNNER_TEMP/pdd-consumer-cli-output.json"
+
+          set +e
           python images/ndf/scripts/fetch_product_deployment_descriptor.py \
             --publication-record "$RECEIPT_DIR/pdd-publication-record.json" \
             --output-dir "$OUTPUT_DIR" \
-            > "$RUNNER_TEMP/pdd-retrieval-report.json"
-          cat "$RUNNER_TEMP/pdd-retrieval-report.json"
+            --pdd-trust-result-output "$PDD_RESULT_PATH" \
+            --pdd-attestation-output "$PDD_ATTESTATION_PATH" \
+            --image-trust-result-output "$IMAGE_RESULT_PATH" \
+            --image-attestation-output "$IMAGE_ATTESTATION_PATH" \
+            --consumer-report-output "$REPORT_PATH" \
+            > "$CLI_OUTPUT"
+          verification_status=$?
+          set -e
+
+          if [[ "$verification_status" -ne 0 && "$verification_status" -ne 2 ]]; then
+            echo "Consumer verification failed with technical/unexpected exit code $verification_status." >&2
+            cat "$CLI_OUTPUT" >&2 || true
+            exit "$verification_status"
+          fi
+
+          test -s "$REPORT_PATH"
+          test -s "$PDD_RESULT_PATH"
+          test -s "$PDD_ATTESTATION_PATH"
+          test -s "$IMAGE_RESULT_PATH"
+          test -s "$IMAGE_ATTESTATION_PATH"
+
+          VERIFICATION_EXIT_CODE="$verification_status" \
+          REPORT_PATH="$REPORT_PATH" \
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          exit_code = int(os.environ["VERIFICATION_EXIT_CODE"])
+          report = json.loads(Path(os.environ["REPORT_PATH"]).read_text(encoding="utf-8"))
+          if report.get("execution", {}).get("status") != "completed":
+              raise SystemExit("Consumer report does not record completed technical execution.")
+          if report.get("deployment_authorization") != "not_granted":
+              raise SystemExit("Consumer report must not grant deployment authorization.")
+          if report.get("evidence", {}).get("binding_status") != "passed":
+              raise SystemExit("Consumer report does not confirm evidence binding.")
+          required_stages = (
+              "pdd_retrieval",
+              "pdd_trust",
+              "image_trust",
+              "provenance_correlation",
+              "evidence_binding",
+          )
+          stages = report.get("execution", {}).get("stages", {})
+          if not all(stages.get(stage) == "passed" for stage in required_stages):
+              raise SystemExit("Consumer report does not record every required stage as passed.")
+          for artifact_name in ("pdd", "source_image"):
+              artifact = report.get(artifact_name, {})
+              if not all(artifact.get(key) is True for key in (
+                  "signature_verified",
+                  "signer_verified",
+                  "transparency_verified",
+              )):
+                  raise SystemExit(f"{artifact_name} cryptographic verification flags are incomplete.")
+          if not all(report.get("correlation", {}).get(key) is True for key in (
+              "pdd_subject_matches",
+              "descriptor_matches",
+              "image_repository_matches",
+              "image_digest_matches",
+              "image_platform_matches",
+              "image_source_sha_verified",
+              "predicate_hash_matches",
+          )):
+              raise SystemExit("Consumer report is missing a required successful correlation.")
+
+          decision = report.get("trust_decision", {})
+          pdd_decision = report.get("pdd", {}).get("trust_decision")
+          image_decision = report.get("source_image", {}).get("trust_decision")
+          reasons = decision.get("reason_codes")
+          policy_status = report.get("policy", {}).get("status")
+
+          if exit_code == 0:
+              if not (
+                  policy_status == "confirmed"
+                  and decision.get("status") == "trusted"
+                  and pdd_decision == "trusted"
+                  and image_decision == "trusted"
+                  and reasons == []
+                  and report.get("pdd", {}).get("trust_reason_codes") == []
+                  and report.get("source_image", {}).get("trust_reason_codes") == []
+              ):
+                  raise SystemExit("Exit 0 did not correlate with two trusted identities under confirmed policy.")
+              outcome = "trusted"
+          else:
+              expected_reason = ["IDENTITY_POLICY_PROVISIONAL"]
+              if not (
+                  policy_status == "provisional_until_live_certificate_observation"
+                  and decision.get("status") == "rejected"
+                  and reasons == expected_reason
+                  and pdd_decision == "rejected"
+                  and image_decision == "rejected"
+                  and report.get("pdd", {}).get("trust_reason_codes") == expected_reason
+                  and report.get("source_image", {}).get("trust_reason_codes") == expected_reason
+              ):
+                  raise SystemExit("Exit 2 is not the exact dual-provisional rejection.")
+              outcome = "provisional_rejected"
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"trust_outcome={outcome}\n")
+              output.write(f"consumer_exit_code={exit_code}\n")
+          print(f"Consumer execution completed; trust outcome: {outcome}.")
+          PY
+          cat "$CLI_OUTPUT"
+
+      - name: Upload retrieved PDD and independent trust evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ndf-pdd-consumer-${{ inputs.publication_run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.RECEIPT_DIR }}
+            ${{ env.OUTPUT_DIR }}
+            ${{ runner.temp }}/pdd-consumer-cli-output.json
+          if-no-files-found: warn
+          retention-days: 90
 
       - name: Write consumer verification summary
-        if: success()
+        if: always()
+        env:
+          TRUST_OUTCOME: ${{ steps.fetch_consumer.outputs.trust_outcome }}
+          CONSUMER_EXIT_CODE: ${{ steps.fetch_consumer.outputs.consumer_exit_code }}
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
           import os
           from pathlib import Path
 
-          report = json.loads(Path(os.environ["RUNNER_TEMP"], "pdd-retrieval-report.json").read_text())
+          report_path = Path(os.environ["OUTPUT_DIR"], "pdd-consumer-verification-report.json")
           print("## Product Deployment Descriptor Consumer Verification")
           print()
-          print(f"- Status: **{report['status']}**")
-          print(f"- Descriptor: `{report['descriptor_id']}`")
-          print(f"- Artifact reference: `{report['artifact_reference']}`")
-          print(f"- Artifact digest: `{report['artifact_digest']}`")
-          print(f"- Subject image digest: `{report['image_digest']}`")
-          print(f"- Full evidence binding: **{report['evidence_binding_verified']}**")
-          print(f"- Retrieved output: `{report['output_directory']}`")
-          PY
+          if not report_path.is_file():
+              print("**NO COMPLETE CONSUMER REPORT — verification did not reach a reportable terminal state.**")
+              print(f"- CLI output: `{Path(os.environ['RUNNER_TEMP'], 'pdd-consumer-cli-output.json')}`")
+              raise SystemExit(0)
 
-      - name: Upload retrieved PDD and evidence bundle
-        uses: actions/upload-artifact@v7
-        with:
-          name: ndf-pdd-consumer-${{ inputs.publication_run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ env.OUTPUT_DIR }}
-            ${{ runner.temp }}/pdd-retrieval-report.json
-          if-no-files-found: error
-          retention-days: 90
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          decision = report["trust_decision"]
+          print(f"- Technical execution: **{report['execution']['status']}**")
+          print(f"- Trust decision: **{decision['status'].upper()}**")
+          print(f"- Trust reason codes: `{', '.join(decision['reason_codes']) or 'none'}`")
+          print(f"- Identity policy: `{report['policy']['status']}`")
+          print(f"- PDD signer decision: **{report['pdd']['trust_decision']}**")
+          print(f"- Source-image signer decision: **{report['source_image']['trust_decision']}**")
+          print(f"- PDD: `{report['pdd']['immutable_reference']}`")
+          print(f"- Source image: `{report['source_image']['immutable_reference']}`")
+          print(f"- Evidence binding: **{report['evidence']['binding_status']}** ({report['evidence']['published_file_count']} files)")
+          print(f"- Deployment authorization: **{report['deployment_authorization']}**")
+          print(f"- Workflow classification: `{os.environ.get('TRUST_OUTCOME') or 'not_completed'}`")
+          print(f"- Consumer CLI exit code: `{os.environ.get('CONSUMER_EXIT_CODE') or 'unavailable'}`")
+          print()
+          if decision["status"] == "rejected":
+              print("> **REJECTED — cryptographic and evidence checks completed, but signer identity policy remains provisional. This result is not trusted and does not authorize deployment.**")
+          else:
+              print("> **TRUSTED — both artifact identities were independently verified under confirmed policy. Deployment authorization remains not granted by this workflow.**")
+          PY

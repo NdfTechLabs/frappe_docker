@@ -370,3 +370,55 @@ def test_verify_rejects_cosign_command_failure(tmp_path):
             policy_path=_policy(tmp_path, status="confirmed"),
             runner=failed,
         )
+
+
+def test_verify_self_contained_mode_needs_no_expected_predicate(tmp_path):
+    runner = FakeRunner()
+    with pytest.raises(trust.PDDCosignTrustError, match="policy is provisional"):
+        trust.verify_pdd(
+            pdd_ref=PDD_REF,
+            result_output=tmp_path / "result.json",
+            policy_path=_policy(tmp_path),
+            runner=runner,
+            verified_at=datetime(2026, 11, 16, tzinfo=timezone.utc),
+            self_contained=True,
+        )
+    result = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
+    assert result["decision"] == {
+        "status": "rejected",
+        "reason_codes": [trust.PROVISIONAL_REASON],
+    }
+    checks = [
+        call
+        for call in runner.calls
+        if len(call) > 1 and call[1] in ("verify", "verify-attestation")
+    ]
+    assert len(checks) == 4
+    assert (
+        checks[-1][checks[-1].index("--certificate-github-workflow-sha") + 1]
+        == SOURCE_COMMIT
+    )
+
+
+def test_verify_self_contained_rejects_expected_predicate_argument(tmp_path):
+    with pytest.raises(trust.PDDCosignTrustError, match="must not receive"):
+        trust.verify_pdd(
+            pdd_ref=PDD_REF,
+            result_output=tmp_path / "result.json",
+            expected_predicate_path=_write(
+                tmp_path / "expected.json", _statement()["predicate"]
+            ),
+            policy_path=_policy(tmp_path, status="confirmed"),
+            runner=FakeRunner(),
+            self_contained=True,
+        )
+
+
+def test_verify_requires_expected_predicate_outside_self_contained_mode(tmp_path):
+    with pytest.raises(trust.PDDCosignTrustError, match="required outside"):
+        trust.verify_pdd(
+            pdd_ref=PDD_REF,
+            result_output=tmp_path / "result.json",
+            policy_path=_policy(tmp_path, status="confirmed"),
+            runner=FakeRunner(),
+        )

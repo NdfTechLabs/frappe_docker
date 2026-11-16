@@ -125,10 +125,16 @@ class FakeRunner:
             "signatures": [{"keyid": "", "sig": "c2ln"}],
         }
         self.attestation_output = (
-            "Verification for ghcr.io/ndftechlabs/dalali --\n"
+            "Verification for ghcr.io/ndftechlabs/dalali --\\n"
             + json.dumps(envelope)
-            + "\n"
+            + "\\n"
         )
+        self.exact_attestation_output = (
+            "Exact-source-SHA verification --\\n"
+            + json.dumps(envelope, indent=2)
+            + "\\n"
+        )
+        self.attestation_calls = 0
 
     def __call__(self, args, **kwargs):
         self.calls.append(list(args))
@@ -141,7 +147,12 @@ class FakeRunner:
                 + '"}}}]'
             )
         elif args[1] == "verify-attestation":
-            stdout = self.attestation_output
+            self.attestation_calls += 1
+            stdout = (
+                self.attestation_output
+                if self.attestation_calls == 1
+                else self.exact_attestation_output
+            )
         else:
             stdout = ""
         return subprocess.CompletedProcess(args, 0, stdout, "")
@@ -296,7 +307,10 @@ def test_verify_uses_exact_identity_and_rejects_provisional_policy(tmp_path):
             verified_at=datetime(2026, 11, 15, tzinfo=timezone.utc),
         )
 
-    assert attestation_output.read_text(encoding="utf-8") == runner.attestation_output
+    assert (
+        attestation_output.read_text(encoding="utf-8")
+        == runner.exact_attestation_output
+    )
     result = json.loads(output.read_text(encoding="utf-8"))
     assert result["decision"] == {
         "status": "rejected",
@@ -383,4 +397,61 @@ def test_verify_rejects_cosign_command_failure(tmp_path):
             policy_path=_write_policy(tmp_path, status="confirmed"),
             expected_predicate_path=_write_expected_predicate(tmp_path),
             runner=failed,
+        )
+
+
+def test_verify_self_contained_mode_needs_no_expected_predicate(tmp_path):
+    runner = FakeRunner()
+    output = tmp_path / "trust-result.json"
+    attestation_output = tmp_path / "verified-attestation.json"
+    with pytest.raises(trust.CosignTrustError, match="policy is provisional"):
+        trust.verify_image(
+            image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
+            result_output=output,
+            attestation_output=attestation_output,
+            policy_path=_write_policy(tmp_path),
+            runner=runner,
+            verified_at=datetime(2026, 11, 16, tzinfo=timezone.utc),
+            self_contained=True,
+        )
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["decision"] == {
+        "status": "rejected",
+        "reason_codes": ["IDENTITY_POLICY_PROVISIONAL"],
+    }
+    assert (
+        attestation_output.read_text(encoding="utf-8")
+        == runner.exact_attestation_output
+    )
+    checks = [
+        call
+        for call in runner.calls
+        if len(call) > 1 and call[1] in ("verify", "verify-attestation")
+    ]
+    assert len(checks) == 4
+    assert (
+        checks[-1][checks[-1].index("--certificate-github-workflow-sha") + 1]
+        == "c" * 40
+    )
+
+
+def test_verify_self_contained_rejects_expected_predicate_argument(tmp_path):
+    with pytest.raises(trust.CosignTrustError, match="must not receive"):
+        trust.verify_image(
+            image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
+            result_output=tmp_path / "result.json",
+            expected_predicate_path=_write_expected_predicate(tmp_path),
+            policy_path=_write_policy(tmp_path, status="confirmed"),
+            runner=FakeRunner(),
+            self_contained=True,
+        )
+
+
+def test_verify_requires_expected_predicate_outside_self_contained_mode(tmp_path):
+    with pytest.raises(trust.CosignTrustError, match="required outside"):
+        trust.verify_image(
+            image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
+            result_output=tmp_path / "result.json",
+            policy_path=_write_policy(tmp_path, status="confirmed"),
+            runner=FakeRunner(),
         )

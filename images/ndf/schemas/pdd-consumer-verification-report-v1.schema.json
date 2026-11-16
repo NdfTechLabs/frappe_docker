@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/pdd-consumer-verification-report-v1.schema.json",
+  "title": "NDF Independent PDD Consumer Verification Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verification_id",
+    "verified_at",
+    "execution",
+    "policy",
+    "pdd",
+    "source_image",
+    "correlation",
+    "evidence",
+    "trust_decision",
+    "deployment_authorization"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "verification_id": { "type": "string", "minLength": 1 },
+    "verified_at": { "type": "string", "format": "date-time" },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "stages"],
+      "properties": {
+        "status": { "const": "completed" },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pdd_retrieval",
+            "pdd_trust",
+            "image_trust",
+            "provenance_correlation",
+            "evidence_binding"
+          ],
+          "properties": {
+            "pdd_retrieval": { "const": "passed" },
+            "pdd_trust": { "const": "passed" },
+            "image_trust": { "const": "passed" },
+            "provenance_correlation": { "const": "passed" },
+            "evidence_binding": { "const": "passed" }
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_id", "schema_version", "status", "policy_sha256"],
+      "properties": {
+        "policy_id": { "const": "ndf-artifact-trust-identity-policy-v1" },
+        "schema_version": { "const": "1.0.0" },
+        "status": {
+          "enum": [
+            "provisional_until_live_certificate_observation",
+            "confirmed"
+          ]
+        },
+        "policy_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "pdd": { "$ref": "#/$defs/artifact" },
+    "source_image": { "$ref": "#/$defs/artifact" },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pdd_subject_matches",
+        "descriptor_matches",
+        "image_repository_matches",
+        "image_digest_matches",
+        "image_platform_matches",
+        "image_source_sha_verified",
+        "predicate_hash_matches"
+      ],
+      "properties": {
+        "pdd_subject_matches": { "const": true },
+        "descriptor_matches": { "const": true },
+        "image_repository_matches": { "const": true },
+        "image_digest_matches": { "const": true },
+        "image_platform_matches": { "const": true },
+        "image_source_sha_verified": { "const": true },
+        "predicate_hash_matches": { "const": true },
+        "pdd_subject_digest": { "$ref": "#/$defs/digest" },
+        "image_repository": { "type": "string", "minLength": 1 },
+        "image_digest": { "$ref": "#/$defs/digest" },
+        "platform": { "type": "string", "pattern": "^linux/(amd64|arm64)$" },
+        "binding_predicate_sha256": { "$ref": "#/$defs/sha256" },
+        "verified_predicate_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_status",
+        "published_file_count",
+        "binding_report_sha256",
+        "files"
+      ],
+      "properties": {
+        "binding_status": { "const": "passed" },
+        "published_file_count": { "type": "integer", "minimum": 1 },
+        "binding_report_sha256": { "$ref": "#/$defs/sha256" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256", "size_bytes"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "size_bytes": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "trust_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason_codes"],
+      "properties": {
+        "status": { "enum": ["trusted", "rejected"] },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z0-9_]+$" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "rejected" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "reason_codes": { "minItems": 1 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "trusted" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "reason_codes": { "maxItems": 0 }
+            }
+          }
+        }
+      ]
+    },
+    "deployment_authorization": { "const": "not_granted" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "repository",
+        "digest",
+        "immutable_reference",
+        "predicate_type",
+        "predicate_sha256",
+        "signature_verified",
+        "signer_verified",
+        "certificate_identity",
+        "oidc_issuer",
+        "workflow_ref",
+        "transparency_verified",
+        "trust_decision",
+        "source_commit",
+        "trust_result_file",
+        "attestation_file"
+      ],
+      "properties": {
+        "kind": { "enum": ["pdd", "product_image"] },
+        "repository": { "type": "string", "minLength": 1 },
+        "digest": { "$ref": "#/$defs/digest" },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        },
+        "platform": { "type": "string", "pattern": "^linux/(amd64|arm64)$" },
+        "descriptor_id": { "type": "string", "minLength": 1 },
+        "descriptor_content_sha256": { "$ref": "#/$defs/sha256" },
+        "predicate_type": { "type": "string", "format": "uri" },
+        "predicate_sha256": { "$ref": "#/$defs/sha256" },
+        "signature_verified": { "const": true },
+        "signer_verified": { "const": true },
+        "certificate_identity": { "type": "string", "minLength": 1 },
+        "oidc_issuer": { "type": "string", "format": "uri" },
+        "workflow_ref": { "type": "string", "minLength": 1 },
+        "transparency_verified": { "const": true },
+        "trust_decision": { "enum": ["trusted", "rejected"] },
+        "trust_reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z0-9_]+$" }
+        },
+        "source_commit": { "type": "string", "pattern": "^[a-f0-9]{40,64}$" },
+        "trust_result_file": { "type": "string", "minLength": 1 },
+        "attestation_file": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
