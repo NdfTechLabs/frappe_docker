@@ -187,7 +187,8 @@ def fetch_product_deployment_descriptor(
     descriptor_record = receipt["descriptor"]
     expected_annotations = {
         "io.ndf.pdd.descriptor-id": descriptor_record["id"],
-        "io.ndf.pdd.content-sha256": descriptor_record["content_sha256"],        "io.ndf.pdd.subject-image-digest": receipt["subject_image"]["digest"],
+        "io.ndf.pdd.content-sha256": descriptor_record["content_sha256"],
+        "io.ndf.pdd.subject-image-digest": receipt["subject_image"]["digest"],
         "io.ndf.pdd.schema-version": descriptor_record["schema_version"],
     }
     if any(
