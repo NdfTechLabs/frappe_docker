@@ -262,11 +262,52 @@ def test_rejects_wrong_signing_artifact_source_run(tmp_path):
 
 def test_rejects_statement_workflow_run_attempt_mismatch(tmp_path):
     root = _bundle(tmp_path)
-    statement = json.loads((root / "pdd-image-binding-statement.json").read_text())
-    statement["predicate"]["workflow"]["run_attempt"] = 1
+
+    statement = json.loads(
+        (root / "pdd-image-binding-statement.json").read_text()
+    )
+    predicate = statement["predicate"]
+    predicate["workflow"]["run_attempt"] = 1
+
     _write_json(root / "pdd-image-binding-statement.json", statement)
-    _write_json(root / "pdd-image-binding-predicate.json", statement["predicate"])
-    with pytest.raises(evidence.PDDTrustEvidenceError, match="runtime"):
+    _write_json(root / "pdd-image-binding-predicate.json", predicate)
+
+    # Keep the normalized trust result consistent with the modified predicate.
+    trust_result = json.loads(
+        (root / "pdd-trust-verification-result.json").read_text()
+    )
+    trust_result["attestations"][0]["predicate_sha256"] = hashlib.sha256(
+        cosign_image_trust._canonical_json(predicate)
+    ).hexdigest()
+    _write_json(root / "pdd-trust-verification-result.json", trust_result)
+
+    # Keep the raw verified attestation consistent so runtime identity is
+    # the first failing correlation check.
+    attestation_path = root / "pdd-verified-attestation.json"
+    attestation_text = attestation_path.read_text(encoding="utf-8")
+    envelope_text = attestation_text.split("--\\n", 1)[1].strip()
+    envelope = json.loads(envelope_text)
+
+    verified_statement = json.loads(
+        base64.b64decode(envelope["payload"]).decode("utf-8")
+    )
+    verified_statement["predicate"] = predicate
+    envelope["payload"] = base64.b64encode(
+        json.dumps(
+            verified_statement,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).decode("ascii")
+
+    attestation_path.write_text(
+        "Verification for PDD --\\n" + json.dumps(envelope) + "\\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        evidence.PDDTrustEvidenceError,
+        match="runtime",
+    ):
         _correlate(root)
 
 
