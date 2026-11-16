@@ -187,8 +187,7 @@ def fetch_product_deployment_descriptor(
     descriptor_record = receipt["descriptor"]
     expected_annotations = {
         "io.ndf.pdd.descriptor-id": descriptor_record["id"],
-        "io.ndf.pdd.content-sha256": descriptor_record["content_sha256"],
-        "io.ndf.pdd.subject-image-digest": receipt["subject_image"]["digest"],
+        "io.ndf.pdd.content-sha256": descriptor_record["content_sha256"],        "io.ndf.pdd.subject-image-digest": receipt["subject_image"]["digest"],
         "io.ndf.pdd.schema-version": descriptor_record["schema_version"],
     }
     if any(
@@ -377,8 +376,7 @@ def main() -> int:
     parser.add_argument("--pdd-trust-result-output", type=Path)
     parser.add_argument("--pdd-attestation-output", type=Path)
     parser.add_argument("--image-trust-result-output", type=Path)
-    parser.add_argument("--image-attestation-output", type=Path)
-    parser.add_argument("--consumer-report-output", type=Path)
+    parser.add_argument("--image-attestation-output", type=Path)    parser.add_argument("--consumer-report-output", type=Path)
     parser.add_argument(
         "--skip-image-binding",
         action="store_true",
@@ -445,6 +443,23 @@ def _strict_json_file(path: Path, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PDDRetrievalError(f"{label} must be a JSON object.")
     return value
+
+
+def _validate_image_source_identity(
+    descriptor: dict[str, Any], image_workflow: dict[str, Any]
+) -> None:
+    """Correlate verified image provenance to the PDD's original build identity."""
+    build = descriptor.get("build")
+    if not isinstance(build, dict):
+        raise PDDRetrievalError("PDD descriptor has no valid build identity.")
+    if (
+        image_workflow.get("source_commit") != build.get("source_commit")
+        or image_workflow.get("run_id") != build.get("workflow_run_id")
+    ):
+        raise PDDRetrievalError(
+            "Verified image provenance source commit/run ID does not match "
+            "the PDD build identity."
+        )
 
 
 def _load_trust_result(
@@ -567,8 +582,7 @@ def _verify_independent_consumer_trust(
     pdd_result_path = pdd_result_output or output_dir / "pdd-trust-result.json"
     pdd_attestation_path = (
         pdd_attestation_output or output_dir / "pdd-verified-attestation.json"
-    )
-    image_result_path = image_result_output or output_dir / "image-trust-result.json"
+    )    image_result_path = image_result_output or output_dir / "image-trust-result.json"
     image_attestation_path = (
         image_attestation_output or output_dir / "image-verified-attestation.json"
     )
@@ -757,8 +771,7 @@ def _verify_independent_consumer_trust(
         raise PDDRetrievalError(
             "Image attestation is not the supported Cosign Statement v0.1."
         )
-    normalized_image_statement = dict(image_statement)
-    normalized_image_statement["_type"] = "https://in-toto.io/Statement/v1"
+    normalized_image_statement = dict(image_statement)    normalized_image_statement["_type"] = "https://in-toto.io/Statement/v1"
     try:
         artifact_trust.validate_image_provenance_statement(
             normalized_image_statement, image_digest
@@ -772,6 +785,7 @@ def _verify_independent_consumer_trust(
     workflow = image_predicate["ndf_build"]["workflow"]
     image_source_commit = workflow["source_commit"]
     pdd_source_commit = pdd_predicate["workflow"]["source_commit"]
+    _validate_image_source_identity(descriptor, workflow)
     if (
         image_subject[0]["name"] != image_repository
         or image_subject[0]["digest"]["sha256"] != image_digest.removeprefix("sha256:")
