@@ -19,7 +19,6 @@ from jsonschema import Draft202012Validator, FormatChecker
 RESULT_FILENAME = "deployment-build-result.json"
 REPORT_FILENAME = "deployment-build-trust-evidence.json"
 MANIFEST_FILENAME = "deployment-build-evidence-bundle-v1.json"
-BUNDLE_ID_PATTERN = re.compile(r"^ndf-[0-9]+-[1-9][0-9]*-evidence$")
 HASH_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 UUID_PATTERN = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -319,22 +318,24 @@ def pack_bundle(
     return manifest
 
 
-def _walk_regular_files(root: Path) -> set[str]:
-    found: set[str] = set()
+def _walk_regular_files(root: Path) -> tuple[set[str], set[str]]:
+    found_files: set[str] = set()
+    found_dirs: set[str] = set()
     for current, dirs, files in os.walk(root, followlinks=False):
         current_path = Path(current)
         for name in list(dirs):
             path = current_path / name
             if path.is_symlink():
                 raise EvidenceBundleError(f"Bundle contains a symlink directory: {path}.")
+            found_dirs.add(path.relative_to(root).as_posix())
         for name in files:
             path = current_path / name
             if path.is_symlink():
                 raise EvidenceBundleError(f"Bundle contains a symlink file: {path}.")
             if not path.is_file():
                 raise EvidenceBundleError(f"Bundle contains a non-regular file: {path}.")
-            found.add(path.relative_to(root).as_posix())
-    return found
+            found_files.add(path.relative_to(root).as_posix())
+    return found_files, found_dirs
 
 
 def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
@@ -368,18 +369,31 @@ def verify_bundle(*, bundle_dir: Path, schema_dir: Path) -> dict[str, Any]:
     if by_path.get(REPORT_FILENAME, {}).get("role") != "trust_evidence":
         raise EvidenceBundleError("Bundle trust report must use the canonical filename.")
     for path, entry in by_path.items():
-        if entry.get("role") == "evidence" and not path.startswith("evidence/"):
-            raise EvidenceBundleError("Evidence files must be stored under evidence/.")
+        if entry.get("role") == "evidence":
+            if not path.startswith("evidence/"):
+                raise EvidenceBundleError("Evidence files must be stored under evidence/.")
+            if path == MANIFEST_FILENAME:
+                raise EvidenceBundleError("Manifest cannot also be listed as evidence.")
         if entry.get("role") not in {"result", "trust_evidence", "evidence"}:
             raise EvidenceBundleError(f"Unsupported bundle file role: {entry.get('role')!r}.")
 
     expected_paths = set(by_path) | {MANIFEST_FILENAME}
-    actual_paths = _walk_regular_files(bundle_dir)
-    if actual_paths != expected_paths:
+    actual_paths, actual_dirs = _walk_regular_files(bundle_dir)
+    expected_dirs: set[str] = set()
+    for relative in expected_paths:
+        parent = PurePosixPath(relative).parent
+        while parent.as_posix() != ".":
+            expected_dirs.add(parent.as_posix())
+            parent = parent.parent
+    if actual_paths != expected_paths or actual_dirs != expected_dirs:
         missing = sorted(expected_paths - actual_paths)
         unexpected = sorted(actual_paths - expected_paths)
+        unexpected_dirs = sorted(actual_dirs - expected_dirs)
+        missing_dirs = sorted(expected_dirs - actual_dirs)
         raise EvidenceBundleError(
-            f"Bundle file set mismatch; missing={missing}, unexpected={unexpected}."
+            "Bundle file set mismatch; "
+            f"missing={missing}, unexpected={unexpected}, "
+            f"missing_dirs={missing_dirs}, unexpected_dirs={unexpected_dirs}."
         )
 
     contents: dict[str, bytes] = {}
