@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   fetch:
-    name: Retrieve and independently verify published PDD
+    name: Retrieve PDD and record independent trust decision
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -225,6 +225,7 @@ jobs:
         with:
           name: ndf-pdd-consumer-${{ inputs.publication_run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ env.RECEIPT_DIR }}
             ${{ env.OUTPUT_DIR }}
             ${{ runner.temp }}/pdd-consumer-cli-output.json
           if-no-files-found: warn
