@@ -359,7 +359,14 @@ def main() -> int:
             cosign_bin=args.cosign_bin,
             verify_image_binding=not args.skip_image_binding,
         )
-    except PDDRetrievalError as exc:
+    except (
+        PDDRetrievalError,
+        cosign_pdd_trust.PDDCosignTrustError,
+        cosign_image_trust.CosignTrustError,
+        artifact_trust.ArtifactTrustError,
+        OSError,
+        UnicodeError,
+    ) as exc:
         print(json.dumps({"status": "failed", "error": str(exc)}, ensure_ascii=False))
         return 1
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
