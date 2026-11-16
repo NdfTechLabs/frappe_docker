@@ -328,9 +328,14 @@ def correlate_evidence(
         "files": files,
     }
     _validate(manifest, MANIFEST_SCHEMA, "PDD trust evidence manifest")
-    cosign_image_trust._atomic_write(
-        root / MANIFEST_NAME, cosign_image_trust._canonical_json(manifest)
-    )
+    try:
+        cosign_image_trust._atomic_write(
+            root / MANIFEST_NAME, cosign_image_trust._canonical_json(manifest)
+        )
+    except (OSError, cosign_image_trust.CosignTrustError) as exc:
+        raise PDDTrustEvidenceError(
+            f"Unable to atomically write the PDD evidence manifest: {exc}"
+        ) from exc
     return manifest
 
 
