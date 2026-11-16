@@ -189,7 +189,7 @@ def test_origin_identity_must_match_terminal_result(tmp_path, field):
 
 
 def test_origin_subject_digest_must_match_terminal_result(tmp_path):
-    _, _, origin_path, evidence_dir = _write_inputs(tmp_path)
+    _, origin_path, evidence_dir = _write_inputs(tmp_path)
     origin = _origin()
     origin["subject"]["digest"] = "sha256:" + "e" * 64
     origin_path.write_text(json.dumps(origin), encoding="utf-8")
@@ -204,7 +204,7 @@ def test_origin_subject_digest_must_match_terminal_result(tmp_path):
 
 
 def test_evidence_hash_mismatch_is_rejected(tmp_path):
-    _, _, _, evidence_dir = _write_inputs(tmp_path)
+    _, _, evidence_dir = _write_inputs(tmp_path)
     (evidence_dir / "candidate-origin-attestation.json").write_text("tampered")
 
     with pytest.raises(generator.TrustEvidenceError, match="SHA-256 mismatch"):
@@ -212,7 +212,7 @@ def test_evidence_hash_mismatch_is_rejected(tmp_path):
 
 
 def test_missing_evidence_file_is_rejected(tmp_path):
-    _, _, _, evidence_dir = _write_inputs(tmp_path)
+    _, _, evidence_dir = _write_inputs(tmp_path)
     (evidence_dir / "candidate-origin-attestation.json").unlink()
 
     with pytest.raises(generator.TrustEvidenceError, match="missing"):
@@ -220,7 +220,7 @@ def test_missing_evidence_file_is_rejected(tmp_path):
 
 
 def test_path_traversal_evidence_reference_is_rejected(tmp_path):
-    _, _, origin_path, evidence_dir = _write_inputs(tmp_path)
+    _, origin_path, evidence_dir = _write_inputs(tmp_path)
     origin = _origin()
     origin["evidence_references"][0]["reference"] = "../outside.json"
     origin_path.write_text(json.dumps(origin), encoding="utf-8")
@@ -230,7 +230,7 @@ def test_path_traversal_evidence_reference_is_rejected(tmp_path):
 
 
 def test_symlink_evidence_file_is_rejected(tmp_path):
-    _, _, origin_path, evidence_dir = _write_inputs(tmp_path)
+    _, origin_path, evidence_dir = _write_inputs(tmp_path)
     target = tmp_path / "outside.json"
     target.write_text("outside")
     evidence = evidence_dir / "candidate-origin-attestation.json"
