@@ -328,3 +328,14 @@ def test_candidate_required_flag_is_preserved_without_changing_membership(
 
     assert frappe["candidate_is_required"] is False
     assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
+
+
+def test_candidate_adapter_accepts_missing_optional_requested_version(
+    ndf_dir, tmp_path
+):
+    candidate = make_candidate(ndf_dir)
+    candidate["applications"][0].pop("requested_version")
+    result = run_adapter(ndf_dir, tmp_path / "without-requested-version", candidate)
+    lock_data = json.loads(result["lock_path"].read_text(encoding="utf-8"))
+    assert lock_data["applications"]
+    assert lock_data["applications"][0]["immutable_commit"]
