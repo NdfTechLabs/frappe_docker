@@ -50,6 +50,11 @@ def test_consumer_workflow_distinguishes_exit_two_from_technical_failure():
     assert 'policy_status == "provisional_until_live_certificate_observation"' in step
     assert 'expected_reason = ["IDENTITY_POLICY_PROVISIONAL"]' in step
     assert 'report.get("deployment_authorization") != "not_granted"' in step
+    assert 'required_stages = (' in step
+    assert '"signature_verified"' in step
+    assert '"signer_verified"' in step
+    assert '"transparency_verified"' in step
+    assert 'report.get("pdd", {}).get("trust_reason_codes") == []' in step
 
 
 def test_consumer_workflow_requires_complete_report_and_all_second_pass_outputs():
