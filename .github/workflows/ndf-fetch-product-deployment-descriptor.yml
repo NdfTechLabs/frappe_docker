@@ -30,8 +30,8 @@ jobs:
       PUBLICATION_RUN_ID: ${{ inputs.publication_run_id }}
       PUBLICATION_ARTIFACT_NAME: ${{ inputs.publication_artifact_name }}
       GH_TOKEN: ${{ github.token }}
-      RECEIPT_DIR: ${{ github.workspace }}/.ndf-pdd-receipt
-      OUTPUT_DIR: ${{ github.workspace }}/.ndf-pdd-retrieved
+      RECEIPT_DIR: ${{ github.workspace }}/ndf-pdd-receipt
+      OUTPUT_DIR: ${{ github.workspace }}/ndf-pdd-retrieved
     steps:
       - name: Checkout consumer implementation
         uses: actions/checkout@v7
