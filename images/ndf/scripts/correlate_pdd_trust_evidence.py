@@ -170,6 +170,11 @@ def correlate_evidence(
     root = evidence_dir.resolve(strict=True)
     if evidence_dir.is_symlink() or not root.is_dir():
         raise PDDTrustEvidenceError("Evidence directory must be a real directory.")
+    manifest_output = root / MANIFEST_NAME
+    if manifest_output.is_symlink():
+        raise PDDTrustEvidenceError(
+            "Unable to atomically write the PDD evidence manifest: output is a symlink."
+        )
     if not re.fullmatch(r"[0-9]+", source_build_run_id):
         raise PDDTrustEvidenceError("Source build run ID is invalid.")
     if (
