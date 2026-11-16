@@ -502,7 +502,11 @@ def adapt_candidate_to_lock(
                     {
                         "app_id": item["app_id"],
                         "repository": item["app_source"],
-                        "requested_version": item["requested_version"],
+                        **(
+                            {"requested_version": item["requested_version"]}
+                            if "requested_version" in item
+                            else {}
+                        ),
                         "immutable_commit": item["immutable_commit"],
                         "release_version": item["release_version"],
                         "change_action": item["change_action"],
