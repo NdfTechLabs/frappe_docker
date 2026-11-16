@@ -248,7 +248,10 @@ def _validate_pair(
     candidate_origin = report.get("candidate_origin")
     if not isinstance(candidate_origin, dict):
         raise EvidenceBundleError("Trust report candidate-origin decision is missing.")
-    if result.get("status") == "succeeded" and candidate_origin.get("decision") != "verified":
+    if (
+        result.get("status") == "succeeded"
+        and candidate_origin.get("decision") != "verified"
+    ):
         raise EvidenceBundleError(
             "A successful deployment build result requires verified candidate origin."
         )
