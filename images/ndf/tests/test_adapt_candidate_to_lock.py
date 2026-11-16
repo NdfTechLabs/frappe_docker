@@ -313,9 +313,7 @@ def test_candidate_requested_version_is_preserved_separately_from_commit_pin(
     frappe = next(item for item in lock["applications"] if item["name"] == "frappe")
 
     assert frappe["requested_version"] == "candidate-release-2026.11"
-    assert (
-        frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
-    )
+    assert frappe["target_ref"] == candidate["applications"][0]["immutable_commit"]
     assert frappe["ref"] == candidate["applications"][0]["immutable_commit"]
 
 
