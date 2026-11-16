@@ -78,7 +78,10 @@ def test_sign_and_verify_jobs_use_attempt_scoped_evidence_and_pinned_cosign():
     assert "cosign-sign-result.json" in sign
     assert "cosign_image_trust.py verify" not in sign
 
-    assert "ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in verify
+    assert (
+        "ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        in verify
+    )
     assert "cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in verify
     assert "cosign-release: v3.1.4" in verify
     assert "cosign_image_trust.py verify" in verify
@@ -94,11 +97,14 @@ def test_independent_verification_checks_signature_identity_transparency_and_pol
 
     assert "packages: read" in verify
     assert "id-token: write" not in verify
-    for required in ('("signature", "signer", "transparency")',
-                     '["IDENTITY_POLICY_PROVISIONAL"]',
-                     "PUBLISH_REQUESTED",
-                     "Official promotion is blocked while signer identity policy remains provisional"):
-        assert required in verify
+    required = (
+        '("signature", "signer", "transparency")',
+        '["IDENTITY_POLICY_PROVISIONAL"]',
+        "PUBLISH_REQUESTED",
+        "Official promotion is blocked while signer identity policy remains provisional",
+    )
+    for item in required:
+        assert item in verify
     assert "attestations[0].get(\"verified\") is not True" in verify
     assert "imagetools create" not in verify
 
