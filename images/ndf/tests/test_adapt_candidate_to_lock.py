@@ -338,7 +338,9 @@ def test_candidate_adapter_accepts_missing_optional_requested_version(
     result = run_adapter(ndf_dir, tmp_path / "without-requested-version", candidate)
     lock_data = json.loads(result["lock_path"].read_text(encoding="utf-8"))
     assert lock_data["applications"]
-    frappe = next(item for item in lock_data["applications"] if item["name"] == "frappe")
+    frappe = next(
+        item for item in lock_data["applications"] if item["name"] == "frappe"
+    )
     assert frappe["requested_version"]
     composition = json.loads(result["mapping_path"].read_text(encoding="utf-8"))
     mapped_app = next(
