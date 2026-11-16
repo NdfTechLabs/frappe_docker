@@ -330,3 +330,70 @@ def test_consumer_report_schema_is_valid():
     from jsonschema import Draft202012Validator
 
     Draft202012Validator.check_schema(schema)
+
+def test_preserves_retrieved_bundle_before_later_verification(tmp_path):
+    pulled = tmp_path / "pulled"
+    output = tmp_path / "output"
+    (pulled / "nested").mkdir(parents=True)
+    output.mkdir()
+    (pulled / "product-deployment.json").write_text('{"descriptor": true}', encoding="utf-8")
+    (pulled / "binding-verification.json").write_text('{"status": "pending"}', encoding="utf-8")
+    (pulled / "nested" / "lock-v2.json").write_bytes(b"immutable evidence")
+
+    consumer._preserve_pulled_bundle(pulled, output)
+
+    assert (output / "product-deployment.json").read_bytes() == (
+        pulled / "product-deployment.json"
+    ).read_bytes()
+    assert (output / "binding-verification.json").read_bytes() == (
+        pulled / "binding-verification.json"
+    ).read_bytes()
+    assert (output / "nested" / "lock-v2.json").read_bytes() == b"immutable evidence"
+
+
+def test_refuses_to_preserve_bundle_containing_symlink(tmp_path):
+    pulled = tmp_path / "pulled"
+    output = tmp_path / "output"
+    pulled.mkdir()
+    output.mkdir()
+    target = tmp_path / "outside.txt"
+    target.write_text("outside", encoding="utf-8")
+    (pulled / "linked-evidence.json").symlink_to(target)
+
+    with pytest.raises(consumer.PDDRetrievalError, match="contains a symlink"):
+        consumer._preserve_pulled_bundle(pulled, output)
+
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda result: result["signature"].update(verified=False), "signature"),
+        (lambda result: result["signer"].update(oidc_issuer="https://attacker.invalid"), "signer identity"),
+        (lambda result: result["transparency"].update(verified=False), "transparency"),
+        (lambda result: result["attestations"][0].update(predicate_type="https://attacker.invalid/predicate"), "attestation result"),
+        (lambda result: result["attestations"].append(dict(result["attestations"][0])), "exactly one"),
+        (lambda result: result["decision"].update(status="trusted", reason_codes=[]), "exact provisional rejection"),
+    ],
+)
+def test_rejects_adversarial_trust_result_mutations(tmp_path, policy, mutation, message):
+    result = _trust_result(policy)
+    mutation(result)
+    path = _write_result(tmp_path, result)
+    identity = next(
+        item for item in policy["identities"] if item["id"] == "product-pdd-publication"
+    )
+
+    with pytest.raises(consumer.PDDRetrievalError, match=message):
+        consumer._load_trust_result(
+            path,
+            kind="pdd",
+            repository=result["artifact"]["repository"],
+            digest=result["artifact"]["digest"],
+            immutable_reference=result["artifact"]["immutable_reference"],
+            predicate_type="https://ndftechlabs.com/attestations/pdd-image-binding/v1",
+            expected_identity=identity,
+            policy=policy,
+        )
+
