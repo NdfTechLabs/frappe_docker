@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/pdd-trust-evidence-manifest-v1.schema.json",
+  "title": "NDF PDD Trust Evidence Manifest",
+  "description": "Correlates the exact PDD publication receipt, binding statement, predicate and Cosign verification evidence retained in one publication-run artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_kind",
+    "publication_workflow",
+    "source_build",
+    "artifact",
+    "verification",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "evidence_kind": {
+      "const": "pdd-publication-trust"
+    },
+    "publication_workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "path",
+        "ref",
+        "source_commit",
+        "run_id",
+        "run_attempt"
+      ],
+      "properties": {
+        "repository": {
+          "const": "NdfTechLabs/frappe_docker"
+        },
+        "path": {
+          "const": ".github/workflows/ndf-publish-product-deployment-descriptor.yml"
+        },
+        "ref": {
+          "const": "refs/heads/main"
+        },
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "source_build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "run_attempt",
+        "signing_input_artifact"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "signing_input_artifact": {
+          "type": "string",
+          "pattern": "^ndf-pdd-signing-input-[0-9]+-[1-9][0-9]*$"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "descriptor_id",
+        "repository",
+        "digest",
+        "immutable_reference"
+      ],
+      "properties": {
+        "descriptor_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verification_id",
+        "cosign_version",
+        "verified_at",
+        "decision",
+        "reason_codes"
+      ],
+      "properties": {
+        "verification_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cosign_version": {
+          "const": "v3.1.4"
+        },
+        "verified_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decision": {
+          "const": "rejected"
+        },
+        "reason_codes": {
+          "type": "array",
+          "const": [
+            "IDENTITY_POLICY_PROVISIONAL"
+          ]
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 6,
+      "additionalProperties": false,
+      "required": [
+        "pdd-publication-record.json",
+        "pdd-image-binding-statement.json",
+        "pdd-image-binding-predicate.json",
+        "pdd-trust-verification-result.json",
+        "pdd-verified-attestation.json",
+        "pdd-verify.log"
+      ],
+      "properties": {
+        "pdd-publication-record.json": {
+          "$ref": "#/$defs/file"
+        },
+        "pdd-image-binding-statement.json": {
+          "$ref": "#/$defs/file"
+        },
+        "pdd-image-binding-predicate.json": {
+          "$ref": "#/$defs/file"
+        },
+        "pdd-trust-verification-result.json": {
+          "$ref": "#/$defs/file"
+        },
+        "pdd-verified-attestation.json": {
+          "$ref": "#/$defs/file"
+        },
+        "pdd-verify.log": {
+          "$ref": "#/$defs/file"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}
