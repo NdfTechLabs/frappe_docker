@@ -110,7 +110,7 @@ def _pdd_statement():
             "lock_sha256": "c" * 64,
             "source_provenance": {
                 "predicate_type": "https://slsa.dev/provenance/v1",
-                "attestation_sha256": "8" * 64,
+                "predicate_sha256": "8" * 64,
             },
             "workflow": {
                 "repository": "NdfTechLabs/frappe_docker",
@@ -244,6 +244,21 @@ def test_validates_pdd_binding_and_exact_subjects():
         descriptor_content_sha256="9" * 64,
     )
     assert report["pdd_subject_digest"] == "sha256:" + "f" * 64
+
+
+
+def test_pdd_binding_requires_source_provenance_predicate_hash():
+    statement = _pdd_statement()
+    statement["predicate"]["source_provenance"]["attestation_sha256"] = (
+        statement["predicate"]["source_provenance"].pop("predicate_sha256")
+    )
+    with pytest.raises(ArtifactTrustError, match="schema validation failed"):
+        trust.validate_pdd_binding_statement(
+            statement,
+            pdd_digest="sha256:" + "f" * 64,
+            image_digest="sha256:" + "a" * 64,
+            descriptor_content_sha256="9" * 64,
+        )
 
 
 def test_rejects_pdd_image_digest_mismatch():
