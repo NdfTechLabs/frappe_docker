@@ -376,10 +376,6 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 def _strict_json_file(path: Path, label: str) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise PDDRetrievalError(f"{label} is missing or unsafe: {path}")
@@ -627,9 +623,11 @@ def _verify_independent_consumer_trust(
     if predicate_hash != expected_predicate_hash:
         raise PDDRetrievalError("Verified SLSA predicate hash does not match the PDD binding claim.")
 
-    pdd_identity = cosign_pdd_trust._load_identity(cosign_pdd_trust.POLICY_PATH)[1]
-    image_identity = cosign_image_trust._load_product_identity()[1]
     pdd_attestation_hash = hashlib.sha256(cosign_image_trust._canonical_json(pdd_predicate)).hexdigest()
+    if pdd_result["attestations"][0].get("predicate_sha256") != pdd_attestation_hash:
+        raise PDDRetrievalError("PDD trust result predicate hash does not match its verified attestation.")
+    if image_result["attestations"][0].get("predicate_sha256") != predicate_hash:
+        raise PDDRetrievalError("Image trust result predicate hash does not match its verified attestation.")
     evidence_files = []
     for item in sorted(pulled_dir.rglob("*")):
         if item.is_file() and not item.is_symlink():
@@ -709,7 +707,7 @@ def _verify_independent_consumer_trust(
             "image_repository_matches": True,
             "image_digest_matches": True,
             "image_platform_matches": True,
-            "source_workflow_sha_matches_binding": True,
+            "image_source_sha_verified": True,
             "predicate_hash_matches": True,
             "pdd_subject_digest": pdd_digest,
             "image_repository": image_repository,
@@ -738,3 +736,7 @@ def _verify_independent_consumer_trust(
         (json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"),
     )
     return report
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
