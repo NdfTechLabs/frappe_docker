@@ -342,3 +342,18 @@ def test_manifest_verifier_rejects_missing_evidence_file(tmp_path):
     (root / "pdd-verified-attestation.json").unlink()
     with pytest.raises(evidence.PDDTrustEvidenceError, match="missing or unsafe"):
         evidence.verify_evidence_manifest(root)
+
+
+def test_rejects_unexpected_files_in_evidence_directory(tmp_path):
+    root = _bundle(tmp_path)
+    (root / "unrelated.txt").write_text("not part of the evidence contract")
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="inventory mismatch"):
+        _correlate(root)
+
+
+def test_manifest_verifier_rejects_unexpected_files_after_sealing(tmp_path):
+    root = _bundle(tmp_path)
+    _correlate(root)
+    (root / "unrelated.txt").write_text("unexpected")
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="unexpected files"):
+        evidence.verify_evidence_manifest(root)
