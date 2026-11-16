@@ -83,7 +83,7 @@
         "image_repository_matches": { "const": true },
         "image_digest_matches": { "const": true },
         "image_platform_matches": { "const": true },
-        "source_workflow_sha_matches_binding": { "const": true },
+        "image_source_sha_verified": { "const": true },
         "predicate_hash_matches": { "const": true },
         "pdd_subject_digest": { "$ref": "#/$defs/digest" },
         "image_repository": { "type": "string", "minLength": 1 },
