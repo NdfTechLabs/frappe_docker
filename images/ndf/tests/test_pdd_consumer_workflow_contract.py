@@ -87,6 +87,14 @@ def test_consumer_workflow_requires_complete_report_and_all_second_pass_outputs(
     assert 'test -s "$IMAGE_ATTESTATION_PATH"' in step
 
 
+def test_consumer_evidence_directories_are_uploadable_without_hidden_file_opt_in():
+    workflow = read_workflow()
+    assert "RECEIPT_DIR: ${{ github.workspace }}/ndf-pdd-receipt" in workflow
+    assert "OUTPUT_DIR: ${{ github.workspace }}/ndf-pdd-retrieved" in workflow
+    assert "RECEIPT_DIR: ${{ github.workspace }}/.ndf-pdd-receipt" not in workflow
+    assert "OUTPUT_DIR: ${{ github.workspace }}/.ndf-pdd-retrieved" not in workflow
+
+
 def test_consumer_artifact_upload_runs_even_after_verification_failure():
     workflow = read_workflow()
     upload = workflow.split(
