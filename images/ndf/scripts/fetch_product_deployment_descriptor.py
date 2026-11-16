@@ -93,7 +93,7 @@ def _json_output(
 
 def _load_receipt(path: Path) -> dict[str, Any]:
     try:
-        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt = _strict_json_file(path, "publication receipt")
         schema = json.loads(PUBLICATION_SCHEMA.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
         Draft202012Validator(schema).validate(receipt)
@@ -242,10 +242,7 @@ def fetch_product_deployment_descriptor(
             raise PDDRetrievalError(
                 "Retrieved PDD image digest differs from the publication receipt."
             )
-        try:
-            descriptor = json.loads(pdd_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise PDDRetrievalError(f"Unable to read retrieved PDD: {exc}") from exc
+        descriptor = _strict_json_file(pdd_path, "retrieved PDD descriptor")
         subject = receipt["subject_image"]
         if (
             descriptor.get("artifact", {}).get("repository") != subject["repository"]
@@ -259,14 +256,9 @@ def fetch_product_deployment_descriptor(
             raise PDDRetrievalError(
                 "Retrieved PDD schema version differs from the publication receipt."
             )
-        try:
-            build_result = json.loads(
-                (pulled_dir / "build-result.json").read_text(encoding="utf-8")
-            )
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise PDDRetrievalError(
-                f"Unable to read published build result: {exc}"
-            ) from exc
+        build_result = _strict_json_file(
+            pulled_dir / "build-result.json", "published build result"
+        )
         image_id = build_result.get("image_id")
         if not isinstance(image_id, str) or not image_id:
             raise PDDRetrievalError("Published build result has no valid image_id.")
@@ -298,7 +290,7 @@ def fetch_product_deployment_descriptor(
                 raise PDDRetrievalError(
                     f"Retrieved PDD evidence binding failed: {exc}"
                 ) from exc
-            recorded = json.loads(binding_path.read_text(encoding="utf-8"))
+            recorded = _strict_json_file(binding_path, "published binding report")
             for key in (
                 "status",
                 "descriptor_id",
