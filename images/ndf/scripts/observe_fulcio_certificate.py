@@ -331,7 +331,9 @@ def observe_certificate(
             f"Expected exactly one URI SAN identity; found {len(san_uris)}."
         )
     certificate_identity = san_uris[0]
-    fulcio_claims["workflow_ref"] = certificate_identity
+    fulcio_claims["workflow_ref"] = certificate_identity.removeprefix(
+        "https://github.com/"
+    )
     fulcio_claims["certificate_identity"] = certificate_identity
 
     invocation = fulcio_claims.get("run_invocation_uri")
