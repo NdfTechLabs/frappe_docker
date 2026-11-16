@@ -299,20 +299,20 @@ jobs:
           PDD_REF="$(python -c 'import json; print(json.load(open("'"$REPORT_PATH"'"))["pdd"]["immutable_reference"])')"
           IMAGE_REF="$(python -c 'import json; print(json.load(open("'"$REPORT_PATH"'"))["source_image"]["immutable_reference"])')"
 
-          python images/ndf/scripts/observe_fulcio_certificate.py \\
-            --bundles "$OUTPUT_DIR/pdd-sigstore-bundles.jsonl" \\
-            --verified-envelope "$OUTPUT_DIR/pdd-verified-attestation.json" \\
-            --artifact-reference "$PDD_REF" \\
-            --predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1" \\
-            --identity-id "product-pdd-publication" \\
+          python images/ndf/scripts/observe_fulcio_certificate.py \
+            --bundles "$OUTPUT_DIR/pdd-sigstore-bundles.jsonl" \
+            --verified-envelope "$OUTPUT_DIR/pdd-verified-attestation.json" \
+            --artifact-reference "$PDD_REF" \
+            --predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1" \
+            --identity-id "product-pdd-publication" \
             --output "$OUTPUT_DIR/pdd-fulcio-certificate-observation.json"
 
-          python images/ndf/scripts/observe_fulcio_certificate.py \\
-            --bundles "$OUTPUT_DIR/image-sigstore-bundles.jsonl" \\
-            --verified-envelope "$OUTPUT_DIR/image-verified-attestation.json" \\
-            --artifact-reference "$IMAGE_REF" \\
-            --predicate-type "https://slsa.dev/provenance/v1" \\
-            --identity-id "product-image-publication" \\
+          python images/ndf/scripts/observe_fulcio_certificate.py \
+            --bundles "$OUTPUT_DIR/image-sigstore-bundles.jsonl" \
+            --verified-envelope "$OUTPUT_DIR/image-verified-attestation.json" \
+            --artifact-reference "$IMAGE_REF" \
+            --predicate-type "https://slsa.dev/provenance/v1" \
+            --identity-id "product-image-publication" \
             --output "$OUTPUT_DIR/image-fulcio-certificate-observation.json"
 
       - name: Upload retrieved PDD and independent trust evidence
