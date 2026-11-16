@@ -105,6 +105,7 @@ def test_consumer_summary_explicitly_labels_provisional_rejection_and_no_authori
     )
     assert "remains not granted by this workflow" in summary
 
+
 def test_consumer_workflow_requires_artifact_decisions_to_match_exit_policy():
     workflow = read_workflow()
     step = workflow.split("name: Independently verify PDD and source image trust", 1)[
