@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ndftechlabs.com/schemas/pdd-image-binding-v1.schema.json",
   "title": "NDF PDD-to-Image Binding Attestation",
-  "description": "NDF in-toto Statement v1 predicate authenticating the relationship between a published PDD OCI artifact and its exact subject image digest.",
+  "description": "NDF in-toto Statement v1 predicate authenticating the relationship between a published PDD OCI artifact and its exact subject image digest, including the canonical hash of the independently verified source-image SLSA predicate.",
   "type": "object",
   "additionalProperties": false,
   "required": ["_type", "subject", "predicateType", "predicate"],
@@ -108,12 +108,13 @@
         },
         "source_provenance": {
           "type": "object",
-          "required": ["predicate_type", "attestation_sha256"],
+          "description": "Reference to the source image's independently verified SLSA provenance predicate. predicate_sha256 hashes the predicate JSON object only, serialized using NDF-JSON-CANONICAL-V1; it is not a hash of the DSSE envelope, in-toto Statement wrapper, Sigstore bundle, or Rekor entry.",
+          "required": ["predicate_type", "predicate_sha256"],
           "properties": {
             "predicate_type": {
               "const": "https://slsa.dev/provenance/v1"
             },
-            "attestation_sha256": {
+            "predicate_sha256": {
               "$ref": "#/$defs/sha256"
             }
           },
