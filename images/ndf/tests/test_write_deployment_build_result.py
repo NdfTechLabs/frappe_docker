@@ -215,7 +215,9 @@ def test_missing_correlation_id_fails_closed(tmp_path):
     assert "CORRELATION_ID" in completed.stderr
 
 
-@pytest.mark.parametrize("value", ["master-request-42", "4F9B4C7E-2C10-4C9E-9E3D-8A0D5F2E7B61"])
+@pytest.mark.parametrize(
+    "value", ["master-request-42", "4F9B4C7E-2C10-4C9E-9E3D-8A0D5F2E7B61"]
+)
 def test_noncanonical_correlation_id_fails_closed(tmp_path, value):
     env = base_env()
     env["CORRELATION_ID"] = value
@@ -224,7 +226,9 @@ def test_noncanonical_correlation_id_fails_closed(tmp_path, value):
     assert "canonical UUID" in completed.stderr
 
 
-@pytest.mark.parametrize("candidate_id", ["bad id", "A" + "a" * 140, "-invalid"])
+@pytest.mark.parametrize(
+    "candidate_id", ["bad id", "A" + "a" * 140, "-invalid"]
+)
 def test_candidate_id_must_match_shared_contract(tmp_path, candidate_id):
     env = base_env()
     env["CANDIDATE_ID"] = candidate_id
