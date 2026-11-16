@@ -20,15 +20,34 @@ def _inputs():
     image_digest = "sha256:" + "a" * 64
     pdd_digest = "sha256:" + "b" * 64
     predicate = {
-        "buildDefinition": {"buildType": "https://ndftechlabs.com/buildtypes/frappe-docker-image/v1"},
-        "runDetails": {"builder": {"id": "https://github.com/NdfTechLabs/frappe_docker/actions"}},
+        "buildDefinition": {
+            "buildType": "https://ndftechlabs.com/buildtypes/frappe-docker-image/v1",
+            "externalParameters": {"product_id": "dalali"},
+            "resolvedDependencies": [],
+        },
+        "runDetails": {
+            "builder": {"id": "https://github.com/NdfTechLabs/frappe_docker/actions"}
+        },
         "ndf_build": {
+            "schema_version": "1.0.0",
             "product_id": "dalali",
             "platform": "linux/amd64",
             "workflow": {
                 "repository": "NdfTechLabs/frappe_docker",
-                "source_commit": "c" * 40,
+                "path": ".github/workflows/ndf-publish-product.yml",
+                "ref": "refs/heads/main",
                 "run_id": "123456",
+                "run_attempt": 1,
+                "source_commit": "c" * 40,
+            },
+            "lock_sha256": "e" * 64,
+            "composition_sha256": "f" * 64,
+            "source_revisions": [{"repository": "frappe/frappe", "commit": "1" * 40}],
+            "validation": {
+                "image_validation": {"status": "passed", "report_sha256": "1" * 64},
+                "source_provenance": {"status": "passed", "report_sha256": "2" * 64},
+                "composition_verification": {"status": "passed", "report_sha256": "3" * 64},
+                "evidence_binding": {"status": "passed", "report_sha256": "4" * 64},
             },
         },
     }
