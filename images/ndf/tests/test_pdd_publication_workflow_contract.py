@@ -70,9 +70,7 @@ def test_existing_publication_receipt_artifact_contract_is_preserved():
 
 def test_pdd_publication_remains_manual_main_only_and_only_signer_receives_oidc():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
-    publish_job = workflow.split("\n  publish:\n", 1)[1].split(
-        "\n  sign-pdd:\n", 1
-    )[0]
+    publish_job = workflow.split("\n  publish:\n", 1)[1].split("\n  sign-pdd:\n", 1)[0]
     sign_job = workflow.split("\n  sign-pdd:\n", 1)[1]
     assert "workflow_dispatch:" in workflow
     assert '[[ "$GITHUB_REF" == "refs/heads/main" ]]' in workflow
@@ -86,7 +84,9 @@ def test_binding_generation_emits_statement_and_predicate_after_publication():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
     publish_job = workflow.split("\n  publish:\n", 1)[1].split("\n  sign-pdd:\n", 1)[0]
     publish_step = publish_job.index("name: Publish PDD and verified evidence bundle")
-    binding_step = publish_job.index("name: Generate deterministic PDD binding statement and predicate")
+    binding_step = publish_job.index(
+        "name: Generate deterministic PDD binding statement and predicate"
+    )
     upload_step = publish_job.index("name: Upload PDD signing inputs")
     assert publish_step < binding_step < upload_step
     assert "--statement-output" in publish_job

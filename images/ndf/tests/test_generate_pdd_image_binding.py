@@ -263,7 +263,6 @@ def test_generator_emits_schema_valid_deterministic_statement(tmp_path, monkeypa
     assert second_predicate.read_bytes() == predicate_output.read_bytes()
 
 
-
 def test_generator_rejects_same_output_path(tmp_path, monkeypatch):
     descriptor, receipt, trust_result, predicate, env = _inputs()
     descriptor_path = _write(tmp_path / "product-deployment.json", descriptor)
