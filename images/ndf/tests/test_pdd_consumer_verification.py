@@ -281,7 +281,9 @@ def _consumer_report_fixture():
             "binding_status": "passed",
             "published_file_count": 1,
             "binding_report_sha256": sha,
-            "files": [{"path": "binding-verification.json", "sha256": sha, "size_bytes": 1}],
+            "files": [
+                {"path": "binding-verification.json", "sha256": sha, "size_bytes": 1}
+            ],
         },
         "trust_decision": {
             "status": "rejected",
