@@ -316,60 +316,6 @@
           "candidate_origin": {
             "properties": {
               "decision": {
-                "const": "verified"
-              },
-              "evidence_references": {
-                "type": "array",
-                "minItems": 2,
-                "contains": {
-                  "properties": {
-                    "kind": {
-                      "const": "candidate_origin_attestation"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ]
-                }
-              }
-            },
-            "required": [
-              "decision",
-              "evidence_references"
-            ]
-          }
-        },
-        "required": [
-          "candidate_origin"
-        ]
-      },
-      "then": {
-        "properties": {
-          "candidate_origin": {
-            "properties": {
-              "evidence_references": {
-                "contains": {
-                  "properties": {
-                    "kind": {
-                      "const": "cosign_signature"
-                    }
-                  },
-                  "required": [
-                    "kind"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "candidate_origin": {
-            "properties": {
-              "decision": {
                 "const": "rejected"
               }
             },
@@ -393,6 +339,66 @@
                     "NOT_EVALUATED"
                   ]
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "decision": {
+                "const": "verified"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          }
+        },
+        "required": [
+          "candidate_origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidate_origin": {
+            "required": [
+              "evidence_references"
+            ],
+            "properties": {
+              "evidence_references": {
+                "type": "array",
+                "minItems": 2,
+                "allOf": [
+                  {
+                    "contains": {
+                      "properties": {
+                        "kind": {
+                          "const": "candidate_origin_attestation"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    }
+                  },
+                  {
+                    "contains": {
+                      "properties": {
+                        "kind": {
+                          "const": "cosign_signature"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    }
+                  }
+                ]
               }
             }
           }
