@@ -211,6 +211,14 @@ def test_extracts_legacy_and_generic_fulcio_claims_and_preserves_extensions(tmp_
     assert claims["event_name"] == claims["build_trigger"] == "workflow_dispatch"
     assert claims["ref"] == claims["source_repository_ref"] == "refs/heads/main"
     assert claims["source_sha"] == claims["source_repository_digest"]
+    assert claims["workflow_ref"] == (
+        "NdfTechLabs/frappe_docker/.github/workflows/"
+        "ndf-publish-product.yml@refs/heads/main"
+    )
+    assert claims["run_id"] == "123456789"
+    assert claims["run_attempt"] == 1
+    assert result["policy_observation"]["identity_claims_validated"] is True
+    assert result["observation"]["certificate_signature_verified"] is True
     assert any(
         item["oid"] == "1.3.6.1.4.1.57264.99.1"
         for item in result["certificate"]["extensions"]
