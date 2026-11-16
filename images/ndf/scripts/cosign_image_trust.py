@@ -415,6 +415,8 @@ def verify_image(
     attestation_output: Path | None = None,
     expected_predicate_path: Path | None = None,
     self_contained: bool = False,
+    expected_product_id: str | None = None,
+    expected_source_commit: str | None = None,
 ) -> dict[str, Any]:
     """Verify image signature and NDF provenance.
 
@@ -495,6 +497,23 @@ def verify_image(
     if verified_statement != statement:
         raise CosignTrustError("Attestation changed between verification passes.")
     _validate_cosign_statement(verified_statement, repository=repository, digest=digest)
+    verified_predicate = verified_statement["predicate"]
+    verified_ndf_build = verified_predicate["ndf_build"]
+    if (
+        expected_product_id is not None
+        and verified_ndf_build["product_id"] != expected_product_id
+    ):
+        raise CosignTrustError(
+            "Verified provenance product ID does not match the expected release product."
+        )
+    if (
+        expected_source_commit is not None
+        and verified_ndf_build["workflow"]["source_commit"].lower()
+        != expected_source_commit.lower()
+    ):
+        raise CosignTrustError(
+            "Verified provenance source commit does not match the requested release source SHA."
+        )
     if attestation_output is not None:
         # Preserve the exact-source-SHA-constrained second verification pass.
         _atomic_write(attestation_output, attestation_result.stdout.encode("utf-8"))
@@ -577,6 +596,8 @@ def main(argv: list[str] | None = None) -> int:
     verify_parser.add_argument("--result-output", type=Path, required=True)
     verify_parser.add_argument("--attestation-output", type=Path)
     verify_parser.add_argument("--expected-predicate", type=Path)
+    verify_parser.add_argument("--expected-product-id")
+    verify_parser.add_argument("--expected-source-commit")
     verify_parser.add_argument(
         "--self-contained",
         action="store_true",
@@ -601,6 +622,8 @@ def main(argv: list[str] | None = None) -> int:
                 attestation_output=args.attestation_output,
                 expected_predicate_path=args.expected_predicate,
                 self_contained=args.self_contained,
+                expected_product_id=args.expected_product_id,
+                expected_source_commit=args.expected_source_commit,
                 policy_path=args.policy,
                 cosign_binary=args.cosign_binary,
             )

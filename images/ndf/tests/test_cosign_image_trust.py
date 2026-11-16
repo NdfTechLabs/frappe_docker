@@ -455,3 +455,50 @@ def test_verify_requires_expected_predicate_outside_self_contained_mode(tmp_path
             policy_path=_write_policy(tmp_path, status="confirmed"),
             runner=FakeRunner(),
         )
+
+
+def test_verify_self_contained_rejects_unexpected_product_id(tmp_path):
+    with pytest.raises(
+        trust.CosignTrustError,
+        match="product ID does not match the expected release product",
+    ):
+        trust.verify_image(
+            image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
+            result_output=tmp_path / "result.json",
+            policy_path=_write_policy(tmp_path, status="confirmed"),
+            runner=FakeRunner(),
+            self_contained=True,
+            expected_product_id="dhanaerp-master-v16",
+        )
+
+
+def test_verify_self_contained_rejects_unexpected_source_commit(tmp_path):
+    with pytest.raises(
+        trust.CosignTrustError,
+        match="source commit does not match the requested release source SHA",
+    ):
+        trust.verify_image(
+            image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
+            result_output=tmp_path / "result.json",
+            policy_path=_write_policy(tmp_path, status="confirmed"),
+            runner=FakeRunner(),
+            self_contained=True,
+            expected_product_id="dalali-v16",
+            expected_source_commit="f" * 40,
+        )
+
+
+def test_verify_self_contained_accepts_expected_product_and_source_claims(tmp_path):
+    with pytest.raises(trust.CosignTrustError, match="policy is provisional"):
+        trust.verify_image(
+            image_ref="ghcr.io/ndftechlabs/dalali@sha256:" + "a" * 64,
+            result_output=tmp_path / "result.json",
+            policy_path=_write_policy(tmp_path),
+            runner=FakeRunner(),
+            self_contained=True,
+            expected_product_id="dalali-v16",
+            expected_source_commit="c" * 40,
+        )
+    result = json.loads((tmp_path / "result.json").read_text(encoding="utf-8"))
+    assert result["artifact"]["digest"] == "sha256:" + "a" * 64
+    assert result["decision"]["reason_codes"] == ["IDENTITY_POLICY_PROVISIONAL"]
