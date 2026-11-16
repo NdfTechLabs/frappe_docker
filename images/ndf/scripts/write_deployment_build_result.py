@@ -109,7 +109,9 @@ def main() -> int:
 
     candidate_id = required_env("CANDIDATE_ID")
     if not CANDIDATE_ID_PATTERN.fullmatch(candidate_id):
-        raise ValueError("Candidate ID does not match the shared 140-character contract.")
+        raise ValueError(
+            "Candidate ID does not match the shared 140-character contract."
+        )
 
     source_commit = required_env("GITHUB_SHA")
     run_url = required_env("WORKFLOW_RUN_URL")
