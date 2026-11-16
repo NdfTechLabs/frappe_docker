@@ -298,3 +298,18 @@ def test_rejects_duplicate_json_keys_in_bundle(tmp_path):
     path.write_text('{"mediaType":"one","mediaType":"two"}\n', encoding="utf-8")
     with pytest.raises(observer.CertificateObservationError, match="Duplicate JSON key"):
         observer._read_jsonl(path)
+
+
+def test_rejects_certificate_that_does_not_verify_the_verified_envelope_signature(tmp_path):
+    bundles, verified = _fixture(tmp_path, certificate_key_mismatch=True)
+    with pytest.raises(
+        observer.CertificateObservationError,
+        match="does not verify the exact DSSE envelope signature",
+    ):
+        observer.observe_certificate(
+            bundles,
+            verified,
+            artifact_reference=ARTIFACT_REFERENCE,
+            predicate_type=PDD_PREDICATE,
+            identity_id="product-image-publication",
+        )
