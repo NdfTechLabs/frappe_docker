@@ -22,7 +22,7 @@
       "requested_version": "version-16",
       "immutable_commit": "cccccccccccccccccccccccccccccccccccccccc",
       "is_required": true,
-      "change_action": "install"
+      "change_action": "Add"
     }
   ],
   "optional_capabilities": [],
