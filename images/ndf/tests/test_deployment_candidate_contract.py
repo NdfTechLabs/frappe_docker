@@ -454,6 +454,7 @@ def test_origin_predicate_requires_canonical_uuid_correlation_id():
     assert schema["properties"]["correlation_id"] == {
         "type": "string",
         "format": "uuid",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     }
     assert "correlation_id" in schema["required"]
 
