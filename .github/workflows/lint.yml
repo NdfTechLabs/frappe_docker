@@ -36,9 +36,3 @@ jobs:
         run: pre-commit run --color=always --all-files
         env:
           GO111MODULE: on
-
-      - name: TEMP inspect formatter diff
-        if: failure()
-        run: |
-          git status --short
-          git diff --no-ext-diff -- images/ndf/scripts/write_deployment_build_result.py images/ndf/tests/test_deployment_build_trust_evidence.py images/ndf/tests/test_deployment_candidate_contract.py images/ndf/tests/test_write_deployment_build_result.py images/ndf/schemas/deployment-build-trust-evidence-v1.schema.json images/ndf/schemas/deployment-candidate-v1.schema.json images/ndf/schemas/deployment-candidate-origin-predicate-v1.schema.json images/ndf/fixtures/candidates/valid/candidate-v1.json images/ndf/M4.2-IMPLEMENTATION-PLAN.md images/ndf/M4.2.8.3.6-LIVE-PRODUCT-PROMOTION-GATE-ACCEPTANCE.md images/ndf/M4.2.8.5-CANDIDATE-TRUST-INTEGRATION-ADR.md images/ndf/M4.2.8.5-DT-MASTER-CANDIDATE-PRODUCER-NDF-CONSUMER-CONTRACT.md
