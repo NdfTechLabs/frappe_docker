@@ -34,6 +34,7 @@ def base_env():
         "CORRELATION_ID": "4f9b4c7e-2c10-4c9e-9e3d-8a0d5f2e7b61",
         "WORKFLOW_RUN_URL": "https://github.com/NdfTechLabs/frappe_docker/actions/runs/123456",
         "WORKFLOW_STARTED_AT": "2026-11-15T10:00:00Z",
+        "ORIGIN_VERIFY_RESULT": "success",
         "DISPATCH_GATE_RESULT": "success",
         "PREPARE_RESULT": "success",
         "BUILD_RESULT": "success",
@@ -128,6 +129,7 @@ def test_result_writer_refuses_to_overwrite_attempt_result(tmp_path):
 @pytest.mark.parametrize(
     ("failed_stage", "expected_code"),
     [
+        ("ORIGIN_VERIFY_RESULT", "CANDIDATE_ORIGIN_TRUST_FAILED"),
         ("DISPATCH_GATE_RESULT", "DISPATCH_NOT_AUTHORIZED"),
         ("PREPARE_RESULT", "CANDIDATE_INTAKE_FAILED"),
         ("BUILD_RESULT", "IMAGE_BUILD_OR_VERIFICATION_FAILED"),
