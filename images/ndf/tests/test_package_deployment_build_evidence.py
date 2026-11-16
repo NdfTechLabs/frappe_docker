@@ -217,6 +217,22 @@ def test_verifier_rejects_tampered_result(tmp_path):
         bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
 
 
+def test_verifier_rejects_tampered_referenced_evidence(tmp_path):
+    result, report, evidence, _, _ = _inputs(tmp_path)
+    _add_verified_evidence(result, report, evidence)
+    output = tmp_path / "bundle"
+    bundle.pack_bundle(
+        result_path=result,
+        report_path=report,
+        evidence_root=evidence,
+        schema_dir=SCHEMAS,
+        output_dir=output,
+    )
+    (output / "evidence/attestation.json").write_text("tampered")
+    with pytest.raises(bundle.EvidenceBundleError, match="size mismatch|SHA-256 mismatch"):
+        bundle.verify_bundle(bundle_dir=output, schema_dir=SCHEMAS)
+
+
 def test_verifier_rejects_missing_report(tmp_path):
     output, _ = _pack(tmp_path)
     (output / bundle.REPORT_FILENAME).unlink()
