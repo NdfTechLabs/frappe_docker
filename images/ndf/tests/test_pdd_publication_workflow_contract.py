@@ -70,7 +70,9 @@ def test_existing_publication_receipt_artifact_contract_is_preserved():
 
 def test_pdd_publication_remains_manual_main_only_and_only_signer_receives_oidc():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
-    publish_job = workflow.split("\n  publish:\n", 1)[1].split("\n  sign-pdd:\n", 1)[0]
+    publish_job = workflow.split("\n  publish:\n", 1)[1].split(
+        "\n  sign-pdd:\n", 1
+    )[0]
     sign_job = workflow.split("\n  sign-pdd:\n", 1)[1]
     assert "workflow_dispatch:" in workflow
     assert '[[ "$GITHUB_REF" == "refs/heads/main" ]]' in workflow
@@ -110,7 +112,10 @@ def test_signer_job_is_dependent_isolated_and_uses_immutable_receipt_digest():
     assert "6f9f17788090df1f26f669e9d70d6ae9567deba6" in sign_job
     assert "IDENTITY_POLICY_PROVISIONAL" in sign_job
     assert "pdd-publication-record-v1.schema.json" in sign_job
-    assert "PDD cryptographic verification passed, but signer identity policy is provisional; result is rejected." in sign_job
+    assert (
+        "PDD cryptographic verification passed, but signer identity policy is "
+        "provisional; result is rejected."
+    ) in sign_job
     assert "pdd-trust-verification-result.json" in sign_job
     assert "pdd-verified-attestation.json" in sign_job
 
