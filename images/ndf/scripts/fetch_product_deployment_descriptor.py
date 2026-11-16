@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator, ValidationError
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 try:
     from . import artifact_trust, cosign_image_trust, cosign_pdd_trust
@@ -97,7 +97,7 @@ def _load_receipt(path: Path) -> dict[str, Any]:
         schema = json.loads(PUBLICATION_SCHEMA.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
         Draft202012Validator(schema).validate(receipt)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, SchemaError, ValidationError) as exc:
         raise PDDRetrievalError(f"Invalid publication receipt: {exc}") from exc
     if not isinstance(receipt, dict):
         raise PDDRetrievalError("Publication receipt must be a JSON object.")
@@ -336,7 +336,7 @@ def fetch_product_deployment_descriptor(
     if verify_image_binding:
         return consumer_report
     return {
-        "status": "descriptor_only_non_trust_verifying",
+        "status": "descriptor_evidence_only_non_trust_verifying",
         "artifact_reference": reference,
         "artifact_digest": digest,
         "descriptor_id": validated["descriptor_id"],
@@ -362,7 +362,7 @@ def main() -> int:
     parser.add_argument(
         "--skip-image-binding",
         action="store_true",
-        help="Validate artifact and PDD only; do not re-run M4.2.6.5 against the image registry.",
+        help="Validate the descriptor and published evidence inventory only; skip image binding and all Cosign trust verification. This mode cannot report trust.",
     )
     args = parser.parse_args()
     try:
@@ -791,7 +791,7 @@ def _verify_independent_consumer_trust(
         schema = json.loads(CONSUMER_REPORT_SCHEMA.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
         Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER).validate(report)
-    except (OSError, json.JSONDecodeError, ValidationError) as exc:
+    except (OSError, json.JSONDecodeError, SchemaError, ValidationError) as exc:
         raise PDDRetrievalError(f"Consumer verification report failed schema validation: {exc}") from exc
     cosign_image_trust._atomic_write(
         report_path,
