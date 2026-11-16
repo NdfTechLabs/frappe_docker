@@ -8,11 +8,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 NDF = Path(__file__).resolve().parents[1]
 SCHEMA = NDF / "schemas" / "deployment-build-trust-evidence-v1.schema.json"
 FIXTURE = (
-    NDF
-    / "fixtures"
-    / "trust"
-    / "valid"
-    / "deployment-build-trust-evidence-v1.json"
+    NDF / "fixtures" / "trust" / "valid" / "deployment-build-trust-evidence-v1.json"
 )
 
 
