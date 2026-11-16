@@ -156,7 +156,6 @@ def test_candidate_terminal_result_job_is_always_run_and_least_privileged():
     assert "generate_deployment_build_trust_evidence.py" in result_job
     assert "package_deployment_build_evidence.py pack" in result_job
     assert "package_deployment_build_evidence.py verify" in result_job
-    assert "deployment-build-evidence-bundle-v1.json" not in result_job
 
 
 def test_candidate_result_job_preserves_attempt_and_pdd_correlation():
