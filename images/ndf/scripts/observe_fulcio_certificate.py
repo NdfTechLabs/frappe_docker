@@ -22,6 +22,14 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.x509.oid import ExtendedKeyUsageOID, ExtensionOID
 
+try:
+    from . import artifact_trust
+except ImportError:
+    import artifact_trust
+
+NDF_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_POLICY = NDF_DIR / "policies" / "artifact-trust-identity-policy-v1.json"
+
 BUNDLE_MEDIA_TYPE = "application/vnd.dev.sigstore.bundle.v0.3+json"
 FULCIO_OID_PREFIX = "1.3.6.1.4.1.57264.1."
 LEGACY_CLAIMS = {
@@ -187,6 +195,8 @@ def observe_certificate(
     *,
     artifact_reference: str,
     predicate_type: str,
+    identity_id: str,
+    policy_path: Path = DEFAULT_POLICY,
 ) -> dict[str, Any]:
     match = re.fullmatch(
         r"(?P<repository>[^@\s]+)@sha256:(?P<digest>[a-f0-9]{64})",
@@ -277,6 +287,18 @@ def observe_certificate(
         raise CertificateObservationError(
             f"Expected exactly one URI SAN identity; found {len(san_uris)}."
         )
+    certificate_identity = san_uris[0]
+    fulcio_claims["workflow_ref"] = certificate_identity
+
+    invocation = fulcio_claims.get("run_invocation_uri")
+    invocation_match = (
+        re.search(r"/actions/runs/([0-9]+)/attempts/([1-9][0-9]*)$", invocation)
+        if isinstance(invocation, str)
+        else None
+    )
+    if invocation_match is not None:
+        fulcio_claims["run_id"] = invocation_match.group(1)
+        fulcio_claims["run_attempt"] = int(invocation_match.group(2))
 
     try:
         eku = cert.extensions.get_extension_for_oid(ExtensionOID.EXTENDED_KEY_USAGE).value
@@ -307,6 +329,18 @@ def observe_certificate(
                     f"Legacy and generic Fulcio claims disagree: {legacy} vs {generic}."
                 )
 
+    try:
+        policy = artifact_trust.load_identity_policy(policy_path)
+        policy_observation = artifact_trust.validate_signer_claims(
+            fulcio_claims,
+            identity_id=identity_id,
+            policy=policy,
+        )
+    except Exception as exc:
+        raise CertificateObservationError(
+            f"Observed Fulcio claims do not satisfy the configured identity contract: {exc}"
+        ) from exc
+
     cert_der_sha256 = hashlib.sha256(certificate_der).hexdigest()
     return {
         "schema_version": "1.0.0",
@@ -322,6 +356,14 @@ def observe_certificate(
             "statement_type": statement.get("_type"),
             "subject_repository": repository,
             "subject_digest": f"sha256:{digest}",
+        },
+        "policy_observation": {
+            "identity_id": policy_observation["identity_id"],
+            "policy_status": policy_observation["policy_status"],
+            "identity_claims_validated": policy_observation["identity_claims_validated"],
+            "cryptographic_signature_verified": False,
+            "transparency_log_verified": False,
+            "trust_decision": "not_evaluated",
         },
         "certificate": {
             "sha256": cert_der_sha256,
@@ -353,6 +395,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--verified-envelope", required=True, type=Path)
     parser.add_argument("--artifact-reference", required=True)
     parser.add_argument("--predicate-type", required=True)
+    parser.add_argument("--identity-id", required=True)
+    parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
@@ -361,6 +405,8 @@ def main(argv: list[str] | None = None) -> int:
             args.verified_envelope,
             artifact_reference=args.artifact_reference,
             predicate_type=args.predicate_type,
+            identity_id=args.identity_id,
+            policy_path=args.policy,
         )
         args.output.write_text(
             json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
