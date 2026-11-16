@@ -295,10 +295,6 @@ def verify_pdd(
         ],
         runner=command_runner,
     )
-    if attestation_output is not None:
-        image_trust._atomic_write(
-            attestation_output, attestation_result.stdout.encode("utf-8")
-        )
     statement = image_trust.extract_verified_statement(attestation_result.stdout)
     _validate_cosign_statement(statement, repository=repository, digest=digest)
     expected_predicate = image_trust._strict_json(
@@ -344,6 +340,12 @@ def verify_pdd(
             "PDD binding attestation changed between verification passes."
         )
     _validate_cosign_statement(verified_statement, repository=repository, digest=digest)
+    if attestation_output is not None:
+        # Preserve the second verification pass, which includes the exact source-SHA
+        # certificate constraint, rather than the preliminary identity-only pass.
+        image_trust._atomic_write(
+            attestation_output, exact_attestation.stdout.encode("utf-8")
+        )
 
     now = verified_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
