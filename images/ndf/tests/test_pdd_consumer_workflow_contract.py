@@ -78,6 +78,7 @@ def test_consumer_artifact_upload_runs_even_after_verification_failure():
         "\n      - name:", 1
     )[0]
     assert "if: always()" in upload
+    assert "${{ env.RECEIPT_DIR }}" in upload
     assert "${{ env.OUTPUT_DIR }}" in upload
     assert "${{ runner.temp }}/pdd-consumer-cli-output.json" in upload
     assert "if-no-files-found: warn" in upload
