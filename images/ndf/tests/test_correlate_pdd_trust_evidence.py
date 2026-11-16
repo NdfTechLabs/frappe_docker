@@ -358,3 +358,55 @@ def test_manifest_verifier_rejects_unexpected_files_after_sealing(tmp_path):
     (root / "unrelated.txt").write_text("unexpected")
     with pytest.raises(evidence.PDDTrustEvidenceError, match="unexpected files"):
         evidence.verify_evidence_manifest(root)
+
+
+def test_rejects_duplicate_attestations(tmp_path):
+    root = _bundle(tmp_path)
+    result = _trust_result()
+    result["attestations"].append(dict(result["attestations"][0]))
+    _write_json(root / "pdd-trust-verification-result.json", result)
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="Exactly one verified"):
+        _correlate(root)
+
+
+def test_rejects_wrong_statement_predicate_type(tmp_path):
+    root = _bundle(tmp_path)
+    statement = _statement()
+    statement["predicateType"] = "https://example.invalid/wrong"
+    _write_json(root / "pdd-image-binding-statement.json", statement)
+    _write_json(root / "pdd-image-binding-predicate.json", statement["predicate"])
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="Statement schema validation"):
+        _correlate(root)
+
+
+def test_rejects_receipt_repository_mismatch(tmp_path):
+    root = _bundle(tmp_path)
+    receipt = _receipt()
+    receipt["artifact"]["repository"] = "ghcr.io/ndftechlabs/other-pdd"
+    _write_json(root / "pdd-publication-record.json", receipt)
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="immutable reference"):
+        _correlate(root)
+
+
+def test_rejects_symlinked_manifest_output(tmp_path):
+    root = _bundle(tmp_path)
+    external = tmp_path / "external-manifest.json"
+    external.write_text("preserve", encoding="utf-8")
+    (root / evidence.MANIFEST_NAME).symlink_to(external)
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="atomically write"):
+        _correlate(root)
+    assert external.read_text(encoding="utf-8") == "preserve"
+
+
+def test_atomic_manifest_write_failure_does_not_leave_partial_output(
+    tmp_path, monkeypatch
+):
+    root = _bundle(tmp_path)
+
+    def fail_write(*args, **kwargs):
+        raise evidence.cosign_image_trust.CosignTrustError("simulated atomic write failure")
+
+    monkeypatch.setattr(evidence.cosign_image_trust, "_atomic_write", fail_write)
+    with pytest.raises(evidence.PDDTrustEvidenceError, match="atomically write"):
+        _correlate(root)
+    assert not (root / evidence.MANIFEST_NAME).exists()
