@@ -30,12 +30,17 @@
     },
     "correlation_id": {
       "type": "string",
-      "format": "uuid"
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
     "result_binding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["result_id", "result_file", "result_sha256"],
+      "required": [
+        "result_id",
+        "result_file",
+        "result_sha256"
+      ],
       "properties": {
         "result_id": {
           "type": "string",
@@ -52,7 +57,12 @@
     "workflow": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "run_id", "run_attempt", "source_commit"],
+      "required": [
+        "repository",
+        "run_id",
+        "run_attempt",
+        "source_commit"
+      ],
       "properties": {
         "repository": {
           "const": "NdfTechLabs/frappe_docker"
@@ -87,7 +97,11 @@
           "const": "NDF"
         },
         "decision": {
-          "enum": ["verified", "rejected", "not_evaluated"]
+          "enum": [
+            "verified",
+            "rejected",
+            "not_evaluated"
+          ]
         },
         "reason_code": {
           "enum": [
@@ -106,7 +120,10 @@
         "subject": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["repository", "digest"],
+          "required": [
+            "repository",
+            "digest"
+          ],
           "properties": {
             "repository": {
               "const": "ghcr.io/ndftechlabs/dt-master-deployment-candidates"
@@ -152,7 +169,11 @@
     "evidenceReference": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "reference", "sha256"],
+      "required": [
+        "kind",
+        "reference",
+        "sha256"
+      ],
       "properties": {
         "kind": {
           "enum": [
@@ -179,7 +200,11 @@
     "ndfImageEvidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "digest", "evidence_references"],
+      "required": [
+        "repository",
+        "digest",
+        "evidence_references"
+      ],
       "properties": {
         "repository": {
           "type": "string",
@@ -199,7 +224,12 @@
     "ndfDescriptorEvidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference", "digest", "content_sha256", "evidence_references"],
+      "required": [
+        "reference",
+        "digest",
+        "content_sha256",
+        "evidence_references"
+      ],
       "properties": {
         "reference": {
           "type": "string",
@@ -230,10 +260,14 @@
                 "const": "verified"
               }
             },
-            "required": ["decision"]
+            "required": [
+              "decision"
+            ]
           }
         },
-        "required": ["candidate_origin"]
+        "required": [
+          "candidate_origin"
+        ]
       },
       "then": {
         "properties": {
@@ -256,10 +290,14 @@
                 "const": "not_evaluated"
               }
             },
-            "required": ["decision"]
+            "required": [
+              "decision"
+            ]
           }
         },
-        "required": ["candidate_origin"]
+        "required": [
+          "candidate_origin"
+        ]
       },
       "then": {
         "properties": {
@@ -282,10 +320,14 @@
                 "const": "rejected"
               }
             },
-            "required": ["decision"]
+            "required": [
+              "decision"
+            ]
           }
         },
-        "required": ["candidate_origin"]
+        "required": [
+          "candidate_origin"
+        ]
       },
       "then": {
         "properties": {
@@ -293,7 +335,10 @@
             "properties": {
               "reason_code": {
                 "not": {
-                  "enum": ["CANDIDATE_ORIGIN_VERIFIED", "NOT_EVALUATED"]
+                  "enum": [
+                    "CANDIDATE_ORIGIN_VERIFIED",
+                    "NOT_EVALUATED"
+                  ]
                 }
               }
             }
@@ -310,15 +355,21 @@
                 "const": "verified"
               }
             },
-            "required": ["decision"]
+            "required": [
+              "decision"
+            ]
           }
         },
-        "required": ["candidate_origin"]
+        "required": [
+          "candidate_origin"
+        ]
       },
       "then": {
         "properties": {
           "candidate_origin": {
-            "required": ["evidence_references"],
+            "required": [
+              "evidence_references"
+            ],
             "properties": {
               "evidence_references": {
                 "type": "array",
@@ -331,7 +382,9 @@
                           "const": "candidate_origin_attestation"
                         }
                       },
-                      "required": ["kind"]
+                      "required": [
+                        "kind"
+                      ]
                     }
                   },
                   {
@@ -341,7 +394,9 @@
                           "const": "cosign_signature"
                         }
                       },
-                      "required": ["kind"]
+                      "required": [
+                        "kind"
+                      ]
                     }
                   }
                 ]
