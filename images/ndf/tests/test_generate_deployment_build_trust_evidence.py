@@ -228,7 +228,7 @@ def test_successful_result_requires_verified_candidate_origin(
 
 
 def test_successful_result_accepts_verified_candidate_origin(tmp_path):
-    result_path, origin_path, evidence_dir = _write_inputs()
+    result_path, origin_path, evidence_dir = _write_inputs(tmp_path)
     result = _mark_successful_result(_result())
     result_path.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
 
