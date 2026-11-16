@@ -102,7 +102,15 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
         if not line.strip():
             continue
         try:
-            value = json.loads(line, object_pairs_hook=_unique_object)
+            value = json.loads(
+                line,
+                object_pairs_hook=_unique_object,
+                parse_constant=lambda token: (_ for _ in ()).throw(
+                    CertificateObservationError(
+                        f"Invalid JSON constant in bundle line {number}: {token}"
+                    )
+                ),
+            )
         except (json.JSONDecodeError, CertificateObservationError) as exc:
             raise CertificateObservationError(f"Invalid bundle JSON on line {number}: {exc}") from exc
         if not isinstance(value, dict):
@@ -271,6 +279,8 @@ def observe_certificate(
             f"Unsupported Sigstore bundle mediaType: {bundle.get('mediaType')!r}."
         )
 
+    if verified_envelope["payloadType"] != "application/vnd.in-toto+json":
+        raise CertificateObservationError("Verified DSSE envelope has an unexpected payload type.")
     statement = _statement_from_envelope(verified_envelope)
     if statement.get("predicateType") != predicate_type:
         raise CertificateObservationError("Verified statement predicate type does not match the requested type.")
