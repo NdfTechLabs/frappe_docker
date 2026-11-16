@@ -392,3 +392,74 @@ def test_intake_rejects_layer_tampering_before_payload_validation(
             payload_sha256=payload_hash(raw),
             output_path=tmp_path / "candidate.json",
         )
+
+
+def test_requested_version_is_optional_for_candidate_application():
+    schema = load(SCHEMAS / "deployment-candidate-v1.schema.json")
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["applications"][0].pop("requested_version")
+    errors = list(Draft202012Validator(schema).iter_errors(candidate))
+    assert not errors
+
+
+@pytest.mark.parametrize(
+    "candidate_type",
+    [
+        "Initial",
+        "Add App",
+        "Remove App",
+        "Upgrade App",
+        "Runtime Upgrade",
+        "Product Upgrade",
+        "Configuration Change",
+    ],
+)
+def test_candidate_type_matches_dt_master_select_values(candidate_type):
+    schema = load(SCHEMAS / "deployment-candidate-v1.schema.json")
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["candidate_type"] = candidate_type
+    assert not list(Draft202012Validator(schema).iter_errors(candidate))
+
+
+def test_candidate_type_rejects_unregistered_values():
+    schema = load(SCHEMAS / "deployment-candidate-v1.schema.json")
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["candidate_type"] = "product"
+    assert list(Draft202012Validator(schema).iter_errors(candidate))
+
+
+def test_candidate_identity_constraints_match_origin_predicate():
+    payload_schema = load(SCHEMAS / "deployment-candidate-v1.schema.json")
+    predicate_schema = load(
+        SCHEMAS / "deployment-candidate-origin-predicate-v1.schema.json"
+    )
+    payload_id = payload_schema["properties"]["candidate_id"]
+    predicate_id = predicate_schema["properties"]["candidate_id"]
+    assert payload_id == predicate_id
+    assert payload_id["maxLength"] == 140
+    assert payload_id["pattern"] == "^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$"
+
+
+def test_candidate_id_accepts_maximum_length_and_rejects_overflow():
+    schema = load(SCHEMAS / "deployment-candidate-v1.schema.json")
+    candidate = load(FIXTURES / "valid" / "candidate-v1.json")
+    candidate["candidate_id"] = "A" + "a" * 139
+    assert not list(Draft202012Validator(schema).iter_errors(candidate))
+    candidate["candidate_id"] += "a"
+    assert list(Draft202012Validator(schema).iter_errors(candidate))
+
+
+def test_origin_predicate_requires_canonical_uuid_correlation_id():
+    schema = load(
+        SCHEMAS / "deployment-candidate-origin-predicate-v1.schema.json"
+    )
+    assert schema["properties"]["correlation_id"] == {
+        "type": "string",
+        "format": "uuid",
+    }
+    assert "correlation_id" in schema["required"]
+
+
+def test_trust_evidence_report_schema_is_valid():
+    schema = load(SCHEMAS / "deployment-build-trust-evidence-v1.schema.json")
+    Draft202012Validator.check_schema(schema)
