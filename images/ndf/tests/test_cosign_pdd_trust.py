@@ -13,7 +13,6 @@ if TESTS_DIR not in sys.path:
 
 from scripts import cosign_pdd_trust as trust
 
-
 PDD_REPOSITORY = "ghcr.io/ndftechlabs/dalali"
 PDD_DIGEST = "sha256:" + "b" * 64
 PDD_REF = PDD_REPOSITORY + "@" + PDD_DIGEST
@@ -136,7 +135,9 @@ def test_parse_pdd_reference_rejects_mutable_or_malformed(reference):
 def test_identity_selection_requires_exact_direct_pdd_workflow(tmp_path):
     policy = json.loads(trust.POLICY_PATH.read_text(encoding="utf-8"))
     pdd = next(item for item in policy["identities"] if item["id"] == trust.IDENTITY_ID)
-    pdd["workflow_ref"] = "NdfTechLabs/frappe_docker/.github/workflows/other.yml@refs/heads/main"
+    pdd["workflow_ref"] = (
+        "NdfTechLabs/frappe_docker/.github/workflows/other.yml@refs/heads/main"
+    )
     path = _write(tmp_path / "policy.json", policy)
     with pytest.raises(trust.PDDCosignTrustError, match="workflow reference changed"):
         trust._load_identity(path)
@@ -287,7 +288,10 @@ def test_verify_rejects_provisional_policy_and_writes_normalized_result(tmp_path
         assert "--certificate-github-workflow-ref" in command
         assert "--insecure-ignore-tlog" not in command
         assert "--check-claims=false" not in command
-    assert checks[-1][checks[-1].index("--certificate-github-workflow-sha") + 1] == SOURCE_COMMIT
+    assert (
+        checks[-1][checks[-1].index("--certificate-github-workflow-sha") + 1]
+        == SOURCE_COMMIT
+    )
 
 
 def test_verify_accepts_confirmed_policy(tmp_path):

@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from . import artifact_trust, cosign_image_trust as image_trust
+    from . import artifact_trust
+    from . import cosign_image_trust as image_trust
 except ImportError:
     import artifact_trust
     import cosign_image_trust as image_trust
@@ -28,9 +29,7 @@ COSIGN_STATEMENT_SCHEMA = (
 COSIGN_VERSION = "v3.1.4"
 IDENTITY_ID = "product-pdd-publication"
 PREDICATE_TYPE = "https://ndftechlabs.com/attestations/pdd-image-binding/v1"
-WORKFLOW_PATH = (
-    ".github/workflows/ndf-publish-product-deployment-descriptor.yml"
-)
+WORKFLOW_PATH = ".github/workflows/ndf-publish-product-deployment-descriptor.yml"
 WORKFLOW_REF = (
     "NdfTechLabs/frappe_docker/"
     ".github/workflows/ndf-publish-product-deployment-descriptor.yml@refs/heads/main"
@@ -61,7 +60,9 @@ def _load_identity(
     try:
         policy = artifact_trust.load_identity_policy(policy_path)
     except Exception as exc:
-        raise PDDCosignTrustError(f"Unable to load signer identity policy: {exc}") from exc
+        raise PDDCosignTrustError(
+            f"Unable to load signer identity policy: {exc}"
+        ) from exc
     matches = [
         entry
         for entry in policy["identities"]
@@ -280,9 +281,9 @@ def verify_pdd(
         runner=command_runner,
     )
     image_trust._parse_signature_output(signature_result.stdout)
-    attestation_args = image_trust._workflow_identity_args(
-        policy, identity, "0" * 40
-    )[:-2]
+    attestation_args = image_trust._workflow_identity_args(policy, identity, "0" * 40)[
+        :-2
+    ]
     attestation_result = image_trust._run(
         [
             cosign_binary,
@@ -342,9 +343,7 @@ def verify_pdd(
         raise PDDCosignTrustError(
             "PDD binding attestation changed between verification passes."
         )
-    _validate_cosign_statement(
-        verified_statement, repository=repository, digest=digest
-    )
+    _validate_cosign_statement(verified_statement, repository=repository, digest=digest)
 
     now = verified_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -396,7 +395,9 @@ def verify_pdd(
     try:
         artifact_trust.validate_trust_verification_result(result)
     except Exception as exc:
-        raise PDDCosignTrustError(f"Normalized PDD trust result is invalid: {exc}") from exc
+        raise PDDCosignTrustError(
+            f"Normalized PDD trust result is invalid: {exc}"
+        ) from exc
     image_trust._atomic_write(result_output, image_trust._canonical_json(result))
     if not trusted:
         raise PDDCosignTrustError(
