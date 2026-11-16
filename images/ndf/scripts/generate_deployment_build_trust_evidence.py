@@ -315,6 +315,11 @@ def generate_report(
                 "Rejected candidate origin must not be represented with successful verification evidence."
             )
 
+    if result.get("status") == "succeeded" and decision != "verified":
+        raise TrustEvidenceError(
+            "A successful deployment build result requires verified candidate origin."
+        )
+
     report = {
         "schema_version": "1.0.0",
         "report_id": f"ndf-{run_id}-{attempt}-trust",
