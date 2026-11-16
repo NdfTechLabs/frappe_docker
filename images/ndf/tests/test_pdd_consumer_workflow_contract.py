@@ -159,3 +159,24 @@ def test_consumer_fetch_preserves_retrieved_bundle_before_verification():
     )
     assert "_validate_image_source_identity(descriptor, workflow)" in script
     assert '"image_source_sha_verified": True' in script
+
+
+def test_consumer_downloads_raw_sigstore_bundles_after_independent_verification():
+    workflow = read_workflow()
+    verify = workflow.index("name: Independently verify PDD and source image trust")
+    download = workflow.index(
+        "name: Download raw Sigstore attestation bundles for certificate observation"
+    )
+    upload = workflow.index("name: Upload retrieved PDD and independent trust evidence")
+    step = workflow[download:upload]
+    assert verify < download < upload
+    assert 'cosign download attestation "$PDD_REF"' in step
+    assert 'cosign download attestation "$IMAGE_REF"' in step
+    assert '--predicate-type "https://ndftechlabs.com/attestations/pdd-image-binding/v1"' in step
+    assert '--predicate-type "https://slsa.dev/provenance/v1"' in step
+    assert "pdd-sigstore-bundles.jsonl" in step
+    assert "image-sigstore-bundles.jsonl" in step
+    assert '["pdd"]["immutable_reference"]' in step
+    assert '["source_image"]["immutable_reference"]' in step
+    assert "raw Sigstore bundle object(s)" in step
+    assert "id: certificate_bundles" in step
