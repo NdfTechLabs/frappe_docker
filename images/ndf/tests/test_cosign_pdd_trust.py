@@ -274,6 +274,7 @@ def test_verify_rejects_provisional_policy_and_writes_normalized_result(tmp_path
         "reason_codes": [trust.PROVISIONAL_REASON],
     }
     assert attestation_path.is_file()
+    assert attestation_path.read_text(encoding="utf-8") == runner.attestation_output
     checks = [
         call
         for call in runner.calls
