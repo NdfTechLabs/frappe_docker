@@ -149,10 +149,14 @@ def test_candidate_terminal_result_job_is_always_run_and_least_privileged():
     assert "write_deployment_build_result.py" in result_job
     assert "deployment-build-result-v1.schema.json" in result_job
     assert (
-        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}"
+        "ndf-candidate-evidence-${{ github.run_id }}-${{ github.run_attempt }}"
         in result_job
     )
     assert "retention-days: 90" in result_job
+    assert "generate_deployment_build_trust_evidence.py" in result_job
+    assert "package_deployment_build_evidence.py pack" in result_job
+    assert "package_deployment_build_evidence.py verify" in result_job
+    assert "deployment-build-evidence-bundle-v1.json" not in result_job
 
 
 def test_candidate_result_job_preserves_attempt_and_pdd_correlation():
@@ -217,3 +221,18 @@ def test_candidate_terminal_result_requires_origin_verification_outcome():
     ).read_text(
         encoding="utf-8"
     )
+
+
+
+def test_candidate_terminal_job_publishes_only_verified_attempt_bundle():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    result_job = workflow.split("  publish-candidate-result:", 1)[1]
+    report = result_job.index("generate_deployment_build_trust_evidence.py")
+    pack = result_job.index("package_deployment_build_evidence.py pack")
+    verify = result_job.index("package_deployment_build_evidence.py verify")
+    upload = result_job.index("Upload immutable attempt evidence bundle")
+    assert report < pack < verify < upload
+    assert "ndf-candidate-evidence-${{ github.run_id }}-${{ github.run_attempt }}" in result_job
+    assert "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}" not in result_job
+    assert "if: always()" in result_job
+    assert "ORIGIN_VERIFY_RESULT: ${{ needs.verify-candidate-origin.result }}" in result_job
