@@ -40,8 +40,6 @@ jobs:
     outputs:
       pdd_reference: ${{ steps.binding.outputs.pdd_reference }}
       signing_input_artifact: ${{ steps.binding.outputs.signing_input_artifact }}
-      source_image_id: ${{ steps.source.outputs.source_image_id }}
-      source_build_attempt: ${{ steps.source.outputs.source_build_attempt }}
     env:
       BUILD_RUN_ID: ${{ inputs.build_run_id }}
       BUILD_ARTIFACT_NAME: ${{ inputs.build_artifact_name }}
@@ -158,8 +156,6 @@ jobs:
           print(f"Verified descriptor/report: {verification_name}")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"source_trust_artifact_name={trust_name}\n")
-              output.write(f"source_image_id={image_id}\n")
-              output.write(f"source_build_attempt={build_attempt}\n")
           PY
 
       - name: Download original build evidence
@@ -410,10 +406,17 @@ jobs:
         shell: bash
         env:
           SOURCE_BUILD_RUN_ID: ${{ inputs.build_run_id }}
-          SOURCE_BUILD_ATTEMPT: ${{ needs.publish.outputs.source_build_attempt }}
+          BUILD_ARTIFACT_NAME: ${{ inputs.build_artifact_name }}
           SIGNING_INPUT_ARTIFACT: ${{ needs.publish.outputs.signing_input_artifact }}
         run: |
           set -euo pipefail
+          if [[ "$BUILD_ARTIFACT_NAME" =~ ^ndf-publish-(.+)-([0-9]+)-([0-9]+)$ ]] &&
+             [[ "${BASH_REMATCH[2]}" == "$SOURCE_BUILD_RUN_ID" ]]; then
+            SOURCE_BUILD_ATTEMPT="${BASH_REMATCH[3]}"
+          else
+            echo "Validated source build artifact name is malformed or belongs to another run." >&2
+            exit 1
+          fi
           EVIDENCE_DIR="$RUNNER_TEMP/pdd-trust-evidence"
           mkdir -p "$EVIDENCE_DIR"
           cp "$RUNNER_TEMP/pdd-signing-input/pdd-publication-record.json" "$EVIDENCE_DIR/"
