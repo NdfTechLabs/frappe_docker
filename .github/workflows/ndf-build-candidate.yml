@@ -17,7 +17,7 @@ on:
         type: string
       correlation_id:
         description: Optional DT Master correlation identifier
-        required: false
+        required: true
         type: string
 
 permissions:
