@@ -182,7 +182,8 @@
             "pdd_image_binding",
             "rekor_entry",
             "verification_bundle",
-            "verification_report"
+            "verification_report",
+            "candidate_origin_attestation"
           ]
         },
         "reference": {
@@ -303,6 +304,95 @@
             "properties": {
               "reason_code": {
                 "const": "NOT_EVALUATED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "decision": {
+                "const": "verified"
+              },
+              "evidence_references": {
+                "type": "array",
+                "minItems": 2,
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "candidate_origin_attestation"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "decision",
+              "evidence_references"
+            ]
+          }
+        },
+        "required": [
+          "candidate_origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "evidence_references": {
+                "contains": {
+                  "properties": {
+                    "kind": {
+                      "const": "cosign_signature"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "decision": {
+                "const": "rejected"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          }
+        },
+        "required": [
+          "candidate_origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidate_origin": {
+            "properties": {
+              "reason_code": {
+                "not": {
+                  "enum": [
+                    "CANDIDATE_ORIGIN_VERIFIED",
+                    "NOT_EVALUATED"
+                  ]
+                }
               }
             }
           }
