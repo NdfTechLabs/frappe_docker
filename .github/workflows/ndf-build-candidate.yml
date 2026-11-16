@@ -443,14 +443,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python images/ndf/scripts/package_deployment_build_evidence.py pack \\
-            --result "$RESULT_PATH" \\
-            --trust-evidence "$REPORT_PATH" \\
-            --evidence-root "$ORIGIN_ROOT" \\
-            --schema-dir images/ndf/schemas \\
+          python images/ndf/scripts/package_deployment_build_evidence.py pack \
+            --result "$RESULT_PATH" \
+            --trust-evidence "$REPORT_PATH" \
+            --evidence-root "$ORIGIN_ROOT" \
+            --schema-dir images/ndf/schemas \
             --output-dir "$BUNDLE_PATH"
-          python images/ndf/scripts/package_deployment_build_evidence.py verify \\
-            --bundle-dir "$BUNDLE_PATH" \\
+          python images/ndf/scripts/package_deployment_build_evidence.py verify \
+            --bundle-dir "$BUNDLE_PATH" \
             --schema-dir images/ndf/schemas
 
       - name: Upload immutable attempt evidence bundle
