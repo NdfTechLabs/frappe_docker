@@ -334,6 +334,7 @@ def generate_pdd_image_binding(
     source_trust_result_path: Path,
     source_predicate_path: Path,
     statement_output: Path,
+    predicate_output: Path,
     env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Validate all inputs and emit a deterministic PDD-to-image Statement v1."""
@@ -385,6 +386,8 @@ def generate_pdd_image_binding(
     raw = (
         json.dumps(statement, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     ).encode("utf-8")
+    predicate_raw = _canonical_json(statement["predicate"])
+    _atomic_write(predicate_output, predicate_raw)
     _atomic_write(statement_output, raw)
     return {
         "status": "passed",
@@ -393,6 +396,7 @@ def generate_pdd_image_binding(
         "image_digest": artifact["digest"],
         "source_predicate_sha256": predicate_hash,
         "statement_sha256": _sha256(raw),
+        "predicate_sha256": _sha256(predicate_raw),
     }
 
 
@@ -403,6 +407,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-trust-result", required=True, type=Path)
     parser.add_argument("--source-predicate", required=True, type=Path)
     parser.add_argument("--statement-output", required=True, type=Path)
+    parser.add_argument("--predicate-output", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
         result = generate_pdd_image_binding(
@@ -411,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
             source_trust_result_path=args.source_trust_result,
             source_predicate_path=args.source_predicate,
             statement_output=args.statement_output,
+            predicate_output=args.predicate_output,
         )
     except (PDDBindingGenerationError, OSError) as exc:
         print(json.dumps({"status": "failed", "error": str(exc)}, ensure_ascii=False))
