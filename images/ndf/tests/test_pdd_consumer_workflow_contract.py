@@ -183,3 +183,25 @@ def test_consumer_downloads_raw_sigstore_bundles_after_independent_verification(
     assert '["source_image"]["immutable_reference"]' in step
     assert "raw Sigstore bundle object(s)" in step
     assert "id: certificate_bundles" in step
+
+
+def test_consumer_correlates_verified_envelopes_and_observes_both_fulcio_certificates():
+    workflow = read_workflow()
+    bundle_download = workflow.index(
+        "name: Download raw Sigstore attestation bundles for certificate observation"
+    )
+    observe = workflow.index(
+        "name: Observe Fulcio certificates from independently verified bundles"
+    )
+    upload = workflow.index("name: Upload retrieved PDD and independent trust evidence")
+    step = workflow[observe:upload]
+    assert bundle_download < observe < upload
+    assert "observe_fulcio_certificate.py" in step
+    assert "--verified-envelope" in step
+    assert "--artifact-reference" in step
+    assert "--identity-id \"product-pdd-publication\"" in step
+    assert "--identity-id \"product-image-publication\"" in step
+    assert "pdd-fulcio-certificate-observation.json" in step
+    assert "image-fulcio-certificate-observation.json" in step
+    assert "pdd-verified-attestation.json" in workflow
+    assert "image-verified-attestation.json" in workflow
