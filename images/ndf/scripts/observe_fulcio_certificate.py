@@ -246,9 +246,9 @@ def observe_certificate(
             raise CertificateObservationError(f"Certificate contains duplicate extension OID {oid}.")
         raw_value = getattr(extension.value, "value", None)
         if raw_value is None:
-            # For parsed standard extensions, retain the complete DER extension
-            # value through the certificate's public extension representation.
-            raw_value = cert.public_bytes().hex().encode("ascii")
+            # Parsed standard extensions expose their DER value through
+            # public_bytes(); retain it rather than dropping the extension.
+            raw_value = extension.value.public_bytes()
         raw_extensions[oid] = raw_value
         extension_inventory.append(
             {
