@@ -720,6 +720,7 @@ def _verify_independent_consumer_trust(
             "policy_id": policy["policy_id"],
             "schema_version": policy["schema_version"],
             "status": policy_status,
+            "policy_sha256": policy_file_sha256,
         },
         "pdd": {
             "kind": "pdd",
