@@ -508,14 +508,24 @@ jobs:
           if not result_path.is_file():
               raise SystemExit("Independent verifier did not produce a normalized trust result.")
           result = json.loads(result_path.read_text(encoding="utf-8"))
-          if result.get("artifact", {}).get("immutable_reference") != image_ref:
-              raise SystemExit("Trust result is not bound to the exact build digest.")
+          artifact = result.get("artifact", {})
+          if artifact.get("kind") != "product_image" or artifact.get("immutable_reference") != image_ref:
+              raise SystemExit("Trust result is not bound to this exact product-image digest.")
           for section in ("signature", "signer", "transparency"):
               if result.get(section, {}).get("verified") is not True:
                   raise SystemExit(f"{section} verification did not pass.")
+          if result.get("transparency", {}).get("log_entry_verified") is not True:
+              raise SystemExit("Rekor transparency-log entry verification did not pass.")
           attestations = result.get("attestations")
-          if not isinstance(attestations, list) or len(attestations) != 1 or attestations[0].get("verified") is not True:
-              raise SystemExit("SLSA provenance attestation verification did not pass.")
+          if not isinstance(attestations, list) or len(attestations) != 1:
+              raise SystemExit("Exactly one SLSA provenance attestation is required.")
+          attestation = attestations[0]
+          if (
+              attestation.get("verified") is not True
+              or attestation.get("predicate_type") != "https://slsa.dev/provenance/v1"
+              or attestation.get("subject_digest") != image_ref.rsplit("@", 1)[1]
+          ):
+              raise SystemExit("SLSA provenance is not verified against the exact image digest.")
           decision = result.get("decision", {})
           if decision.get("status") == "trusted" and verify_status == 0:
               raise SystemExit(0)
@@ -594,17 +604,25 @@ jobs:
           if not isinstance(digest, str) or re.fullmatch(r"sha256:[a-f0-9]{64}", digest) is None:
               raise SystemExit("Build evidence does not contain a valid SHA-256 digest.")
           image_ref = f"{repository}@{digest}"
-          if trust.get("artifact", {}).get("immutable_reference") != image_ref:
-              raise SystemExit("Trust result refers to a different image digest.")
+          artifact = trust.get("artifact", {})
+          if artifact.get("kind") != "product_image" or artifact.get("immutable_reference") != image_ref:
+              raise SystemExit("Trust result refers to a different artifact or image digest.")
           if trust.get("decision", {}).get("status") != "trusted":
               raise SystemExit("Only an independently trusted image may be promoted.")
           for section in ("signature", "signer", "transparency"):
               if trust.get(section, {}).get("verified") is not True:
                   raise SystemExit(f"Required {section} verification is missing.")
+          if trust.get("transparency", {}).get("log_entry_verified") is not True:
+              raise SystemExit("Rekor transparency-log entry verification is missing.")
           attestations = trust.get("attestations")
           if not isinstance(attestations, list) or len(attestations) != 1:
               raise SystemExit("Exactly one verified SLSA provenance attestation is required.")
-          if attestations[0].get("verified") is not True or attestations[0].get("subject_digest") != digest:
+          attestation = attestations[0]
+          if (
+              attestation.get("verified") is not True
+              or attestation.get("predicate_type") != "https://slsa.dev/provenance/v1"
+              or attestation.get("subject_digest") != digest
+          ):
               raise SystemExit("SLSA provenance is not verified against the promoted digest.")
           print(f"image_repository={repository}")
           print(f"image_digest={digest}")
