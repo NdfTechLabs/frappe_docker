@@ -114,13 +114,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python images/ndf/scripts/verify_deployment_candidate_origin.py \\
-            --candidate-id "$CANDIDATE_ID" \\
-            --artifact-reference "$CANDIDATE_ARTIFACT_REF" \\
-            --payload-sha256 "$CANDIDATE_PAYLOAD_SHA256" \\
-            --correlation-id "$CORRELATION_ID" \\
-            --signature-output "$CANDIDATE_ORIGIN_ROOT/candidate-origin-signature-verification.json" \\
-            --attestation-output "$CANDIDATE_ORIGIN_ROOT/candidate-origin-attestation.json" \\
+          python images/ndf/scripts/verify_deployment_candidate_origin.py \
+            --candidate-id "$CANDIDATE_ID" \
+            --artifact-reference "$CANDIDATE_ARTIFACT_REF" \
+            --payload-sha256 "$CANDIDATE_PAYLOAD_SHA256" \
+            --correlation-id "$CORRELATION_ID" \
+            --signature-output "$CANDIDATE_ORIGIN_ROOT/candidate-origin-signature-verification.json" \
+            --attestation-output "$CANDIDATE_ORIGIN_ROOT/candidate-origin-attestation.json" \
             --result-output "$CANDIDATE_ORIGIN_ROOT/candidate-origin-verification-result.json"
 
       - name: Upload immutable candidate-origin verification evidence
