@@ -213,8 +213,8 @@ jobs:
               outcome = "provisional_rejected"
 
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              output.write(f"trust_outcome={outcome}\\n")
-              output.write(f"consumer_exit_code={exit_code}\\n")
+              output.write(f"trust_outcome={outcome}\n")
+              output.write(f"consumer_exit_code={exit_code}\n")
           print(f"Consumer execution completed; trust outcome: {outcome}.")
           PY
           cat "$CLI_OUTPUT"
