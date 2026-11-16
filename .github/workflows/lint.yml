@@ -36,9 +36,3 @@ jobs:
         run: pre-commit run --color=always --all-files
         env:
           GO111MODULE: on
-
-      - name: TEMP inspect formatter diff
-        if: failure()
-        run: |
-          git status --short
-          git diff --no-ext-diff -- images/ndf/fixtures/candidates/valid/candidate-v1.json
