@@ -22,6 +22,13 @@ def test_consumer_workflow_retains_read_only_permissions():
     assert "actions: write" not in workflow
 
 
+def test_consumer_workflow_installs_the_pinned_cosign_cli():
+    workflow = read_workflow()
+    assert "uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6" in workflow
+    assert "cosign-release: v3.1.4" in workflow
+    assert "cosign version" in workflow
+
+
 def test_consumer_invokes_full_trust_verification_with_explicit_evidence_paths():
     workflow = read_workflow()
     step = workflow.split("name: Independently verify PDD and source image trust", 1)[
@@ -78,6 +85,14 @@ def test_consumer_workflow_requires_complete_report_and_all_second_pass_outputs(
     assert 'test -s "$PDD_ATTESTATION_PATH"' in step
     assert 'test -s "$IMAGE_RESULT_PATH"' in step
     assert 'test -s "$IMAGE_ATTESTATION_PATH"' in step
+
+
+def test_consumer_evidence_directories_are_uploadable_without_hidden_file_opt_in():
+    workflow = read_workflow()
+    assert "RECEIPT_DIR: ${{ github.workspace }}/ndf-pdd-receipt" in workflow
+    assert "OUTPUT_DIR: ${{ github.workspace }}/ndf-pdd-retrieved" in workflow
+    assert "RECEIPT_DIR: ${{ github.workspace }}/.ndf-pdd-receipt" not in workflow
+    assert "OUTPUT_DIR: ${{ github.workspace }}/.ndf-pdd-retrieved" not in workflow
 
 
 def test_consumer_artifact_upload_runs_even_after_verification_failure():
