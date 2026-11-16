@@ -103,7 +103,7 @@ def test_signer_job_is_dependent_isolated_and_uses_immutable_receipt_digest():
     assert "packages: write" in sign_job
     assert "actions/download-artifact@v7" in sign_job
     assert "needs.publish.outputs.signing_input_artifact" in sign_job
-    assert "artifact.immutable_reference" in sign_job
+    assert 'receipt["artifact"]["immutable_reference"]' in sign_job
     assert "cosign_pdd_trust.py sign" in sign_job
     assert "cosign_pdd_trust.py verify" in sign_job
     assert "cosign-release: v3.1.4" in sign_job
