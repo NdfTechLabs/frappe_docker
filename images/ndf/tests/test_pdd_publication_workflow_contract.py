@@ -127,3 +127,52 @@ def test_other_product_and_consumer_trust_workflows_are_not_changed_by_pdd_scope
     assert "id-token: write" in product
     assert "id-token: write" not in consumer
     assert "packages: read" in consumer
+
+
+def test_signer_correlates_and_publishes_complete_attempt_scoped_trust_evidence():
+    workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
+    sign_job = workflow.split("\n  sign-pdd:\n", 1)[1]
+    correlation = sign_job.index("name: Assemble and correlate PDD trust evidence")
+    upload = sign_job.index("name: Upload correlated PDD trust evidence")
+    summary = sign_job.index("name: Write PDD trust evidence summary")
+    assert correlation < upload < summary
+    assert "correlate_pdd_trust_evidence.py" in sign_job
+    assert "--source-build-run-id" in sign_job
+    assert "--source-build-attempt" in sign_job
+    assert "--signing-input-artifact" in sign_job
+    assert "ndf-pdd-trust-evidence-${{ inputs.build_run_id }}-${{ github.run_attempt }}" in sign_job
+    assert "retention-days: 90" in sign_job
+    assert "pdd-trust-evidence-manifest.json" not in sign_job.split(
+        "name: Upload correlated PDD trust evidence", 1
+    )[0] or "correlate_pdd_trust_evidence.py" in sign_job
+    assert "REJECTED: IDENTITY_POLICY_PROVISIONAL" in sign_job
+    assert "Cryptographic signature, signer, Rekor and binding-attestation checks passed" in sign_job
+    assert "source_build_attempt: ${{ steps.source.outputs.source_build_attempt }}" in workflow
+    assert "id-token: write" in sign_job
+    assert sign_job.count("id-token: write") == 1
+
+
+def test_pdd_trust_evidence_manifest_schema_is_versioned_and_hashes_required_files():
+    import json
+    from jsonschema import Draft202012Validator
+
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "pdd-trust-evidence-manifest-v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    required_files = {
+        "pdd-publication-record.json",
+        "pdd-image-binding-statement.json",
+        "pdd-image-binding-predicate.json",
+        "pdd-trust-verification-result.json",
+        "pdd-verified-attestation.json",
+        "pdd-verify.log",
+    }
+    assert set(schema["properties"]["files"]["required"]) == required_files
+    assert schema["properties"]["verification"]["properties"]["decision"]["const"] == "rejected"
+    assert schema["properties"]["verification"]["properties"]["reason_codes"]["const"] == [
+        "IDENTITY_POLICY_PROVISIONAL"
+    ]
