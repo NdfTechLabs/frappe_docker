@@ -202,7 +202,10 @@ def _mark_successful_result(result):
     return result
 
 
-@pytest.mark.parametrize(("origin_present", "decision"), [(False, None), (True, "rejected")])
+@pytest.mark.parametrize(
+    ("origin_present", "decision"),
+    [(False, None), (True, "rejected")],
+)
 def test_successful_result_requires_verified_candidate_origin(
     tmp_path, origin_present, decision
 ):
