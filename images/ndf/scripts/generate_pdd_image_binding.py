@@ -383,6 +383,12 @@ def generate_pdd_image_binding(
         },
     }
     _validate_schema(statement, BINDING_SCHEMA, "PDD image binding statement")
+    if statement_output == predicate_output:
+        raise PDDBindingGenerationError(
+            "Statement and predicate outputs must use distinct paths."
+        )
+    if statement_output.is_symlink() or predicate_output.is_symlink():
+        raise PDDBindingGenerationError("Refusing to write a symlink binding output.")
     raw = (
         json.dumps(statement, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     ).encode("utf-8")
