@@ -456,6 +456,7 @@ def test_verify_requires_expected_predicate_outside_self_contained_mode(tmp_path
             runner=FakeRunner(),
         )
 
+
 def test_verify_self_contained_rejects_unexpected_product_id(tmp_path):
     with pytest.raises(
         trust.CosignTrustError,

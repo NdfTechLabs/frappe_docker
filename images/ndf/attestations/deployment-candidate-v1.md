@@ -1,8 +1,8 @@
 # DT Master Deployment Candidate Origin Attestation — v1
 
-**Predicate type:** `https://ndftechlabs.com/attestations/deployment-candidate/v1`  
-**JSON Schema:** `https://ndftechlabs.com/schemas/deployment-candidate-origin-predicate-v1.schema.json`  
-**Schema source:** [`images/ndf/schemas/deployment-candidate-origin-predicate-v1.schema.json`](../schemas/deployment-candidate-origin-predicate-v1.schema.json)  
+**Predicate type:** `https://ndftechlabs.com/attestations/deployment-candidate/v1`
+**JSON Schema:** `https://ndftechlabs.com/schemas/deployment-candidate-origin-predicate-v1.schema.json`
+**Schema source:** [`images/ndf/schemas/deployment-candidate-origin-predicate-v1.schema.json`](../schemas/deployment-candidate-origin-predicate-v1.schema.json)
 **Status:** Contract draft for cross-repository implementation; producer identity values require live observation and explicit approval.
 
 ## 1. Purpose
@@ -39,20 +39,20 @@ The candidate artifact reference supplied to NDF must resolve to this same repos
 
 The predicate must validate against the versioned JSON Schema and contain:
 
-| Field | Meaning |
-| --- | --- |
-| `schema_version` | Exact predicate schema version, currently `1.0.0`. |
-| `candidate_id` | DT Master candidate identifier. |
-| `candidate_artifact.repository` | OCI repository containing the candidate. |
-| `candidate_artifact.digest` | Exact OCI manifest digest; must match the Statement subject. |
-| `candidate_payload_sha256` | SHA-256 of the exact candidate JSON layer bytes. |
-| `producer.repository` | DT Master repository identity. |
-| `producer.workflow_path` | Repository-relative path of the workflow that produced the artifact. |
-| `producer.workflow_ref` | Full workflow ref, including repository and approved ref. |
-| `producer.source_commit` | Full 40-character commit SHA of the producer workflow implementation. |
-| `workflow_run.run_id` | GitHub Actions run ID that produced the candidate. |
-| `workflow_run.run_attempt` | Run attempt that produced the candidate. |
-| `correlation_id` | Cross-repository correlation ID, or explicit `null` when not supplied. |
+| Field                           | Meaning                                                                |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `schema_version`                | Exact predicate schema version, currently `1.0.0`.                     |
+| `candidate_id`                  | DT Master candidate identifier.                                        |
+| `candidate_artifact.repository` | OCI repository containing the candidate.                               |
+| `candidate_artifact.digest`     | Exact OCI manifest digest; must match the Statement subject.           |
+| `candidate_payload_sha256`      | SHA-256 of the exact candidate JSON layer bytes.                       |
+| `producer.repository`           | DT Master repository identity.                                         |
+| `producer.workflow_path`        | Repository-relative path of the workflow that produced the artifact.   |
+| `producer.workflow_ref`         | Full workflow ref, including repository and approved ref.              |
+| `producer.source_commit`        | Full 40-character commit SHA of the producer workflow implementation.  |
+| `workflow_run.run_id`           | GitHub Actions run ID that produced the candidate.                     |
+| `workflow_run.run_attempt`      | Run attempt that produced the candidate.                               |
+| `correlation_id`                | Cross-repository correlation ID, or explicit `null` when not supplied. |
 
 ## 5. Example predicate
 

@@ -11,7 +11,6 @@ if TESTS_DIR not in sys.path:
 from scripts import artifact_trust  # noqa: E402
 from scripts.artifact_trust import ArtifactTrustError  # noqa: E402
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = (
     REPOSITORY_ROOT

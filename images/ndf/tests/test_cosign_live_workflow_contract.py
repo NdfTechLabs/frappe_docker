@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[3]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
@@ -105,9 +104,14 @@ def test_independent_verification_checks_signature_identity_transparency_and_pol
     )
     for item in required:
         assert item in verify
-    assert 'result.get("transparency", {}).get("log_entry_verified") is not True' in verify
-    assert "attestation.get(\"verified\") is not True" in verify
-    assert 'attestation.get("predicate_type") != "https://slsa.dev/provenance/v1"' in verify
+    assert (
+        'result.get("transparency", {}).get("log_entry_verified") is not True' in verify
+    )
+    assert 'attestation.get("verified") is not True' in verify
+    assert (
+        'attestation.get("predicate_type") != "https://slsa.dev/provenance/v1"'
+        in verify
+    )
     assert 'attestation.get("subject_digest") != image_ref.rsplit("@", 1)[1]' in verify
     assert "imagetools create" not in verify
     assert "imagetools create" not in verify
