@@ -289,6 +289,7 @@ def observe_certificate(
         )
     certificate_identity = san_uris[0]
     fulcio_claims["workflow_ref"] = certificate_identity
+    fulcio_claims["certificate_identity"] = certificate_identity
 
     invocation = fulcio_claims.get("run_invocation_uri")
     invocation_match = (
