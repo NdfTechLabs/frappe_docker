@@ -254,14 +254,27 @@ def verify_pdd(
     *,
     pdd_ref: str,
     result_output: Path,
-    expected_predicate_path: Path,
+    expected_predicate_path: Path | None = None,
     attestation_output: Path | None = None,
     policy_path: Path = POLICY_PATH,
     cosign_binary: str = "cosign",
     runner: Any = None,
     verified_at: datetime | None = None,
+    self_contained: bool = False,
 ) -> dict[str, Any]:
-    """Verify PDD signature, Rekor-backed binding attestation and exact predicate."""
+    """Verify a PDD signature and binding attestation.
+
+    Producer mode requires exact comparison with the locally generated predicate.
+    Self-contained consumer mode validates the complete verified Statement directly.
+    """
+    if self_contained and expected_predicate_path is not None:
+        raise PDDCosignTrustError(
+            "Self-contained verification must not receive an expected predicate file."
+        )
+    if not self_contained and expected_predicate_path is None:
+        raise PDDCosignTrustError(
+            "Expected PDD binding predicate is required outside self-contained mode."
+        )
     repository, digest = parse_pdd_reference(pdd_ref)
     policy, identity = _load_identity(policy_path)
     command_runner = runner or image_trust.subprocess.run
@@ -297,13 +310,14 @@ def verify_pdd(
     )
     statement = image_trust.extract_verified_statement(attestation_result.stdout)
     _validate_cosign_statement(statement, repository=repository, digest=digest)
-    expected_predicate = image_trust._strict_json(
-        expected_predicate_path, "expected PDD binding predicate"
-    )
-    if statement["predicate"] != expected_predicate:
-        raise PDDCosignTrustError(
-            "Verified PDD binding predicate differs from the locally generated predicate."
+    if not self_contained:
+        expected_predicate = image_trust._strict_json(
+            expected_predicate_path, "expected PDD binding predicate"
         )
+        if statement["predicate"] != expected_predicate:
+            raise PDDCosignTrustError(
+                "Verified PDD binding predicate differs from the locally generated predicate."
+            )
 
     source_commit = statement["predicate"]["workflow"]["source_commit"]
     if not re.fullmatch(r"[a-f0-9]{40,64}", source_commit):
@@ -417,7 +431,12 @@ def main(argv: list[str] | None = None) -> int:
     sign_parser.add_argument("--predicate", required=True, type=Path)
     verify_parser = subparsers.add_parser("verify")
     verify_parser.add_argument("--pdd-ref", required=True)
-    verify_parser.add_argument("--expected-predicate", required=True, type=Path)
+    verify_parser.add_argument("--expected-predicate", type=Path)
+    verify_parser.add_argument(
+        "--self-contained",
+        action="store_true",
+        help="Verify the registry attestation without a producer-side expected predicate.",
+    )
     verify_parser.add_argument("--result-output", required=True, type=Path)
     verify_parser.add_argument("--attestation-output", type=Path)
     parser.add_argument("--cosign-bin", default="cosign")
@@ -437,6 +456,7 @@ def main(argv: list[str] | None = None) -> int:
                 result_output=args.result_output,
                 attestation_output=args.attestation_output,
                 cosign_binary=args.cosign_bin,
+                self_contained=args.self_contained,
             )
     except (PDDCosignTrustError, image_trust.CosignTrustError, OSError) as exc:
         print(json.dumps({"status": "failed", "error": str(exc)}, ensure_ascii=False))
