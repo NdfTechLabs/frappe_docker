@@ -15,6 +15,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+CANDIDATE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,139}$")
 CANDIDATE_REF = re.compile(
     r"^ghcr\.io/ndftechlabs/dt-master-deployment-candidates@sha256:([a-f0-9]{64})$"
 )
@@ -106,13 +107,17 @@ def main() -> int:
         )
         failure = {"code": code, "summary": summary}
 
+    candidate_id = required_env("CANDIDATE_ID")
+    if not CANDIDATE_ID_PATTERN.fullmatch(candidate_id):
+        raise ValueError("Candidate ID does not match the shared 140-character contract.")
+
     source_commit = required_env("GITHUB_SHA")
     run_url = required_env("WORKFLOW_RUN_URL")
     started_at = required_env("WORKFLOW_STARTED_AT")
     result: dict[str, Any] = {
         "schema_version": "1.0.0",
         "result_id": f"ndf-{run_id}-{run_attempt}",
-        "candidate_id": required_env("CANDIDATE_ID"),
+        "candidate_id": candidate_id,
         "candidate_artifact_ref": candidate_ref,
         "candidate_artifact_digest": candidate_digest,
         "candidate_payload_sha256": payload_hash,
