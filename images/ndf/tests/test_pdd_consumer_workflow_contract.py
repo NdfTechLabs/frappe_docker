@@ -135,7 +135,10 @@ def test_consumer_fetch_preserves_retrieved_bundle_before_verification():
     trust = script.index("_verify_independent_consumer_trust(")
     assert pull < preserve < binding < trust
     assert "if item.is_symlink():" in script
-    assert "shutil.copytree(pulled_dir, output_dir, dirs_exist_ok=True, symlinks=False)" in script
+    assert (
+        "shutil.copytree(pulled_dir, output_dir, dirs_exist_ok=True, symlinks=False)"
+        in script
+    )
     assert "_validate_image_source_identity(descriptor, workflow)" in script
     assert '"image_source_sha_verified": True' in script
 
