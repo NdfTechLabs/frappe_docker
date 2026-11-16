@@ -107,6 +107,8 @@ def _safe_evidence_file(root: Path, reference: str) -> Path:
         raise TrustEvidenceError(
             f"Evidence reference is not a safe relative path: {reference!r}."
         )
+    if root.is_symlink():
+        raise TrustEvidenceError("Candidate-origin evidence directory must not be a symlink.")
     root_resolved = root.resolve(strict=True)
     candidate = root / relative
     if candidate.is_symlink():
@@ -163,6 +165,12 @@ def generate_report(
     origin_evidence_dir: Path,
     schema_path: Path,
 ) -> dict[str, Any]:
+    if result_path.name != RESULT_FILENAME:
+        raise TrustEvidenceError(
+            f"Terminal result filename must be exactly {RESULT_FILENAME}."
+        )
+    if result_path.is_symlink():
+        raise TrustEvidenceError("Terminal result must not be a symlink.")
     result, result_bytes = _read_json(result_path, "deployment build result")
     _validate_schema(
         result,
@@ -184,6 +192,11 @@ def generate_report(
         raise TrustEvidenceError("Terminal result has a missing or noncanonical correlation UUID.")
     if not isinstance(candidate_digest, str) or not DIGEST_PATTERN.fullmatch(candidate_digest):
         raise TrustEvidenceError("Terminal result has an invalid candidate artifact digest.")
+    expected_candidate_ref = f"{CANDIDATE_REPOSITORY}@{candidate_digest}"
+    if result.get("candidate_artifact_ref") != expected_candidate_ref:
+        raise TrustEvidenceError(
+            "Terminal result candidate artifact reference and digest do not agree."
+        )
     if not isinstance(payload_sha256, str) or not HASH_PATTERN.fullmatch(payload_sha256):
         raise TrustEvidenceError("Terminal result has an invalid candidate payload SHA-256.")
     if not isinstance(workflow, dict):
@@ -201,10 +214,14 @@ def generate_report(
         or not re.fullmatch(r"[a-f0-9]{40,64}", source_commit)
     ):
         raise TrustEvidenceError("Terminal result workflow identity is invalid.")
+    if result.get("result_id") != f"ndf-{run_id}-{attempt}":
+        raise TrustEvidenceError("Terminal result ID does not match its run ID and attempt.")
 
     if origin_result_path is None or not origin_result_path.exists():
         origin = None
     else:
+        if origin_result_path.is_symlink():
+            raise TrustEvidenceError("Candidate-origin result must not be a symlink.")
         origin, _ = _read_json(origin_result_path, "candidate-origin verification result")
         origin_schema = schema_path.with_name("candidate-origin-verification-result-v1.schema.json")
         _validate_schema(origin, origin_schema, "candidate-origin verification result")
