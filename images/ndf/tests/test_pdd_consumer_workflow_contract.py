@@ -130,7 +130,7 @@ def test_consumer_fetch_preserves_retrieved_bundle_before_verification():
     ).read_text(encoding="utf-8")
     pull = script.index('"ORAS artifact pull"')
     preserve = script.index("_preserve_pulled_bundle(pulled_dir, output_dir)")
-    binding = script.index("verify_product_deployment_binding(")
+    binding = script.index("binding = verify_product_deployment_binding(")
     trust = script.index("_verify_independent_consumer_trust(")
     assert pull < preserve < binding < trust
     assert "if item.is_symlink():" in script
