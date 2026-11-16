@@ -35,7 +35,7 @@
     "result_binding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["result_id","result_file","result_sha256"],
+      "required": ["result_id", "result_file", "result_sha256"],
       "properties": {
         "result_id": {
           "type": "string",
@@ -52,7 +52,7 @@
     "workflow": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository","run_id","run_attempt","source_commit"],
+      "required": ["repository", "run_id", "run_attempt", "source_commit"],
       "properties": {
         "repository": {
           "const": "NdfTechLabs/frappe_docker"
@@ -87,7 +87,7 @@
           "const": "NDF"
         },
         "decision": {
-          "enum": ["verified","rejected","not_evaluated"]
+          "enum": ["verified", "rejected", "not_evaluated"]
         },
         "reason_code": {
           "enum": [
@@ -106,7 +106,7 @@
         "subject": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["repository","digest"],
+          "required": ["repository", "digest"],
           "properties": {
             "repository": {
               "const": "ghcr.io/ndftechlabs/dt-master-deployment-candidates"
@@ -152,7 +152,7 @@
     "evidenceReference": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind","reference","sha256"],
+      "required": ["kind", "reference", "sha256"],
       "properties": {
         "kind": {
           "enum": [
@@ -179,7 +179,7 @@
     "ndfImageEvidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository","digest","evidence_references"],
+      "required": ["repository", "digest", "evidence_references"],
       "properties": {
         "repository": {
           "type": "string",
@@ -199,7 +199,7 @@
     "ndfDescriptorEvidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference","digest","content_sha256","evidence_references"],
+      "required": ["reference", "digest", "content_sha256", "evidence_references"],
       "properties": {
         "reference": {
           "type": "string",
@@ -293,7 +293,7 @@
             "properties": {
               "reason_code": {
                 "not": {
-                  "enum": ["CANDIDATE_ORIGIN_VERIFIED","NOT_EVALUATED"]
+                  "enum": ["CANDIDATE_ORIGIN_VERIFIED", "NOT_EVALUATED"]
                 }
               }
             }
