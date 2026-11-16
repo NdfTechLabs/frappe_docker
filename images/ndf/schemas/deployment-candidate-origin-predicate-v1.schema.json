@@ -47,7 +47,12 @@
     "producer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "workflow_path", "workflow_ref", "source_commit"],
+      "required": [
+        "repository",
+        "workflow_path",
+        "workflow_ref",
+        "source_commit"
+      ],
       "properties": {
         "repository": {
           "type": "string",
