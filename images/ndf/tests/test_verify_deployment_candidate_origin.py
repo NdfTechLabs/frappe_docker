@@ -270,3 +270,92 @@ def test_identity_policy_rejects_noncanonical_certificate_identity(tmp_path):
         _verify(tmp_path, FakeCosign(), policy_path=path)
 
     assert error.value.reason_code == "SIGNER_IDENTITY_REJECTED"
+
+def test_cli_writes_attempt_scoped_rejection_for_provisional_identity(tmp_path):
+    policy = _write_policy(
+        tmp_path, status="provisional_until_live_certificate_observation"
+    )
+    result_path = tmp_path / "candidate-origin-result.json"
+    exit_code = verifier.main(
+        [
+            "--candidate-id",
+            CANDIDATE_ID,
+            "--artifact-reference",
+            REFERENCE,
+            "--payload-sha256",
+            PAYLOAD_SHA256,
+            "--correlation-id",
+            CORRELATION_ID,
+            "--policy",
+            str(policy),
+            "--signature-output",
+            str(tmp_path / "signature.json"),
+            "--attestation-output",
+            str(tmp_path / "attestation.json"),
+            "--result-output",
+            str(result_path),
+        ]
+    )
+
+    assert exit_code == 1
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["decision"] == "rejected"
+    assert result["reason_code"] == "IDENTITY_POLICY_PROVISIONAL"
+    assert result["producer"] is None
+    assert result["evidence_references"] == []
+
+
+def test_cosign_signature_failure_is_not_treated_as_candidate_origin(tmp_path):
+    class InvalidSignatureRunner(FakeCosign):
+        def __call__(self, command, **kwargs):
+            if command[1] == "verify":
+                self.calls.append(command)
+                return subprocess.CompletedProcess(
+                    command, 1, "", "no matching signatures"
+                )
+            return super().__call__(command, **kwargs)
+
+    with pytest.raises(verifier.CandidateOriginTrustError) as error:
+        _verify(tmp_path, InvalidSignatureRunner())
+
+    assert error.value.reason_code == "SIGNATURE_INVALID"
+
+
+def test_missing_rekor_evidence_is_rejected(tmp_path):
+    class MissingRekorRunner(FakeCosign):
+        def __call__(self, command, **kwargs):
+            if command[1] == "verify-attestation":
+                self.calls.append(command)
+                return subprocess.CompletedProcess(
+                    command, 1, "", "Rekor inclusion proof not found"
+                )
+            return super().__call__(command, **kwargs)
+
+    with pytest.raises(verifier.CandidateOriginTrustError) as error:
+        _verify(tmp_path, MissingRekorRunner())
+
+    assert error.value.reason_code == "REKOR_EVIDENCE_INVALID"
+
+
+def test_candidate_origin_verification_result_schema_rejects_success_without_evidence():
+    result = {
+        "schema_version": "1.0.0",
+        "decision": "verified",
+        "reason_code": "CANDIDATE_ORIGIN_VERIFIED",
+        "candidate_id": CANDIDATE_ID,
+        "correlation_id": CORRELATION_ID,
+        "subject": {"repository": REPOSITORY, "digest": DIGEST},
+        "payload_sha256": PAYLOAD_SHA256,
+        "producer": {
+            "repository": "NdfTechLabs/dt_master",
+            "workflow_path": WORKFLOW_PATH,
+            "workflow_ref": WORKFLOW_REF,
+            "source_commit": SOURCE_COMMIT,
+            "run_id": "123456789",
+            "run_attempt": 1,
+        },
+        "evidence_references": [],
+    }
+
+    with pytest.raises(verifier.CandidateOriginTrustError):
+        verifier.validate_result(result)
