@@ -336,8 +336,12 @@ def test_preserves_retrieved_bundle_before_later_verification(tmp_path):
     output = tmp_path / "output"
     (pulled / "nested").mkdir(parents=True)
     output.mkdir()
-    (pulled / "product-deployment.json").write_text('{"descriptor": true}', encoding="utf-8")
-    (pulled / "binding-verification.json").write_text('{"status": "pending"}', encoding="utf-8")
+    (pulled / "product-deployment.json").write_text(
+        '{"descriptor": true}', encoding="utf-8"
+    )
+    (pulled / "binding-verification.json").write_text(
+        '{"status": "pending"}', encoding="utf-8"
+    )
     (pulled / "nested" / "lock-v2.json").write_bytes(b"immutable evidence")
 
     consumer._preserve_pulled_bundle(pulled, output)
