@@ -17,22 +17,34 @@
     "installers"
   ],
   "properties": {
-    "schema_version": { "const": "1.0" },
-    "stage": { "const": "builder" },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "stage": {
+      "const": "builder"
+    },
     "lock": {
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "sha256"],
       "properties": {
-        "version": { "const": 2 },
-        "sha256": { "$ref": "#/$defs/sha256" }
+        "version": {
+          "const": 2
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
       }
     },
-    "framework": { "$ref": "#/$defs/application" },
+    "framework": {
+      "$ref": "#/$defs/application"
+    },
     "applications": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/application" }
+      "items": {
+        "$ref": "#/$defs/application"
+      }
     },
     "runtime": {
       "type": "object",
@@ -48,26 +60,56 @@
             "implementation"
           ],
           "properties": {
-            "executable": { "type": "string", "minLength": 1 },
-            "environment": { "type": "string", "minLength": 1 },
-            "version": { "type": "string", "minLength": 1 },
-            "implementation": { "type": "string", "minLength": 1 }
+            "executable": {
+              "type": "string",
+              "minLength": 1
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "implementation": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
-        "node": { "$ref": "#/$defs/optionalVersion" },
-        "yarn": { "$ref": "#/$defs/optionalVersion" },
+        "node": {
+          "$ref": "#/$defs/optionalVersion"
+        },
+        "yarn": {
+          "$ref": "#/$defs/optionalVersion"
+        },
         "bench": {
           "type": "object",
           "required": ["version"],
-          "properties": { "version": { "type": "string", "minLength": 1 } }
+          "properties": {
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         },
         "platform": {
           "type": "object",
           "required": ["system", "machine", "oci"],
           "properties": {
-            "system": { "type": "string", "minLength": 1 },
-            "machine": { "type": "string", "minLength": 1 },
-            "oci": { "type": "string", "pattern": "^linux/.+$" }
+            "system": {
+              "type": "string",
+              "minLength": 1
+            },
+            "machine": {
+              "type": "string",
+              "minLength": 1
+            },
+            "oci": {
+              "type": "string",
+              "pattern": "^linux/.+$"
+            }
           }
         }
       }
@@ -83,8 +125,14 @@
             "type": "object",
             "required": ["name", "version"],
             "properties": {
-              "name": { "type": "string", "minLength": 1 },
-              "version": { "type": "string", "minLength": 1 }
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         },
@@ -94,9 +142,18 @@
             "type": "object",
             "required": ["path", "name", "version"],
             "properties": {
-              "path": { "type": "string", "minLength": 1 },
-              "name": { "type": "string", "minLength": 1 },
-              "version": { "type": "string", "minLength": 1 }
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         },
@@ -106,9 +163,18 @@
             "type": "object",
             "required": ["name", "version", "architecture"],
             "properties": {
-              "name": { "type": "string", "minLength": 1 },
-              "version": { "type": "string", "minLength": 1 },
-              "architecture": { "type": "string", "minLength": 1 }
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "architecture": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         }
@@ -120,29 +186,149 @@
         "type": "object",
         "required": ["application", "path", "sha256"],
         "properties": {
-          "application": { "type": "string", "minLength": 1 },
-          "path": { "type": "string", "minLength": 1 },
-          "sha256": { "$ref": "#/$defs/sha256" }
+          "application": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          }
         }
-      }
+      },
+      "description": "Detected dependency/lockfile candidates. Presence and hash do not by themselves prove that Bench consumed a file."
     },
     "installers": {
       "type": "object",
       "additionalProperties": false,
       "required": ["uv", "pip"],
       "properties": {
-        "uv": { "$ref": "#/$defs/optionalVersion" },
-        "pip": { "$ref": "#/$defs/optionalVersion" }
+        "uv": {
+          "$ref": "#/$defs/optionalVersion"
+        },
+        "pip": {
+          "$ref": "#/$defs/optionalVersion"
+        }
+      },
+      "description": "Detected installer tool versions. The selected Python installer is recorded separately under bench_installation."
+    },
+    "bench_installation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "python_installer",
+        "bench_disable_uv",
+        "selection_source",
+        "bench_source",
+        "applications"
+      ],
+      "properties": {
+        "python_installer": {
+          "enum": ["uv", "pip"]
+        },
+        "bench_disable_uv": {
+          "type": "boolean"
+        },
+        "selection_source": {
+          "const": "bench.utils.use_uv"
+        },
+        "bench_source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["use_uv_source_sha256", "app_install_source_sha256"],
+          "properties": {
+            "use_uv_source_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "app_install_source_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "applications": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "application",
+              "python_install_method",
+              "python_project_files",
+              "node_install_method",
+              "node_install_inputs"
+            ],
+            "properties": {
+              "application": {
+                "type": "string",
+                "minLength": 1
+              },
+              "python_install_method": {
+                "enum": [
+                  "uv pip install -e",
+                  "python -m pip install --upgrade -e"
+                ]
+              },
+              "python_project_files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["path", "sha256"],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "description": "Project metadata files present at the app root for the editable install backend; this list is not proof of transitive package origin."
+              },
+              "node_install_method": {
+                "enum": ["yarn install --check-files", "not_run"]
+              },
+              "node_install_inputs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["path", "sha256"],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "description": "package.json and, when present, yarn.lock for the Bench Yarn installation path."
+              }
+            }
+          }
+        }
       }
     }
   },
   "$defs": {
-    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "optionalVersion": {
       "type": "object",
       "required": ["version"],
       "properties": {
-        "version": { "type": ["string", "null"] }
+        "version": {
+          "type": ["string", "null"]
+        }
       }
     },
     "application": {
@@ -156,11 +342,25 @@
         "actual_commit"
       ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "repository": { "type": "string", "pattern": "^[^/@:]+/.+$" },
-        "requested_ref": { "type": "string", "minLength": 1 },
-        "resolver_commit": { "type": "string" },
-        "actual_commit": { "type": "string", "pattern": "^[a-f0-9]{40,64}$" }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[^/@:]+/.+$"
+        },
+        "requested_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolver_commit": {
+          "type": "string"
+        },
+        "actual_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
+        }
       }
     }
   }

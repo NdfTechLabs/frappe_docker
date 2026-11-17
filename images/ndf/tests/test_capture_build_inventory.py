@@ -3,6 +3,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -99,6 +100,19 @@ def bench_fixture(tmp_path, monkeypatch):
         "capture_installers",
         lambda: {"uv": {"version": "0.13.7"}, "pip": {"version": "25.0"}},
     )
+    monkeypatch.setattr(
+        capture,
+        "capture_bench_installer_selection",
+        lambda: {
+            "python_installer": "uv",
+            "bench_disable_uv": False,
+            "selection_source": "bench.utils.use_uv",
+            "bench_source": {
+                "use_uv_source_sha256": "a" * 64,
+                "app_install_source_sha256": "b" * 64,
+            },
+        },
+    )
     return bench, lock_path, apps
 
 
@@ -117,6 +131,11 @@ def test_capture_records_actual_git_heads_and_lock_refs(bench_fixture, tmp_path)
     )
     assert report["applications"][1]["name"] == "erpnext"
     assert report["applications"][1]["resolver_commit"] == "a" * 40
+    assert report["bench_installation"]["python_installer"] == "uv"
+    assert (
+        report["bench_installation"]["applications"][0]["node_install_method"]
+        == "not_run"
+    )
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
     schema_path = (
@@ -233,3 +252,183 @@ def test_capture_serialization_is_deterministic(bench_fixture, tmp_path):
     capture.capture_inventory(bench, lock, second)
 
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_capture_installation_inputs_records_python_metadata_and_yarn_inputs(tmp_path):
+    app = tmp_path / "frappe"
+    app.mkdir()
+    files = {
+        "pyproject.toml": "[project]\nname='frappe'\n",
+        "setup.cfg": "[metadata]\nname = frappe\n",
+        "package.json": '{"name":"frappe","version":"1.0.0"}\n',
+        "yarn.lock": "# yarn lock\n",
+        "requirements.txt": "not-consumed-by-standard-app-install\n",
+        "uv.lock": "candidate-lock\n",
+    }
+    for name, value in files.items():
+        (app / name).write_text(value, encoding="utf-8")
+
+    report = capture.capture_installation_inputs(app, "frappe", "uv")
+
+    assert report["python_install_method"] == "uv pip install -e"
+    assert {item["path"] for item in report["python_project_files"]} == {
+        "apps/frappe/pyproject.toml",
+        "apps/frappe/setup.cfg",
+    }
+    assert report["node_install_method"] == "yarn install --check-files"
+    assert {item["path"] for item in report["node_install_inputs"]} == {
+        "apps/frappe/package.json",
+        "apps/frappe/yarn.lock",
+    }
+    assert all(
+        item["sha256"]
+        == hashlib.sha256((app / item["path"].split("/")[-1]).read_bytes()).hexdigest()
+        for item in report["python_project_files"] + report["node_install_inputs"]
+    )
+
+
+def test_capture_installation_inputs_marks_node_path_not_run_without_package_json(
+    tmp_path,
+):
+    app = tmp_path / "erpnext"
+    app.mkdir()
+    (app / "pyproject.toml").write_text("[project]\nname='erpnext'\n", encoding="utf-8")
+    (app / "yarn.lock").write_text("# orphan lock\n", encoding="utf-8")
+
+    report = capture.capture_installation_inputs(app, "erpnext", "pip")
+
+    assert report["python_install_method"] == "python -m pip install --upgrade -e"
+    assert report["node_install_method"] == "not_run"
+    assert report["node_install_inputs"] == []
+
+
+def test_capture_bench_installer_selection_uses_installed_bench_probe(monkeypatch):
+    monkeypatch.setattr(capture, "bench_python_command", lambda: ["/usr/bin/python3"])
+    monkeypatch.setenv("BENCH_DISABLE_UV", "yes")
+    payload = {
+        "python_installer": "pip",
+        "use_uv_source_sha256": "a" * 64,
+        "app_install_source_sha256": "b" * 64,
+    }
+    monkeypatch.setattr(
+        capture.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout=json.dumps(payload), stderr=""
+        ),
+    )
+
+    result = capture.capture_bench_installer_selection()
+
+    assert result["python_installer"] == "pip"
+    assert result["bench_disable_uv"] is True
+    assert result["selection_source"] == "bench.utils.use_uv"
+    assert result["bench_source"]["use_uv_source_sha256"] == "a" * 64
+
+
+def test_capture_bench_installer_selection_rejects_inferred_or_mismatched_policy(
+    monkeypatch,
+):
+    monkeypatch.setattr(capture, "bench_python_command", lambda: ["/usr/bin/python3"])
+    monkeypatch.setenv("BENCH_DISABLE_UV", "1")
+    payload = {
+        "python_installer": "uv",
+        "use_uv_source_sha256": "a" * 64,
+        "app_install_source_sha256": "b" * 64,
+    }
+    monkeypatch.setattr(
+        capture.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout=json.dumps(payload), stderr=""
+        ),
+    )
+
+    with pytest.raises(
+        capture.InventoryCaptureError, match="disagrees with BENCH_DISABLE_UV"
+    ):
+        capture.capture_bench_installer_selection()
+
+
+def test_capture_bench_installer_selection_fails_closed_when_probe_unavailable(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        capture,
+        "bench_python_command",
+        lambda: (_ for _ in ()).throw(
+            capture.InventoryCaptureError("Bench executable is unavailable.")
+        ),
+    )
+
+    with pytest.raises(capture.InventoryCaptureError, match="Bench executable"):
+        capture.capture_bench_installer_selection()
+
+
+def test_capture_bench_installer_selection_records_default_uv(monkeypatch):
+    monkeypatch.setattr(capture, "bench_python_command", lambda: ["/usr/bin/python3"])
+    monkeypatch.delenv("BENCH_DISABLE_UV", raising=False)
+    payload = {
+        "python_installer": "uv",
+        "use_uv_source_sha256": "c" * 64,
+        "app_install_source_sha256": "d" * 64,
+    }
+    monkeypatch.setattr(
+        capture.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout=json.dumps(payload), stderr=""
+        ),
+    )
+
+    result = capture.capture_bench_installer_selection()
+
+    assert result["python_installer"] == "uv"
+    assert result["bench_disable_uv"] is False
+
+
+def test_bench_python_command_resolves_env_shebang(tmp_path, monkeypatch):
+    executable = tmp_path / "bench"
+    executable.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    monkeypatch.setattr(
+        capture.shutil,
+        "which",
+        lambda name: str(executable) if name == "bench" else "/usr/bin/python3",
+    )
+
+    assert capture.bench_python_command() == ["/usr/bin/python3"]
+
+
+def test_bench_python_command_resolves_env_split_shebang(tmp_path, monkeypatch):
+    executable = tmp_path / "bench"
+    executable.write_text("#!/usr/bin/env -S python3 -s\n", encoding="utf-8")
+    monkeypatch.setattr(
+        capture.shutil,
+        "which",
+        lambda name: str(executable) if name == "bench" else "/usr/bin/python3",
+    )
+
+    assert capture.bench_python_command() == ["/usr/bin/python3", "-s"]
+
+
+def test_inventory_binds_per_app_python_and_yarn_inputs(bench_fixture, tmp_path):
+    bench, lock, apps = bench_fixture
+    app = apps / "frappe"
+    (app / "pyproject.toml").write_text("[project]\nname='frappe'\n", encoding="utf-8")
+    (app / "package.json").write_text('{"name":"frappe"}\n', encoding="utf-8")
+    (app / "yarn.lock").write_text("# yarn lock\n", encoding="utf-8")
+
+    report = capture.capture_inventory(bench, lock, tmp_path / "inventory.json")
+    frappe_install = report["bench_installation"]["applications"][0]
+
+    assert frappe_install["application"] == "frappe"
+    assert frappe_install["python_install_method"] == "uv pip install -e"
+    assert (
+        frappe_install["python_project_files"][0]["path"]
+        == "apps/frappe/pyproject.toml"
+    )
+    assert frappe_install["node_install_method"] == "yarn install --check-files"
+    assert {item["path"] for item in frappe_install["node_install_inputs"]} == {
+        "apps/frappe/package.json",
+        "apps/frappe/yarn.lock",
+    }
