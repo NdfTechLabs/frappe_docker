@@ -24,9 +24,7 @@ def _job(workflow: str, name: str) -> str:
 
 def _job_permissions(workflow: str, name: str) -> dict[str, str]:
     block = _job(workflow, name)
-    match = re.search(
-        r"(?m)^    permissions:\n((?:^      [^\n]*\n)+)", block
-    )
+    match = re.search(r"(?m)^    permissions:\n((?:^      [^\n]*\n)+)", block)
     assert match, f"Job {name!r} must declare explicit permissions."
     return {
         key.strip(): value.strip()
@@ -38,11 +36,7 @@ def _job_permissions(workflow: str, name: str) -> dict[str, str]:
 
 def _oidc_jobs(workflow: str) -> set[str]:
     names = re.findall(r"(?m)^  ([A-Za-z0-9_-]+):\n", workflow)
-    return {
-        name
-        for name in names
-        if "id-token: write" in _job(workflow, name)
-    }
+    return {name for name in names if "id-token: write" in _job(workflow, name)}
 
 
 def test_candidate_pipeline_has_a_single_ordered_trust_gate_before_intake():
@@ -86,15 +80,14 @@ def test_candidate_dispatch_is_restricted_to_main_and_configured_app_actor():
 
 def test_candidate_terminal_result_cannot_report_success_after_origin_rejection():
     writer = (
-        ROOT
-        / "images"
-        / "ndf"
-        / "scripts"
-        / "write_deployment_build_result.py"
+        ROOT / "images" / "ndf" / "scripts" / "write_deployment_build_result.py"
     ).read_text(encoding="utf-8")
     assert '"verify-candidate-origin"' in writer
     assert '"CANDIDATE_ORIGIN_TRUST_FAILED"' in writer
-    assert "all_succeeded = all(value == \"success\" for value in outcomes.values())" in writer
+    assert (
+        'all_succeeded = all(value == "success" for value in outcomes.values())'
+        in writer
+    )
 
     workflow = _workflow("ndf-build-candidate.yml")
     result = _job(workflow, "publish-candidate-result")
@@ -113,7 +106,10 @@ def test_product_image_promotion_requires_an_independently_trusted_exact_digest(
     assert "needs: [prepare, build-validate]" in sign
     assert "needs: [prepare, build-validate, sign-trust]" in verify
     assert "IDENTITY_POLICY_PROVISIONAL" in verify
-    assert "if: ${{ always() && inputs.publish && needs.build-validate.result == 'success' && needs.verify-trust.result == 'success' }}" in promote
+    assert (
+        "if: ${{ always() && inputs.publish && needs.build-validate.result == 'success' && needs.verify-trust.result == 'success' }}"
+        in promote
+    )
     assert 'trust.get("decision", {}).get("status") != "trusted"' in promote
     assert 'artifact.get("immutable_reference") != image_ref' in verify
     assert 'docker buildx imagetools create --tag "$PUBLICATION_REF"' in promote
@@ -133,7 +129,9 @@ def test_release_promotion_is_blocked_unless_source_trust_verification_succeeds(
 
 def test_pdd_consumer_is_read_only_and_never_grants_deployment_authorization():
     workflow = _workflow("ndf-fetch-product-deployment-descriptor.yml")
-    assert "permissions:\n  actions: read\n  contents: read\n  packages: read" in workflow
+    assert (
+        "permissions:\n  actions: read\n  contents: read\n  packages: read" in workflow
+    )
     assert "id-token: write" not in workflow
     assert "packages: write" not in workflow
     assert 'report.get("deployment_authorization") != "not_granted"' in workflow
@@ -245,11 +243,7 @@ def test_attempt_scoped_artifacts_bind_run_and_attempt_across_candidate_stages()
         assert name in combined
 
     writer = (
-        ROOT
-        / "images"
-        / "ndf"
-        / "scripts"
-        / "write_deployment_build_result.py"
+        ROOT / "images" / "ndf" / "scripts" / "write_deployment_build_result.py"
     ).read_text(encoding="utf-8")
     assert 'f"ndf-{run_id}-{run_attempt}"' in writer
 
@@ -266,9 +260,18 @@ def test_product_pdd_and_release_evidence_artifacts_are_attempt_scoped():
         "ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}",
     ):
         assert prefix in product
-    assert "ndf-pdd-signing-input-${{ inputs.build_run_id }}-${{ github.run_attempt }}" in pdd
-    assert "ndf-pdd-publication-${{ inputs.build_run_id }}-${{ github.run_attempt }}" in pdd
-    assert "ndf-pdd-consumer-${{ inputs.publication_run_id }}-${{ github.run_attempt }}" in consumer
+    assert (
+        "ndf-pdd-signing-input-${{ inputs.build_run_id }}-${{ github.run_attempt }}"
+        in pdd
+    )
+    assert (
+        "ndf-pdd-publication-${{ inputs.build_run_id }}-${{ github.run_attempt }}"
+        in pdd
+    )
+    assert (
+        "ndf-pdd-consumer-${{ inputs.publication_run_id }}-${{ github.run_attempt }}"
+        in consumer
+    )
     assert "ndf-release-trust-${{ github.run_id }}-${{ github.run_attempt }}" in release
 
 
