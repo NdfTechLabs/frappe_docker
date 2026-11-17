@@ -37,7 +37,7 @@ def test_source_trust_artifacts_are_derived_from_exact_build_artifact_identity()
         in workflow
     )
     assert (
-        'verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"'
+        'source_verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"'
         in workflow
     )
     assert 'signing_job_name = f"Sign product image {image_id}"' in workflow
