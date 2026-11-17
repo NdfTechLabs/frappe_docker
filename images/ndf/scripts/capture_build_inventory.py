@@ -10,6 +10,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -263,6 +264,168 @@ def capture_installers() -> dict[str, Any]:
     }
 
 
+BENCH_INSTALLATION_PROBE = """
+import hashlib
+import inspect
+import json
+from bench.utils import use_uv
+from bench.app import App
+
+print(json.dumps({
+    "python_installer": "uv" if use_uv() else "pip",
+    "use_uv_source_sha256": hashlib.sha256(
+        inspect.getsource(use_uv).encode("utf-8")
+    ).hexdigest(),
+    "app_install_source_sha256": hashlib.sha256(
+        inspect.getsource(App.install).encode("utf-8")
+    ).hexdigest(),
+}, sort_keys=True))
+"""
+
+
+def bench_python_command() -> list[str]:
+    """Resolve the interpreter from the installed Bench console-script shebang."""
+    executable = shutil.which("bench")
+    if not executable:
+        raise InventoryCaptureError("Bench executable is unavailable for installer inspection.")
+    try:
+        first_line = Path(executable).read_text(encoding="utf-8").splitlines()[0]
+    except (OSError, IndexError) as exc:
+        raise InventoryCaptureError("Unable to inspect the Bench executable shebang.") from exc
+    if not first_line.startswith("#!"):
+        raise InventoryCaptureError("Bench executable has no Python interpreter shebang.")
+    try:
+        parts = shlex.split(first_line[2:].strip())
+    except ValueError as exc:
+        raise InventoryCaptureError("Bench executable has an invalid interpreter shebang.") from exc
+    if not parts:
+        raise InventoryCaptureError("Bench executable shebang has no interpreter.")
+
+    if Path(parts[0]).name == "env":
+        parts = parts[1:]
+        if parts and parts[0] == "-S":
+            parts = shlex.split(" ".join(parts[1:]))
+        if not parts:
+            raise InventoryCaptureError("Bench env shebang has no interpreter.")
+        interpreter = shutil.which(parts[0])
+        if not interpreter:
+            raise InventoryCaptureError("Bench shebang interpreter is unavailable.")
+        return [interpreter, *parts[1:]]
+
+    if not Path(parts[0]).is_file():
+        raise InventoryCaptureError("Bench shebang interpreter is unavailable.")
+    return parts
+
+
+def capture_bench_installer_selection() -> dict[str, Any]:
+    """Ask the installed Bench source which Python installer it actually selects."""
+    command = bench_python_command()
+    try:
+        result = subprocess.run(
+            [*command, "-c", BENCH_INSTALLATION_PROBE],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=os.environ.copy(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise InventoryCaptureError("Unable to execute the installed Bench installer probe.") from exc
+    if result.returncode:
+        raise InventoryCaptureError(
+            "Installed Bench installer probe failed; refusing to infer installer selection."
+        )
+    output_lines = [line for line in result.stdout.splitlines() if line.strip()]
+    if not output_lines:
+        raise InventoryCaptureError("Installed Bench installer probe returned no evidence.")
+    try:
+        evidence = json.loads(output_lines[-1])
+    except json.JSONDecodeError as exc:
+        raise InventoryCaptureError("Installed Bench installer probe returned invalid JSON.") from exc
+
+    selected = evidence.get("python_installer")
+    if selected not in {"uv", "pip"}:
+        raise InventoryCaptureError("Installed Bench returned an unsupported Python installer.")
+    for key in ("use_uv_source_sha256", "app_install_source_sha256"):
+        if not isinstance(evidence.get(key), str) or not re.fullmatch(
+            r"[a-f0-9]{64}", evidence[key]
+        ):
+            raise InventoryCaptureError(f"Installed Bench source fingerprint is invalid: {key}.")
+
+    disabled = os.environ.get("BENCH_DISABLE_UV", "").lower() in {"1", "true", "yes"}
+    expected = "pip" if disabled else "uv"
+    if selected != expected:
+        raise InventoryCaptureError(
+            "Installed Bench installer selection disagrees with BENCH_DISABLE_UV."
+        )
+    return {
+        "python_installer": selected,
+        "bench_disable_uv": disabled,
+        "selection_source": "bench.utils.use_uv",
+        "bench_source": {
+            "use_uv_source_sha256": evidence["use_uv_source_sha256"],
+            "app_install_source_sha256": evidence["app_install_source_sha256"],
+        },
+    }
+
+
+def capture_installation_inputs(
+    app_path: Path, app_name: str, python_installer: str
+) -> dict[str, Any]:
+    """Record the project inputs used by Bench's editable-app and Yarn install paths."""
+    def file_evidence(names: tuple[str, ...]) -> list[dict[str, str]]:
+        records = []
+        for filename in names:
+            path = app_path / filename
+            if path.is_symlink() or not path.is_file():
+                continue
+            records.append(
+                {
+                    "path": f"apps/{app_name}/{filename}",
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                }
+            )
+        return records
+
+    python_method = (
+        "uv pip install -e"
+        if python_installer == "uv"
+        else "python -m pip install --upgrade -e"
+    )
+    python_files = file_evidence(("pyproject.toml", "setup.py", "setup.cfg"))
+    package_json = app_path / "package.json"
+    if package_json.is_symlink():
+        raise InventoryCaptureError(
+            f"Application package.json must not be a symlink: {app_name}"
+        )
+    node_method = "yarn install --check-files" if package_json.is_file() else "not_run"
+    node_files = (
+        file_evidence(("package.json", "yarn.lock"))
+        if node_method != "not_run"
+        else []
+    )
+    return {
+        "application": app_name,
+        "python_install_method": python_method,
+        "python_project_files": python_files,
+        "node_install_method": node_method,
+        "node_install_inputs": node_files,
+    }
+
+
+def capture_bench_installation(
+    apps_root: Path, ordered_apps: list[dict[str, Any]]
+) -> dict[str, Any]:
+    selection = capture_bench_installer_selection()
+    selection["applications"] = [
+        capture_installation_inputs(
+            apps_root / app["name"], app["name"], selection["python_installer"]
+        )
+        for app in ordered_apps
+    ]
+    return selection
+
+
 def capture_dependency_files(app_path: Path, app_name: str) -> list[dict[str, str]]:
     records = []
     for root, dirs, files in os.walk(app_path):
@@ -342,6 +505,22 @@ def capture_inventory(
             "Lock-v2 must include the Frappe framework application."
         )
 
+    runtime = capture_runtime()
+    installers = capture_installers()
+    bench_installation = capture_bench_installation(apps_root, ordered)
+    selected_python_version = installers[bench_installation["python_installer"]]["version"]
+    if selected_python_version is None:
+        raise InventoryCaptureError(
+            "The Python installer selected by Bench is unavailable in the build environment."
+        )
+    if any(
+        app["node_install_method"] != "not_run"
+        for app in bench_installation["applications"]
+    ) and runtime["yarn"]["version"] is None:
+        raise InventoryCaptureError(
+            "Bench requires Yarn for an app with package.json, but Yarn is unavailable."
+        )
+
     inventory = {
         "schema_version": "1.0",
         "stage": stage,
@@ -351,7 +530,7 @@ def capture_inventory(
         },
         "framework": framework,
         "applications": repositories,
-        "runtime": capture_runtime(),
+        "runtime": runtime,
         "installed_packages": {
             "python": capture_python_packages(),
             "node": capture_node_packages(bench, [app["name"] for app in ordered]),
@@ -360,7 +539,8 @@ def capture_inventory(
         "dependency_files": sorted(
             dependency_files, key=lambda x: (x["application"], x["path"])
         ),
-        "installers": capture_installers(),
+        "installers": installers,
+        "bench_installation": bench_installation,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = output_path.with_suffix(output_path.suffix + ".tmp")
