@@ -372,7 +372,7 @@ def capture_bench_installer_selection() -> dict[str, Any]:
 def capture_installation_inputs(
     app_path: Path, app_name: str, python_installer: str
 ) -> dict[str, Any]:
-    """Record the project inputs used by Bench's editable-app and Yarn install paths."""
+    """Record project metadata and Node lock inputs present for Bench install paths."""
     def file_evidence(names: tuple[str, ...]) -> list[dict[str, str]]:
         records = []
         for filename in names:
