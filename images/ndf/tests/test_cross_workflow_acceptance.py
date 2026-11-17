@@ -145,6 +145,14 @@ def test_product_image_to_pdd_boundary_uses_current_signing_and_verification_art
     assert "ndf-cosign-live-" not in pdd
     assert "cosign-live-verification-result.json" not in pdd
 
+def test_pdd_binding_verifier_resolves_the_actual_product_build_job():
+    product = _workflow("ndf-publish-product.yml")
+    binding = _workflow("ndf-verify-product-deployment-binding.yml")
+    assert "name: Build and validate ${{ matrix.image }}" in product
+    assert 'job_name = f"Build and validate {image_id}"' in binding
+    assert 'item.get("name") == "Build staging image (not the official product tag)"' in binding
+    assert "ndf-pdd-binding-${{ inputs.build_run_id }}-${{ github.run_attempt }}" in binding
+
 def test_pdd_consumer_is_read_only_and_never_grants_deployment_authorization():
     workflow = _workflow("ndf-fetch-product-deployment-descriptor.yml")
     assert (
