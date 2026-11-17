@@ -56,7 +56,7 @@ def test_pdd_source_ownership_checks_remain_intact():
     binding = read_workflow("ndf-verify-product-deployment-binding.yml")
     publication = read_workflow("ndf-publish-product-deployment-descriptor.yml")
     assert ".github/workflows/ndf-publish-product.yml" in binding
-    assert "Publish {image_id}" in binding
+    assert "Build and validate {image_id}" in binding
     assert "Build staging image (not the official product tag)" in binding
     assert ".github/workflows/ndf-publish-product.yml" in publication
     assert ".github/workflows/ndf-verify-product-deployment-binding.yml" in publication
