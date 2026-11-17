@@ -64,6 +64,10 @@ def test_source_signing_and_verification_artifacts_match_build_predicate():
     assert "cosign-sign-result.json" in download
     assert "cosign-independent-verification-result.json" in download
     assert "image-provenance-predicate.json" in download
+    assert 'signing.get("status") != "signed"' in download
+    assert 'signing.get("image_repository") != repository' in download
+    assert 'signing.get("image_digest") != digest' in download
+    assert 'print(f"Verified descriptor/report: {VERIFICATION_ARTIFACT_NAME}")' in workflow
     assert (
         'cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"'
         in download
