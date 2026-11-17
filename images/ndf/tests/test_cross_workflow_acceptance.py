@@ -141,7 +141,8 @@ def test_product_image_to_pdd_boundary_uses_current_signing_and_verification_art
     assert 'verification_job_name = f"Independently verify product trust for {image_id}"' in pdd
     assert "cosign-sign-result.json" in pdd
     assert 'signing.get("image_digest") != digest' in pdd
-    assert 'signing.get("image_repository") != repository' in pdd    assert "cosign-independent-verification-result.json" in pdd
+    assert 'signing.get("image_repository") != repository' in pdd
+    assert "cosign-independent-verification-result.json" in pdd
     assert '--source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"' in pdd
     assert '--source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"' in pdd
     assert "ndf-cosign-live-" not in pdd
