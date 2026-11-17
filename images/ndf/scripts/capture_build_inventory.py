@@ -343,8 +343,10 @@ def capture_bench_installer_selection() -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise InventoryCaptureError("Installed Bench installer probe returned invalid JSON.") from exc
 
+    if not isinstance(evidence, dict):
+        raise InventoryCaptureError("Installed Bench installer probe did not return an object.")
     selected = evidence.get("python_installer")
-    if selected not in {"uv", "pip"}:
+    if not isinstance(selected, str) or selected not in {"uv", "pip"}:
         raise InventoryCaptureError("Installed Bench returned an unsupported Python installer.")
     for key in ("use_uv_source_sha256", "app_install_source_sha256"):
         if not isinstance(evidence.get(key), str) or not re.fullmatch(
@@ -373,6 +375,9 @@ def capture_installation_inputs(
     app_path: Path, app_name: str, python_installer: str
 ) -> dict[str, Any]:
     """Record project metadata and Node lock inputs present for Bench install paths."""
+    if python_installer not in {"uv", "pip"}:
+        raise InventoryCaptureError("Unsupported Bench Python installer selection.")
+
     def file_evidence(names: tuple[str, ...]) -> list[dict[str, str]]:
         records = []
         for filename in names:
