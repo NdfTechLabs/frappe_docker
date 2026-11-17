@@ -135,7 +135,7 @@ def test_product_image_to_pdd_boundary_uses_current_signing_and_verification_art
     assert "name: ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
     assert "name: ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
     assert 'signing_name = f"ndf-cosign-sign-{image_id}-{build_id}-{build_attempt}"' in pdd
-    assert 'verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"' in pdd
+    assert 'source_verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"' in pdd
     assert 'signing_job_name = f"Sign product image {image_id}"' in pdd
     assert 'verification_job_name = f"Independently verify product trust for {image_id}"' in pdd
     assert "cosign-sign-result.json" in pdd
