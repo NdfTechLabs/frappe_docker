@@ -51,8 +51,15 @@ def test_source_trust_artifacts_are_derived_from_exact_build_artifact_identity()
     assert 'verification_artifact.get("expired")' in workflow
 
     product = read_workflow("ndf-publish-product.yml")
-    assert "name: ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
-    assert "name: ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
+    assert (
+        "name: ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        in product
+    )
+    assert (
+        "name: ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        in product
+    )
+
 
 def test_source_signing_and_verification_artifacts_match_build_predicate():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
@@ -67,15 +74,24 @@ def test_source_signing_and_verification_artifacts_match_build_predicate():
     assert 'signing.get("status") != "signed"' in download
     assert 'signing.get("image_repository") != repository' in download
     assert 'signing.get("image_digest") != digest' in download
-    assert 'print(f"Verified descriptor/report: {VERIFICATION_ARTIFACT_NAME}")' in workflow
+    assert (
+        'print(f"Verified descriptor/report: {VERIFICATION_ARTIFACT_NAME}")' in workflow
+    )
     assert (
         'cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"'
         in download
     )
-    assert '--source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"' in workflow
-    assert '--source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"' in workflow
+    assert (
+        '--source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"'
+        in workflow
+    )
+    assert (
+        '--source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"'
+        in workflow
+    )
     assert "cosign-live-verification-result.json" not in workflow
     assert "ndf-cosign-live-" not in workflow
+
 
 def test_existing_publication_receipt_artifact_contract_is_preserved():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")

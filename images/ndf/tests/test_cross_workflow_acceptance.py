@@ -133,28 +133,56 @@ def test_product_image_to_pdd_boundary_uses_current_signing_and_verification_art
     product = _workflow("ndf-publish-product.yml")
     pdd = _workflow("ndf-publish-product-deployment-descriptor.yml")
 
-    assert "name: ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
-    assert "name: ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
-    assert 'signing_name = f"ndf-cosign-sign-{image_id}-{build_id}-{build_attempt}"' in pdd
-    assert 'source_verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"' in pdd
+    assert (
+        "name: ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        in product
+    )
+    assert (
+        "name: ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        in product
+    )
+    assert (
+        'signing_name = f"ndf-cosign-sign-{image_id}-{build_id}-{build_attempt}"' in pdd
+    )
+    assert (
+        'source_verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"'
+        in pdd
+    )
     assert 'signing_job_name = f"Sign product image {image_id}"' in pdd
-    assert 'verification_job_name = f"Independently verify product trust for {image_id}"' in pdd
+    assert (
+        'verification_job_name = f"Independently verify product trust for {image_id}"'
+        in pdd
+    )
     assert "cosign-sign-result.json" in pdd
     assert 'signing.get("image_digest") != digest' in pdd
     assert 'signing.get("image_repository") != repository' in pdd
     assert "cosign-independent-verification-result.json" in pdd
-    assert '--source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"' in pdd
-    assert '--source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"' in pdd
+    assert (
+        '--source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"'
+        in pdd
+    )
+    assert (
+        '--source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"'
+        in pdd
+    )
     assert "ndf-cosign-live-" not in pdd
     assert "cosign-live-verification-result.json" not in pdd
+
 
 def test_pdd_binding_verifier_resolves_the_actual_product_build_job():
     product = _workflow("ndf-publish-product.yml")
     binding = _workflow("ndf-verify-product-deployment-binding.yml")
     assert "name: Build and validate ${{ matrix.image }}" in product
     assert 'job_name = f"Build and validate {image_id}"' in binding
-    assert 'item.get("name") == "Build staging image (not the official product tag)"' in binding
-    assert "ndf-pdd-binding-${{ inputs.build_run_id }}-${{ github.run_attempt }}" in binding
+    assert (
+        'item.get("name") == "Build staging image (not the official product tag)"'
+        in binding
+    )
+    assert (
+        "ndf-pdd-binding-${{ inputs.build_run_id }}-${{ github.run_attempt }}"
+        in binding
+    )
+
 
 def test_pdd_consumer_is_read_only_and_never_grants_deployment_authorization():
     workflow = _workflow("ndf-fetch-product-deployment-descriptor.yml")
