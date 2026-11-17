@@ -74,7 +74,8 @@ def test_candidate_dispatch_is_restricted_to_main_and_configured_app_actor():
     assert "refs/heads/main" in gate
     assert "vars.NDF_MASTER_DISPATCH_ACTOR" in gate
     assert '[[ "$DISPATCH_ACTOR" != "$EXPECTED_DISPATCH_ACTOR" ]]' in gate
-    assert "pull_request:" not in workflow
+    assert "github.triggering_actor" in gate
+    assert '[[ "$DISPATCH_TRIGGERING_ACTOR" != "$EXPECTED_DISPATCH_ACTOR" ]]' in gate    assert "pull_request:" not in workflow
     assert "push:" not in workflow
 
 
