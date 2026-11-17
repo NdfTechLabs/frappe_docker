@@ -249,7 +249,8 @@
         "pip": {
           "$ref": "#/$defs/optionalVersion"
         }
-      }
+      },
+      "description": "Detected installer tool versions. The selected Python installer is recorded separately under bench_installation."
     },
     "bench_installation": {
       "type": "object",
@@ -332,7 +333,8 @@
                       "$ref": "#/$defs/sha256"
                     }
                   }
-                }
+                },
+                "description": "Project metadata files present at the app root for the editable install backend; this list is not proof of transitive package origin."
               },
               "node_install_method": {
                 "enum": [
@@ -358,7 +360,8 @@
                       "$ref": "#/$defs/sha256"
                     }
                   }
-                }
+                },
+                "description": "package.json and, when present, yarn.lock for the Bench Yarn installation path."
               }
             }
           }
