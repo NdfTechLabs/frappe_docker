@@ -37,6 +37,7 @@ jobs:
     env:
       EXPECTED_DISPATCH_ACTOR: ${{ vars.NDF_MASTER_DISPATCH_ACTOR }}
       DISPATCH_ACTOR: ${{ github.actor }}
+      DISPATCH_TRIGGERING_ACTOR: ${{ github.triggering_actor }}
       DISPATCH_REF: ${{ github.ref }}
     steps:
       - name: Enforce main ref and configured DT Master actor
@@ -53,6 +54,10 @@ jobs:
           fi
           if [[ "$DISPATCH_ACTOR" != "$EXPECTED_DISPATCH_ACTOR" ]]; then
             echo "Candidate dispatch actor is not the configured DT Master GitHub App." >&2
+            exit 1
+          fi
+          if [[ "$DISPATCH_TRIGGERING_ACTOR" != "$EXPECTED_DISPATCH_ACTOR" ]]; then
+            echo "Candidate workflow rerun actor is not the configured DT Master GitHub App." >&2
             exit 1
           fi
 
