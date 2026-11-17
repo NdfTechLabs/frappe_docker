@@ -126,7 +126,7 @@ jobs:
               raise SystemExit("Original build evidence artifact is missing or expired.")
 
           signing_name = f"ndf-cosign-sign-{image_id}-{build_id}-{build_attempt}"
-          verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"
+          source_verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"
           signing_job_name = f"Sign product image {image_id}"
           verification_job_name = f"Independently verify product trust for {image_id}"
 
@@ -140,7 +140,7 @@ jobs:
           signing_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == signing_name), None)
           if not signing_artifact or signing_artifact.get("expired"):
               raise SystemExit("Exact attempt-scoped source-image signing artifact is missing or expired.")
-          verification_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == verification_name), None)
+          verification_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == source_verification_name), None)
           if not verification_artifact or verification_artifact.get("expired"):
               raise SystemExit("Exact attempt-scoped independent source-image verification artifact is missing or expired.")
           if verification.get("status") != "completed" or verification.get("conclusion") != "success":
@@ -162,13 +162,13 @@ jobs:
           print(f"Source-image signing job: {signing_job_name}")
           print(f"Source-image signing evidence: {signing_name}")
           print(f"Independent source-image trust job: {verification_job_name}")
-          print(f"Independent source-image trust evidence: {verification_name}")
+          print(f"Independent source-image trust evidence: {source_verification_name}")
           print(f"Binding verification: {verification['html_url']}")
           print(f"Build evidence: {build_name}")
           print(f"Verified descriptor/report: {VERIFICATION_ARTIFACT_NAME}")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"source_signing_artifact_name={signing_name}\n")
-              output.write(f"source_verification_artifact_name={verification_name}\n")
+              output.write(f"source_verification_artifact_name={source_verification_name}\n")
           PY
 
       - name: Download exact source build, signing and verification evidence
