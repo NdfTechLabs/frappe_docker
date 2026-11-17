@@ -101,7 +101,7 @@ jobs:
           if not artifact or artifact.get("expired"):
               raise SystemExit("Requested evidence artifact is missing or expired.")
 
-          job_name = f"Publish {image_id}"
+          job_name = f"Build and validate {image_id}"
           job = next(
               (item for item in jobs_payload.get("jobs", [])
                if item.get("name") == job_name),
