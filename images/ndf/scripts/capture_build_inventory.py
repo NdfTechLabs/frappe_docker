@@ -287,17 +287,25 @@ def bench_python_command() -> list[str]:
     """Resolve the interpreter from the installed Bench console-script shebang."""
     executable = shutil.which("bench")
     if not executable:
-        raise InventoryCaptureError("Bench executable is unavailable for installer inspection.")
+        raise InventoryCaptureError(
+            "Bench executable is unavailable for installer inspection."
+        )
     try:
         first_line = Path(executable).read_text(encoding="utf-8").splitlines()[0]
     except (OSError, IndexError) as exc:
-        raise InventoryCaptureError("Unable to inspect the Bench executable shebang.") from exc
+        raise InventoryCaptureError(
+            "Unable to inspect the Bench executable shebang."
+        ) from exc
     if not first_line.startswith("#!"):
-        raise InventoryCaptureError("Bench executable has no Python interpreter shebang.")
+        raise InventoryCaptureError(
+            "Bench executable has no Python interpreter shebang."
+        )
     try:
         parts = shlex.split(first_line[2:].strip())
     except ValueError as exc:
-        raise InventoryCaptureError("Bench executable has an invalid interpreter shebang.") from exc
+        raise InventoryCaptureError(
+            "Bench executable has an invalid interpreter shebang."
+        ) from exc
     if not parts:
         raise InventoryCaptureError("Bench executable shebang has no interpreter.")
 
@@ -330,29 +338,41 @@ def capture_bench_installer_selection() -> dict[str, Any]:
             env=os.environ.copy(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise InventoryCaptureError("Unable to execute the installed Bench installer probe.") from exc
+        raise InventoryCaptureError(
+            "Unable to execute the installed Bench installer probe."
+        ) from exc
     if result.returncode:
         raise InventoryCaptureError(
             "Installed Bench installer probe failed; refusing to infer installer selection."
         )
     output_lines = [line for line in result.stdout.splitlines() if line.strip()]
     if not output_lines:
-        raise InventoryCaptureError("Installed Bench installer probe returned no evidence.")
+        raise InventoryCaptureError(
+            "Installed Bench installer probe returned no evidence."
+        )
     try:
         evidence = json.loads(output_lines[-1])
     except json.JSONDecodeError as exc:
-        raise InventoryCaptureError("Installed Bench installer probe returned invalid JSON.") from exc
+        raise InventoryCaptureError(
+            "Installed Bench installer probe returned invalid JSON."
+        ) from exc
 
     if not isinstance(evidence, dict):
-        raise InventoryCaptureError("Installed Bench installer probe did not return an object.")
+        raise InventoryCaptureError(
+            "Installed Bench installer probe did not return an object."
+        )
     selected = evidence.get("python_installer")
     if not isinstance(selected, str) or selected not in {"uv", "pip"}:
-        raise InventoryCaptureError("Installed Bench returned an unsupported Python installer.")
+        raise InventoryCaptureError(
+            "Installed Bench returned an unsupported Python installer."
+        )
     for key in ("use_uv_source_sha256", "app_install_source_sha256"):
         if not isinstance(evidence.get(key), str) or not re.fullmatch(
             r"[a-f0-9]{64}", evidence[key]
         ):
-            raise InventoryCaptureError(f"Installed Bench source fingerprint is invalid: {key}.")
+            raise InventoryCaptureError(
+                f"Installed Bench source fingerprint is invalid: {key}."
+            )
 
     disabled = os.environ.get("BENCH_DISABLE_UV", "").lower() in {"1", "true", "yes"}
     expected = "pip" if disabled else "uv"
@@ -405,9 +425,7 @@ def capture_installation_inputs(
         )
     node_method = "yarn install --check-files" if package_json.is_file() else "not_run"
     node_files = (
-        file_evidence(("package.json", "yarn.lock"))
-        if node_method != "not_run"
-        else []
+        file_evidence(("package.json", "yarn.lock")) if node_method != "not_run" else []
     )
     return {
         "application": app_name,
@@ -513,15 +531,20 @@ def capture_inventory(
     runtime = capture_runtime()
     installers = capture_installers()
     bench_installation = capture_bench_installation(apps_root, ordered)
-    selected_python_version = installers[bench_installation["python_installer"]]["version"]
+    selected_python_version = installers[bench_installation["python_installer"]][
+        "version"
+    ]
     if selected_python_version is None:
         raise InventoryCaptureError(
             "The Python installer selected by Bench is unavailable in the build environment."
         )
-    if any(
-        app["node_install_method"] != "not_run"
-        for app in bench_installation["applications"]
-    ) and runtime["yarn"]["version"] is None:
+    if (
+        any(
+            app["node_install_method"] != "not_run"
+            for app in bench_installation["applications"]
+        )
+        and runtime["yarn"]["version"] is None
+    ):
         raise InventoryCaptureError(
             "Bench requires Yarn for an app with package.json, but Yarn is unavailable."
         )

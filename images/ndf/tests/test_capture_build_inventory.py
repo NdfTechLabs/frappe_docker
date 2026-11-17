@@ -132,7 +132,10 @@ def test_capture_records_actual_git_heads_and_lock_refs(bench_fixture, tmp_path)
     assert report["applications"][1]["name"] == "erpnext"
     assert report["applications"][1]["resolver_commit"] == "a" * 40
     assert report["bench_installation"]["python_installer"] == "uv"
-    assert report["bench_installation"]["applications"][0]["node_install_method"] == "not_run"
+    assert (
+        report["bench_installation"]["applications"][0]["node_install_method"]
+        == "not_run"
+    )
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
     schema_path = (
@@ -251,7 +254,6 @@ def test_capture_serialization_is_deterministic(bench_fixture, tmp_path):
     assert first.read_bytes() == second.read_bytes()
 
 
-
 def test_capture_installation_inputs_records_python_metadata_and_yarn_inputs(tmp_path):
     app = tmp_path / "frappe"
     app.mkdir()
@@ -279,12 +281,15 @@ def test_capture_installation_inputs_records_python_metadata_and_yarn_inputs(tmp
         "apps/frappe/yarn.lock",
     }
     assert all(
-        item["sha256"] == hashlib.sha256((app / item["path"].split("/")[-1]).read_bytes()).hexdigest()
+        item["sha256"]
+        == hashlib.sha256((app / item["path"].split("/")[-1]).read_bytes()).hexdigest()
         for item in report["python_project_files"] + report["node_install_inputs"]
     )
 
 
-def test_capture_installation_inputs_marks_node_path_not_run_without_package_json(tmp_path):
+def test_capture_installation_inputs_marks_node_path_not_run_without_package_json(
+    tmp_path,
+):
     app = tmp_path / "erpnext"
     app.mkdir()
     (app / "pyproject.toml").write_text("[project]\nname='erpnext'\n", encoding="utf-8")
@@ -321,7 +326,9 @@ def test_capture_bench_installer_selection_uses_installed_bench_probe(monkeypatc
     assert result["bench_source"]["use_uv_source_sha256"] == "a" * 64
 
 
-def test_capture_bench_installer_selection_rejects_inferred_or_mismatched_policy(monkeypatch):
+def test_capture_bench_installer_selection_rejects_inferred_or_mismatched_policy(
+    monkeypatch,
+):
     monkeypatch.setattr(capture, "bench_python_command", lambda: ["/usr/bin/python3"])
     monkeypatch.setenv("BENCH_DISABLE_UV", "1")
     payload = {
@@ -343,7 +350,9 @@ def test_capture_bench_installer_selection_rejects_inferred_or_mismatched_policy
         capture.capture_bench_installer_selection()
 
 
-def test_capture_bench_installer_selection_fails_closed_when_probe_unavailable(monkeypatch):
+def test_capture_bench_installer_selection_fails_closed_when_probe_unavailable(
+    monkeypatch,
+):
     monkeypatch.setattr(
         capture,
         "bench_python_command",
@@ -354,7 +363,6 @@ def test_capture_bench_installer_selection_fails_closed_when_probe_unavailable(m
 
     with pytest.raises(capture.InventoryCaptureError, match="Bench executable"):
         capture.capture_bench_installer_selection()
-
 
 
 def test_capture_bench_installer_selection_records_default_uv(monkeypatch):
@@ -415,7 +423,10 @@ def test_inventory_binds_per_app_python_and_yarn_inputs(bench_fixture, tmp_path)
 
     assert frappe_install["application"] == "frappe"
     assert frappe_install["python_install_method"] == "uv pip install -e"
-    assert frappe_install["python_project_files"][0]["path"] == "apps/frappe/pyproject.toml"
+    assert (
+        frappe_install["python_project_files"][0]["path"]
+        == "apps/frappe/pyproject.toml"
+    )
     assert frappe_install["node_install_method"] == "yarn install --check-files"
     assert {item["path"] for item in frappe_install["node_install_inputs"]} == {
         "apps/frappe/package.json",

@@ -26,10 +26,7 @@
     "lock": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version",
-        "sha256"
-      ],
+      "required": ["version", "sha256"],
       "properties": {
         "version": {
           "const": 2
@@ -52,13 +49,7 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "python",
-        "node",
-        "yarn",
-        "bench",
-        "platform"
-      ],
+      "required": ["python", "node", "yarn", "bench", "platform"],
       "properties": {
         "python": {
           "type": "object",
@@ -95,9 +86,7 @@
         },
         "bench": {
           "type": "object",
-          "required": [
-            "version"
-          ],
+          "required": ["version"],
           "properties": {
             "version": {
               "type": "string",
@@ -107,11 +96,7 @@
         },
         "platform": {
           "type": "object",
-          "required": [
-            "system",
-            "machine",
-            "oci"
-          ],
+          "required": ["system", "machine", "oci"],
           "properties": {
             "system": {
               "type": "string",
@@ -132,20 +117,13 @@
     "installed_packages": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "python",
-        "node",
-        "debian"
-      ],
+      "required": ["python", "node", "debian"],
       "properties": {
         "python": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": [
-              "name",
-              "version"
-            ],
+            "required": ["name", "version"],
             "properties": {
               "name": {
                 "type": "string",
@@ -162,11 +140,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": [
-              "path",
-              "name",
-              "version"
-            ],
+            "required": ["path", "name", "version"],
             "properties": {
               "path": {
                 "type": "string",
@@ -187,11 +161,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": [
-              "name",
-              "version",
-              "architecture"
-            ],
+            "required": ["name", "version", "architecture"],
             "properties": {
               "name": {
                 "type": "string",
@@ -214,11 +184,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "application",
-          "path",
-          "sha256"
-        ],
+        "required": ["application", "path", "sha256"],
         "properties": {
           "application": {
             "type": "string",
@@ -238,10 +204,7 @@
     "installers": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "uv",
-        "pip"
-      ],
+      "required": ["uv", "pip"],
       "properties": {
         "uv": {
           "$ref": "#/$defs/optionalVersion"
@@ -264,10 +227,7 @@
       ],
       "properties": {
         "python_installer": {
-          "enum": [
-            "uv",
-            "pip"
-          ]
+          "enum": ["uv", "pip"]
         },
         "bench_disable_uv": {
           "type": "boolean"
@@ -278,10 +238,7 @@
         "bench_source": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "use_uv_source_sha256",
-            "app_install_source_sha256"
-          ],
+          "required": ["use_uv_source_sha256", "app_install_source_sha256"],
           "properties": {
             "use_uv_source_sha256": {
               "$ref": "#/$defs/sha256"
@@ -320,10 +277,7 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "path",
-                    "sha256"
-                  ],
+                  "required": ["path", "sha256"],
                   "properties": {
                     "path": {
                       "type": "string",
@@ -337,20 +291,14 @@
                 "description": "Project metadata files present at the app root for the editable install backend; this list is not proof of transitive package origin."
               },
               "node_install_method": {
-                "enum": [
-                  "yarn install --check-files",
-                  "not_run"
-                ]
+                "enum": ["yarn install --check-files", "not_run"]
               },
               "node_install_inputs": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "path",
-                    "sha256"
-                  ],
+                  "required": ["path", "sha256"],
                   "properties": {
                     "path": {
                       "type": "string",
@@ -376,15 +324,10 @@
     },
     "optionalVersion": {
       "type": "object",
-      "required": [
-        "version"
-      ],
+      "required": ["version"],
       "properties": {
         "version": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       }
     },
