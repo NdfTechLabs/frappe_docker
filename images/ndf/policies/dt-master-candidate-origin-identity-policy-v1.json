@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "dt-master-candidate-origin-identity-policy-v1",
+  "status": "provisional_until_live_certificate_observation",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "verification": {
+    "required_repository": "NdfTechLabs/dt_master",
+    "required_ref": "refs/heads/main",
+    "required_event_name": null
+  },
+  "identity": {
+    "certificate_identity": null,
+    "workflow_path": null,
+    "workflow_ref": null
+  },
+  "notes": [
+    "The DT Master producer certificate identity and workflow path have not yet been observed from a live M4.4 signing run.",
+    "This policy is deliberately provisional. Candidate-origin verification must reject before candidate intake/adaptation while status remains provisional.",
+    "Do not add a wildcard, infer a workflow path, or mark this policy confirmed from fixtures or mocked tests.",
+    "After M4.4 producer implementation, capture the actual Fulcio certificate identity, workflow path/ref, event and reusable-workflow claims, review the evidence, then update this policy through an explicit approval."
+  ]
+}

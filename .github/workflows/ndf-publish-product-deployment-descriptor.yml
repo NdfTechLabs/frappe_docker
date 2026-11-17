@@ -48,7 +48,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       EVIDENCE_DIR: ${{ github.workspace }}/.ndf-pdd-publication-evidence
       VERIFICATION_DIR: ${{ github.workspace }}/.ndf-pdd-verification
-      SOURCE_TRUST_DIR: ${{ github.workspace }}/.ndf-source-image-trust
+      SOURCE_SIGNING_DIR: ${{ github.workspace }}/.ndf-source-image-signing
+      SOURCE_VERIFY_DIR: ${{ github.workspace }}/.ndf-source-image-verification
     steps:
       - name: Checkout publication code
         uses: actions/checkout@v7
@@ -124,15 +125,24 @@ jobs:
           if not build_artifact or build_artifact.get("expired"):
               raise SystemExit("Original build evidence artifact is missing or expired.")
 
-          trust_name = f"ndf-cosign-live-{image_id}-{build_id}-{build_attempt}"
-          trust_job_name = f"Live Cosign trust check for {image_id}"
-          trust_job = next((item for item in build_jobs.get("jobs", []) if item.get("name") == trust_job_name), None)
-          if not trust_job or trust_job.get("conclusion") != "success":
-              raise SystemExit(f"Successful source-image Cosign trust job not found: {trust_job_name}.")
-          trust_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == trust_name), None)
-          if not trust_artifact or trust_artifact.get("expired"):
-              raise SystemExit("Exact attempt-scoped source-image Cosign trust artifact is missing or expired.")
+          signing_name = f"ndf-cosign-sign-{image_id}-{build_id}-{build_attempt}"
+          source_verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"
+          signing_job_name = f"Sign product image {image_id}"
+          verification_job_name = f"Independently verify product trust for {image_id}"
 
+          signing_job = next((item for item in build_jobs.get("jobs", []) if item.get("name") == signing_job_name), None)
+          if not signing_job or signing_job.get("conclusion") != "success":
+              raise SystemExit(f"Successful source-image signing job not found: {signing_job_name}.")
+          verification_job = next((item for item in build_jobs.get("jobs", []) if item.get("name") == verification_job_name), None)
+          if not verification_job or verification_job.get("conclusion") != "success":
+              raise SystemExit(f"Successful independent source-image trust job not found: {verification_job_name}.")
+
+          signing_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == signing_name), None)
+          if not signing_artifact or signing_artifact.get("expired"):
+              raise SystemExit("Exact attempt-scoped source-image signing artifact is missing or expired.")
+          verification_artifact = next((item for item in build_artifacts.get("artifacts", []) if item.get("name") == source_verification_name), None)
+          if not verification_artifact or verification_artifact.get("expired"):
+              raise SystemExit("Exact attempt-scoped independent source-image verification artifact is missing or expired.")
           if verification.get("status") != "completed" or verification.get("conclusion") != "success":
               raise SystemExit("PDD binding verification run must have completed successfully.")
           if verification.get("head_branch") != "main":
@@ -149,33 +159,55 @@ jobs:
               raise SystemExit("Verified descriptor/report artifact is missing or expired.")
 
           print(f"Source image build: {build['html_url']}")
-          print(f"Source-image Cosign trust job: {trust_job_name}")
-          print(f"Source-image trust evidence: {trust_name}")
+          print(f"Source-image signing job: {signing_job_name}")
+          print(f"Source-image signing evidence: {signing_name}")
+          print(f"Independent source-image trust job: {verification_job_name}")
+          print(f"Independent source-image trust evidence: {source_verification_name}")
           print(f"Binding verification: {verification['html_url']}")
           print(f"Build evidence: {build_name}")
-          print(f"Verified descriptor/report: {verification_name}")
+          print(f"Verified descriptor/report: {VERIFICATION_ARTIFACT_NAME}")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              output.write(f"source_trust_artifact_name={trust_name}\n")
+              output.write(f"source_signing_artifact_name={signing_name}\n")
+              output.write(f"source_verification_artifact_name={source_verification_name}\n")
           PY
 
-      - name: Download original build evidence
+      - name: Download exact source build, signing and verification evidence
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$EVIDENCE_DIR" "$VERIFICATION_DIR" "$SOURCE_TRUST_DIR"
+          mkdir -p "$EVIDENCE_DIR" "$VERIFICATION_DIR" "$SOURCE_SIGNING_DIR" "$SOURCE_VERIFY_DIR"
           gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$BUILD_ARTIFACT_NAME" --dir "$EVIDENCE_DIR"
-          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "${{ steps.source.outputs.source_trust_artifact_name }}" --dir "$SOURCE_TRUST_DIR"
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "${{ steps.source.outputs.source_signing_artifact_name }}" --dir "$SOURCE_SIGNING_DIR"
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "${{ steps.source.outputs.source_verification_artifact_name }}" --dir "$SOURCE_VERIFY_DIR"
           gh run download "$VERIFICATION_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$VERIFICATION_ARTIFACT_NAME" --dir "$VERIFICATION_DIR"
           test -s "$EVIDENCE_DIR/build-result.json"
+          test -s "$EVIDENCE_DIR/build-metadata.json"
           test -s "$EVIDENCE_DIR/image-provenance-predicate.json"
-          test -s "$SOURCE_TRUST_DIR/image-provenance-predicate.json"
-          test -s "$SOURCE_TRUST_DIR/cosign-live-verification-result.json"
-          cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_TRUST_DIR/image-provenance-predicate.json"
+          test -s "$SOURCE_SIGNING_DIR/cosign-sign-result.json"
+          test -s "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"
+          test -s "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"
+          cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"
+          python - "$SOURCE_SIGNING_DIR/cosign-sign-result.json" "$EVIDENCE_DIR/build-metadata.json" "$EVIDENCE_DIR/build-result.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          signing = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          metadata = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          build = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+          repository = metadata.get("image", {}).get("repository")
+          digest = build.get("digest")
+          if (
+              signing.get("status") != "signed"
+              or signing.get("image_repository") != repository
+              or signing.get("image_digest") != digest
+          ):
+              raise SystemExit("Source signing evidence does not match the exact build image digest.")
+          PY
           test -s "$VERIFICATION_DIR/product-deployment.json"
           test -s "$VERIFICATION_DIR/binding-verification.json"
           cp "$VERIFICATION_DIR/product-deployment.json" "$EVIDENCE_DIR/product-deployment.json"
           cp "$VERIFICATION_DIR/binding-verification.json" "$EVIDENCE_DIR/binding-verification.json"
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -206,8 +238,8 @@ jobs:
           python images/ndf/scripts/generate_pdd_image_binding.py \
             --descriptor "$EVIDENCE_DIR/product-deployment.json" \
             --publication-record "$RUNNER_TEMP/pdd-publication-record.json" \
-            --source-trust-result "$SOURCE_TRUST_DIR/cosign-live-verification-result.json" \
-            --source-predicate "$SOURCE_TRUST_DIR/image-provenance-predicate.json" \
+            --source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json" \
+            --source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json" \
             --statement-output "$RUNNER_TEMP/pdd-image-binding-statement.json" \
             --predicate-output "$RUNNER_TEMP/pdd-image-binding-predicate.json"
           python - <<'PY' >> "$GITHUB_OUTPUT"

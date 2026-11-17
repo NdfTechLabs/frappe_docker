@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ndftechlabs.com/schemas/dt-master-candidate-origin-identity-policy-v1.schema.json",
+  "title": "DT Master Candidate Origin Signer Identity Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "status",
+    "issuer",
+    "verification",
+    "identity"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "policy_id": { "const": "dt-master-candidate-origin-identity-policy-v1" },
+    "status": {
+      "enum": ["provisional_until_live_certificate_observation", "confirmed"]
+    },
+    "issuer": { "const": "https://token.actions.githubusercontent.com" },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_repository",
+        "required_ref",
+        "required_event_name"
+      ],
+      "properties": {
+        "required_repository": { "const": "NdfTechLabs/dt_master" },
+        "required_ref": { "const": "refs/heads/main" },
+        "required_event_name": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["certificate_identity", "workflow_path", "workflow_ref"],
+      "properties": {
+        "certificate_identity": { "type": ["string", "null"], "minLength": 1 },
+        "workflow_path": {
+          "type": ["string", "null"],
+          "pattern": "^\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml$"
+        },
+        "workflow_ref": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "confirmed" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "verification": {
+            "properties": {
+              "required_event_name": { "type": "string", "minLength": 1 }
+            }
+          },
+          "identity": {
+            "properties": {
+              "certificate_identity": { "type": "string", "minLength": 1 },
+              "workflow_path": { "type": "string" },
+              "workflow_ref": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

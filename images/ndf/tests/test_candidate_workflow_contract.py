@@ -56,7 +56,7 @@ def test_pdd_source_ownership_checks_remain_intact():
     binding = read_workflow("ndf-verify-product-deployment-binding.yml")
     publication = read_workflow("ndf-publish-product-deployment-descriptor.yml")
     assert ".github/workflows/ndf-publish-product.yml" in binding
-    assert "Publish {image_id}" in binding
+    assert "Build and validate {image_id}" in binding
     assert "Build staging image (not the official product tag)" in binding
     assert ".github/workflows/ndf-publish-product.yml" in publication
     assert ".github/workflows/ndf-verify-product-deployment-binding.yml" in publication
@@ -149,10 +149,13 @@ def test_candidate_terminal_result_job_is_always_run_and_least_privileged():
     assert "write_deployment_build_result.py" in result_job
     assert "deployment-build-result-v1.schema.json" in result_job
     assert (
-        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}"
+        "ndf-candidate-evidence-${{ github.run_id }}-${{ github.run_attempt }}"
         in result_job
     )
     assert "retention-days: 90" in result_job
+    assert "generate_deployment_build_trust_evidence.py" in result_job
+    assert "package_deployment_build_evidence.py pack" in result_job
+    assert "package_deployment_build_evidence.py verify" in result_job
 
 
 def test_candidate_result_job_preserves_attempt_and_pdd_correlation():
@@ -179,3 +182,64 @@ def test_candidate_dispatch_requires_canonical_correlation_id():
     assert "required: true" in dispatch
     assert "Optional" not in dispatch
     assert "CORRELATION_ID: ${{ inputs.correlation_id }}" in workflow
+
+
+def test_candidate_origin_verification_precedes_intake_and_blocks_preparation():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    origin_job = workflow.split("  verify-candidate-origin:", 1)[1].split(
+        "  prepare-candidate:", 1
+    )[0]
+    prepare_job = workflow.split("  prepare-candidate:", 1)[1].split(
+        "  build-candidate:", 1
+    )[0]
+    assert "verify_deployment_candidate_origin.py" in origin_job
+    assert "cosign-release: v3.1.4" in origin_job
+    assert "packages: read" in origin_job
+    assert "packages: write" not in origin_job
+    assert "needs: [dispatch-gate, verify-candidate-origin]" in prepare_job
+    assert workflow.index("verify_deployment_candidate_origin.py") < workflow.index(
+        "intake_deployment_candidate.py"
+    )
+    assert workflow.index("intake_deployment_candidate.py") < workflow.index(
+        "adapt_candidate_to_lock.py"
+    )
+
+
+def test_candidate_terminal_result_requires_origin_verification_outcome():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    result_job = workflow.split("  publish-candidate-result:", 1)[1]
+    assert "verify-candidate-origin" in result_job
+    assert (
+        "ORIGIN_VERIFY_RESULT: ${{ needs.verify-candidate-origin.result }}"
+        in result_job
+    )
+    assert "CANDIDATE_ORIGIN_TRUST_FAILED" in read_workflow(
+        "ndf-build-candidate.yml"
+    ) or "CANDIDATE_ORIGIN_TRUST_FAILED" in (
+        ROOT / "images" / "ndf" / "scripts" / "write_deployment_build_result.py"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+
+def test_candidate_terminal_job_publishes_only_verified_attempt_bundle():
+    workflow = read_workflow("ndf-build-candidate.yml")
+    result_job = workflow.split("  publish-candidate-result:", 1)[1]
+    report = result_job.index("generate_deployment_build_trust_evidence.py")
+    pack = result_job.index("package_deployment_build_evidence.py pack")
+    verify = result_job.index("package_deployment_build_evidence.py verify")
+    upload = result_job.index("Upload immutable attempt evidence bundle")
+    assert report < pack < verify < upload
+    assert (
+        "ndf-candidate-evidence-${{ github.run_id }}-${{ github.run_attempt }}"
+        in result_job
+    )
+    assert (
+        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}"
+        not in result_job
+    )
+    assert "if: always()" in result_job
+    assert (
+        "ORIGIN_VERIFY_RESULT: ${{ needs.verify-candidate-origin.result }}"
+        in result_job
+    )

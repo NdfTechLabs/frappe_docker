@@ -18,7 +18,8 @@ def section(source: str, start: str, end: str | None = None) -> str:
 def test_candidate_pipeline_has_a_fail_closed_stage_dependency_chain():
     entry = workflow("ndf-build-candidate.yml")
 
-    assert "needs: dispatch-gate" in section(entry, "  prepare-candidate:")
+    prepare = section(entry, "  prepare-candidate:")
+    assert "needs: [dispatch-gate, verify-candidate-origin]" in prepare
     assert "needs: prepare-candidate" in section(entry, "  build-candidate:")
     pdd = section(entry, "  publish-candidate-pdd:", "  publish-candidate-result:")
     assert "needs: [prepare-candidate, build-candidate]" in pdd
@@ -27,6 +28,7 @@ def test_candidate_pipeline_has_a_fail_closed_stage_dependency_chain():
     assert "if: always()" in result
     for dependency in (
         "- dispatch-gate",
+        "- verify-candidate-origin",
         "- prepare-candidate",
         "- build-candidate",
         "- publish-candidate-pdd",
@@ -94,7 +96,15 @@ def test_pdd_outputs_are_bound_to_the_same_attempt_result():
     assert "write_deployment_build_result.py" in result
     assert "deployment-build-result-v1.schema.json" in result
     assert (
-        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}" in result
+        "ndf-candidate-evidence-${{ github.run_id }}-${{ github.run_attempt }}"
+        in result
+    )
+    assert "${{ runner.temp }}/ndf-candidate-evidence-bundle/" in result
+    assert "package_deployment_build_evidence.py pack" in result
+    assert "package_deployment_build_evidence.py verify" in result
+    assert (
+        "ndf-candidate-result-${{ github.run_id }}-${{ github.run_attempt }}"
+        not in result
     )
 
 
