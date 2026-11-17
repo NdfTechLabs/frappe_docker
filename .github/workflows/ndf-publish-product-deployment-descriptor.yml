@@ -165,7 +165,7 @@ jobs:
           print(f"Independent source-image trust evidence: {verification_name}")
           print(f"Binding verification: {verification['html_url']}")
           print(f"Build evidence: {build_name}")
-          print(f"Verified descriptor/report: {verification_name}")
+          print(f"Verified descriptor/report: {VERIFICATION_ARTIFACT_NAME}")
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"source_signing_artifact_name={signing_name}\n")
               output.write(f"source_verification_artifact_name={verification_name}\n")
@@ -187,6 +187,23 @@ jobs:
           test -s "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"
           test -s "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"
           cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"
+          python - "$SOURCE_SIGNING_DIR/cosign-sign-result.json" "$EVIDENCE_DIR/build-metadata.json" "$EVIDENCE_DIR/build-result.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          signing = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          metadata = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          build = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+          repository = metadata.get("image", {}).get("repository")
+          digest = build.get("digest")
+          if (
+              signing.get("status") != "signed"
+              or signing.get("image_repository") != repository
+              or signing.get("image_digest") != digest
+          ):
+              raise SystemExit("Source signing evidence does not match the exact build image digest.")
+          PY
           test -s "$VERIFICATION_DIR/product-deployment.json"
           test -s "$VERIFICATION_DIR/binding-verification.json"
           cp "$VERIFICATION_DIR/product-deployment.json" "$EVIDENCE_DIR/product-deployment.json"
