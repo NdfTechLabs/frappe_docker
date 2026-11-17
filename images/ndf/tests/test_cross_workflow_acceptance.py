@@ -127,6 +127,23 @@ def test_release_promotion_is_blocked_unless_source_trust_verification_succeeds(
     assert "docker buildx imagetools create" in release
 
 
+def test_product_image_to_pdd_boundary_uses_current_signing_and_verification_artifacts():
+    product = _workflow("ndf-publish-product.yml")
+    pdd = _workflow("ndf-publish-product-deployment-descriptor.yml")
+
+    assert "name: ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
+    assert "name: ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
+    assert 'signing_name = f"ndf-cosign-sign-{image_id}-{build_id}-{build_attempt}"' in pdd
+    assert 'verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"' in pdd
+    assert 'signing_job_name = f"Sign product image {image_id}"' in pdd
+    assert 'verification_job_name = f"Independently verify product trust for {image_id}"' in pdd
+    assert "cosign-sign-result.json" in pdd
+    assert "cosign-independent-verification-result.json" in pdd
+    assert '--source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"' in pdd
+    assert '--source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"' in pdd
+    assert "ndf-cosign-live-" not in pdd
+    assert "cosign-live-verification-result.json" not in pdd
+
 def test_pdd_consumer_is_read_only_and_never_grants_deployment_authorization():
     workflow = _workflow("ndf-fetch-product-deployment-descriptor.yml")
     assert (
