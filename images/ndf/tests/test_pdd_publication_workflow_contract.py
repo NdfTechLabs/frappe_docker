@@ -29,33 +29,49 @@ def test_pdd_publication_job_has_only_required_registry_write_permission():
     assert "actions: write" not in permissions
 
 
-def test_source_trust_artifact_is_derived_from_exact_build_artifact_identity():
+def test_source_trust_artifacts_are_derived_from_exact_build_artifact_identity():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
     assert 're.fullmatch(r"ndf-publish-(.+)-(\\d+)-(\\d+)", build_name)' in workflow
     assert (
-        'trust_name = f"ndf-cosign-live-{image_id}-{build_id}-{build_attempt}"'
+        'signing_name = f"ndf-cosign-sign-{image_id}-{build_id}-{build_attempt}"'
         in workflow
     )
-    assert 'trust_job_name = f"Live Cosign trust check for {image_id}"' in workflow
-    assert "build-jobs.json" in workflow
-    assert "jobs?per_page=100" in workflow
-    assert 'trust_job.get("conclusion") != "success"' in workflow
-    assert 'trust_artifact.get("expired")' in workflow
+    assert (
+        'verification_name = f"ndf-cosign-verify-{image_id}-{build_id}-{build_attempt}"'
+        in workflow
+    )
+    assert 'signing_job_name = f"Sign product image {image_id}"' in workflow
+    assert (
+        'verification_job_name = f"Independently verify product trust for {image_id}"'
+        in workflow
+    )
+    assert 'signing_job.get("conclusion") != "success"' in workflow
+    assert 'verification_job.get("conclusion") != "success"' in workflow
+    assert 'signing_artifact.get("expired")' in workflow
+    assert 'verification_artifact.get("expired")' in workflow
 
+    product = read_workflow("ndf-publish-product.yml")
+    assert "name: ndf-cosign-sign-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
+    assert "name: ndf-cosign-verify-${{ matrix.image }}-${{ github.run_id }}-${{ github.run_attempt }}" in product
 
-def test_source_trust_artifact_must_be_present_and_match_build_predicate():
+def test_source_signing_and_verification_artifacts_match_build_predicate():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
-    download = workflow.split("name: Download original build evidence", 1)[1].split(
-        "\n      - name:", 1
-    )[0]
-    assert "steps.source.outputs.source_trust_artifact_name" in download
-    assert "cosign-live-verification-result.json" in download
+    download = workflow.split(
+        "name: Download exact source build, signing and verification evidence", 1
+    )[1].split("\n      - name:", 1)[0]
+    assert "source_signing_artifact_name" in download
+    assert "source_verification_artifact_name" in download
+    assert "cosign-sign-result.json" in download
+    assert "cosign-independent-verification-result.json" in download
     assert "image-provenance-predicate.json" in download
     assert (
-        'cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_TRUST_DIR/image-provenance-predicate.json"'
+        'cmp "$EVIDENCE_DIR/image-provenance-predicate.json" "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"'
         in download
     )
-
+    assert '--source-trust-result "$SOURCE_VERIFY_DIR/cosign-independent-verification-result.json"' in workflow
+    assert '--source-predicate "$SOURCE_SIGNING_DIR/image-provenance-predicate.json"' in workflow
+    assert "cosign-live-verification-result.json" not in workflow
+    assert "ndf-cosign-live-" not in workflow
 
 def test_existing_publication_receipt_artifact_contract_is_preserved():
     workflow = read_workflow("ndf-publish-product-deployment-descriptor.yml")
